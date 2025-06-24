@@ -1,0 +1,13 @@
+{
+  "name": "drift-example-basic",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "drift": "github:jk2908/drift#main"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+} 
