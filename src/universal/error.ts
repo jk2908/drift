@@ -62,7 +62,7 @@ export function $error(
 }
 
 /**
- * A function that converts an unknown error to $ErrorOptions 
+ * A function that converts an unknown error to $ErrorOptions
  * @param err - The error to convert
  * @returns The $ErrorOptions
  */

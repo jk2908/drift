@@ -7,21 +7,21 @@ import { INJECT_RUNTIME } from '../constants'
  * @returns The code with the runtime injected
  */
 export async function injectRuntime(bundle: {
-  server?: { entryPath: string | null }
-  client?: { entryPath: string | null }
+	server?: { entryPath: string | null }
+	client?: { entryPath: string | null }
 }) {
-  // @note: to be used inside closeBundle
-  if (!bundle.server?.entryPath || !bundle.client?.entryPath) {
-    throw new Error(
-      'framework:server:injectRuntime: no server or client entry path found, cannot inject runtime',
-    )
-  }
+	// @note: to be used inside closeBundle
+	if (!bundle.server?.entryPath || !bundle.client?.entryPath) {
+		throw new Error(
+			'framework:server:injectRuntime: no server or client entry path found, cannot inject runtime',
+		)
+	}
 
-  const serverEntry = Bun.file(path.resolve(process.cwd(), bundle.server.entryPath))
-  const code = await serverEntry.text()
-  const runtime = bundle.client.entryPath.replace(/\\/g, '/').split('/').pop()
+	const serverEntry = Bun.file(path.resolve(process.cwd(), bundle.server.entryPath))
+	const code = await serverEntry.text()
+	const runtime = bundle.client.entryPath.replace(/\\/g, '/').split('/').pop()
 
-  if (!runtime) throw new Error('framework:server:injectRuntime: no runtime found')
+	if (!runtime) throw new Error('framework:server:injectRuntime: no runtime found')
 
-  return code.replaceAll(INJECT_RUNTIME, runtime)
-} 
+	return code.replaceAll(INJECT_RUNTIME, runtime)
+}

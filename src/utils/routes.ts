@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { ROUTES_DIR, GENERATED_DIR } from '../constants'
+import { APP_DIR, GENERATED_DIR } from '../constants'
 
 export function getImportPath(file: string) {
 	const cwd = process.cwd()
@@ -16,11 +16,10 @@ export const isDynamicRoute = (route: string) => route.includes(':')
 
 export function routify(file: string, replace?: string) {
 	return (
-	  file
-		.replace(new RegExp(`^${ROUTES_DIR}`), '')
-		.replace(/\/index\.(j|t)sx?$/, '/')
-		.replace(/\.(j|t)sx?$/, '')
-		.replace(/\[(.+?)\]/g, ':$1') || '/'
+		file
+			.replace(new RegExp(`^${APP_DIR}`), '')
+			.replace(/\/index\.(j|t)sx?$/, '/')
+			.replace(/\.(j|t)sx?$/, '')
+			.replace(/\[(.+?)\]/g, ':$1') || '/'
 	)
-  }
-  
+}

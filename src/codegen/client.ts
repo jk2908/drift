@@ -6,12 +6,12 @@ export function createClient({ config }: { config: Config }) {
     import { hydrateRoot, createRoot } from 'react-dom/client'
     import { hc } from 'hono/client'
 
-    import type { App } from '@jk2908/drift/server'
-    import { runtime } from '@jk2908/drift/runtime'
+    import type { App } from 'drift/server'
+    import { runtime } from 'drift/runtime'
 
-    import { HYDRATE_ID } from '../plugins/drift/config'
-    import { router, RouterProvider } from '../plugins/drift/router'
-    import { merge } from '../plugins/drift/metadata'
+    import { HYDRATE_ID } from '@jk2908/drift/config'
+    import { router, RouterProvider } from '@jk2908/drift/router'
+    import { merge } from '@jk2908/drift/metadata'
     
     export const client = hc<App>(import.meta.env.VITE_APP_URL)
 

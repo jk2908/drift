@@ -1,13 +1,13 @@
 import { PKG_NAME } from '../constants'
 
 export function createManifest({
-  imports,
-  entries,
+	imports,
+	entries,
 }: {
-  imports: { static: Map<string, string>, dynamic: Map<string, string> },
-  entries: string[],
+	imports: { static: Map<string, string>; dynamic: Map<string, string> }
+	entries: string[]
 }) {
-  return `
+	return `
     import { lazy } from 'react'
 
     ${[...imports.static.entries()].map(([key, value]) => `import { ${key} } from '${value}'`).join('\n')}

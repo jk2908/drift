@@ -1,10 +1,16 @@
 {
-  "extends": "../../tsconfig.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "drift": ["../../src"]
-    }
-  },
-  "include": ["app/**/*"]
-} 
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"#/*": ["./app/*"],
+			"drift/manifest": [".drift/manifest.ts"],
+			"drift/client": [".drift/client.tsx"],
+			"drift/runtime": [".drift/runtime.tsx"],
+			"drift/server": [".drift/server.tsx"]
+		},
+		"jsx": "react-jsx",
+		"jsxImportSource": "react"
+	},
+	"include": ["app", ".drift/*"]
+}

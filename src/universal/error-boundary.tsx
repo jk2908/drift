@@ -1,10 +1,10 @@
-import { Component } from 'react';
+import { Component } from 'react'
 
 type Props = {
-  fallback: ((error: Error, reset: () => void) => React.ReactNode) | React.ReactNode;
-  onReset?: () => void;
-  children: React.ReactNode;
-};
+	fallback: ((error: Error, reset: () => void) => React.ReactNode) | React.ReactNode
+	onReset?: () => void
+	children: React.ReactNode
+}
 
 /**
  * A component that catches synchronous errors in its child component tree and displays a fallback UI
@@ -15,34 +15,34 @@ type Props = {
  * @returns Component
  */
 export class ErrorBoundary extends Component<
-  Props,
-  {
-    error: Error | null;
-  }
+	Props,
+	{
+		error: Error | null
+	}
 > {
-  constructor(props: Props) {
-    super(props);
+	constructor(props: Props) {
+		super(props)
 
-    this.state = { error: null };
-    this.reset = this.reset.bind(this);
-  }
+		this.state = { error: null }
+		this.reset = this.reset.bind(this)
+	}
 
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
+	static getDerivedStateFromError(error: Error) {
+		return { error }
+	}
 
-  reset() {
-    this.props.onReset?.();
-    this.state.error && this.setState({ error: null });
-  }
+	reset() {
+		this.props.onReset?.()
+		this.state.error && this.setState({ error: null })
+	}
 
-  render() {
-    const { error } = this.state;
+	render() {
+		const { error } = this.state
 
-    if (!error) return this.props.children;
+		if (!error) return this.props.children
 
-    return typeof this.props.fallback === 'function'
-      ? this.props.fallback(error, this.reset)
-      : this.props.fallback;
-  }
+		return typeof this.props.fallback === 'function'
+			? this.props.fallback(error, this.reset)
+			: this.props.fallback
+	}
 }

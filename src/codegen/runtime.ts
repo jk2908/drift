@@ -1,4 +1,4 @@
-import { ASSETS_DIR, INJECT_RUNTIME } from '../constants'
+import { ASSETS_DIR, INJECT_RUNTIME } from '/constants'
 
 export function createRuntime() {
 	return `
@@ -25,7 +25,7 @@ export function createRuntime() {
         )}
         <script
           type="module"
-          src={import.meta.env.PROD ? '/${ASSETS_DIR}/${INJECT_RUNTIME}' : '/app/entry.client.tsx'}
+          src={import.meta.env.PROD ? '/${ASSETS_DIR}/${INJECT_RUNTIME}' : '/.drift/entry.client.tsx'}
         />
       </>
     )

@@ -9,8 +9,6 @@ import {
 	useRef,
 } from 'react'
 
-import { manifest } from 'drift/manifest'
-
 import type { Config, Metadata, Manifest, PageRoute, Params } from '../types'
 import { HYDRATE_ID } from '../constants'
 import { ErrorBoundary } from './error-boundary'
@@ -39,7 +37,7 @@ const STATIC = 'S'
 const DYNAMIC = 'D'
 
 export class Router {
-	manifest: Manifest = {}
+	manifest: Manifest = import.meta.glob('.drift/manifest.ts', { eager: true })
 
 	#patterns = new Map<string, Pattern>()
 	#lengths = new Map<number, string[]>()
@@ -63,8 +61,6 @@ export class Router {
 	}
 
 	constructor() {
-		this.manifest = manifest
-
 		for (const [route, entry] of Object.entries(this.manifest)) {
 			// @note: an api entry can be singular or an array of
 			// multiple HTTP methods. Either way, don't parse it
@@ -352,7 +348,15 @@ export function RouterProvider({
 			) : (
 				<ErrorBoundary
 					fallback={(err, reset) => <fallback.Component error={err} reset={reset} />}>
-					<Tree leaves={[...(match.layouts ?? []), (props: { params: Record<string, string>; children: React.ReactNode }) => <match.Component {...props} />]} params={match.params} />
+					<Tree
+						leaves={[
+							...(match.layouts ?? []),
+							(props: { params: Record<string, string>; children: React.ReactNode }) => (
+								<match.Component {...props} />
+							),
+						]}
+						params={match.params}
+					/>
 				</ErrorBoundary>
 			),
 		[match, fallback],

@@ -1,10 +1,10 @@
 import type { Hono } from 'hono'
 
-import type { Route } from './types'
+import type { Manifest } from './types'
 
 declare module 'drift/client' {
 	export const client: Hono
-  
+
 	export function mount(
 		render: ({
 			children,
@@ -19,11 +19,11 @@ declare module 'drift/client' {
 }
 
 declare module 'drift/manifest' {
-	export const manifest: Record<'page' | 'api', Route>
+	export const manifest: Manifest
 }
 
 declare module 'drift/runtime' {
-	export const assets: React.ReactNode
+	export const runtime: React.ReactNode
 }
 
 declare module 'drift/server' {

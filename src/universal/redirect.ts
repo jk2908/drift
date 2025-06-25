@@ -10,11 +10,11 @@ export const REDIRECT_SYMBOL = Symbol('redirect')
 export class $Redirect {
 	readonly url: string
 	readonly status: $RedirectStatus
-  readonly [REDIRECT_SYMBOL]: true = true as const
+	readonly [REDIRECT_SYMBOL]: true = true as const
 
 	constructor(status: $RedirectStatus, url: string) {
 		this.status = status
-    this.url = url
+		this.url = url
 	}
 }
 
@@ -25,5 +25,5 @@ export class $Redirect {
  * @returns Never
  */
 export function $redirect(status: $RedirectStatus, url: string): never {
-  throw new $Redirect(status, url)
+	throw new $Redirect(status, url)
 }

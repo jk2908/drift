@@ -17,7 +17,6 @@ import {
 	ENTRY_SERVER,
 	GENERATED_DIR,
 	HTTP_METHODS,
-	ROUTES_DIR,
 	ASSETS_DIR,
 } from './constants'
 
@@ -65,7 +64,7 @@ const DEFAULT_CONFIG = {
 	outDir: 'dist',
 } as const satisfies Partial<Config>
 
-export default function drift(c: Config) {
+export default function drift(c: Config): PluginOption[] {
 	const config = { ...DEFAULT_CONFIG, ...c }
 
 	if (!config.ctx) throw new Error('drift: vite ctx is required')
@@ -116,7 +115,7 @@ export default function drift(c: Config) {
 				prerenders = new Set()
 
 				const cwd = process.cwd()
-				const routesDir = path.join(cwd, ROUTES_DIR)
+				const routesDir = path.join(cwd, APP_DIR)
 				const generatedDir = path.join(cwd, GENERATED_DIR)
 
 				await fs.mkdir(routesDir, { recursive: true })
@@ -141,13 +140,16 @@ export default function drift(c: Config) {
 
 						if (!layout) {
 							const layoutId = `${LAYOUT_ID_PREFIX}${nanoid()}`
-							layout = { id: layoutId, prerender: await isPrerenderable(layoutPath, transpiler) }
+							layout = {
+								id: layoutId,
+								prerender: await isPrerenderable(layoutPath, transpiler),
+							}
 
 							layoutCache.set(layoutPath, layout)
 							imports.dynamic.set(layoutId, `import('${getImportPath(layoutPath)}')`)
 						}
 
-            layoutIds.push(layout.id)
+						layoutIds.push(layout.id)
 						hasInheritedPrerender ||= layout.prerender
 					}
 
@@ -174,7 +176,7 @@ export default function drift(c: Config) {
 								console.warn(
 									`drift:prerender: no prerenderable routes found for ${page}, skipping prerendering`,
 								)
-                
+
 								continue
 							}
 
@@ -185,7 +187,7 @@ export default function drift(c: Config) {
 					imports.dynamic.set(pageId, `import('${pageImportPath}')`)
 
 					entries.push(`'${pageRoute}': {
-						layouts: [${layoutIds.map(id => `${id}.default`).join(', ')}],
+						layouts: [${layoutIds.map(id => `${id}.then(m => m.default)`).join(', ')}],
 						Component: lazy(() => ${pageId}.then(m => ({ default: m.default }))),
 						async metadata({ params }: { params?: Params }) {
 							const m = await ${pageId}
@@ -274,7 +276,7 @@ export default function drift(c: Config) {
 							rollupOptions: {
 								...(viteConfig.build?.rollupOptions || {}),
 								input: {
-									client: `/${APP_DIR}/${ENTRY_CLIENT}`,
+									client: `/${GENERATED_DIR}/${ENTRY_CLIENT}`,
 								},
 								output: {
 									...(viteConfig.build?.rollupOptions?.output || {}),
@@ -305,6 +307,11 @@ export default function drift(c: Config) {
 					},
 					resolve: {
 						alias: {
+							...(viteConfig.resolve?.alias ?? {}),
+							'drift/server': path.resolve(process.cwd(), '.drift/server.tsx'),
+							'drift/client': path.resolve(process.cwd(), '.drift/client.tsx'),
+							'drift/runtime': path.resolve(process.cwd(), '.drift/runtime.tsx'),
+							'drift/manifest': path.resolve(process.cwd(), '.drift/manifest.ts'),
 							'#/app': path.resolve(process.cwd(), APP_DIR),
 						},
 					},
@@ -329,7 +336,7 @@ export default function drift(c: Config) {
 					}
 
 					const json = await manifest.json()
-					const clientEntryPath = json[`${APP_DIR}/${ENTRY_CLIENT}`].file
+					const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_CLIENT}`].file
 
 					build.bundle.client.entryPath = path.join(
 						options.dir ?? config.outDir,
@@ -479,7 +486,7 @@ export default function drift(c: Config) {
 		react(),
 		devServer({
 			adapter,
-			entry: `./${APP_DIR}/${ENTRY_SERVER}`,
+			entry: `./${GENERATED_DIR}/${ENTRY_SERVER}`,
 			exclude: [
 				/.*\.(j|t)sx?($|\?)/,
 				/.*\.(s?css|less)($|\?)/,
@@ -492,5 +499,5 @@ export default function drift(c: Config) {
 			injectClientScript: false,
 		}),
 		bunBuild({ entry: `./${APP_DIR}/${ENTRY_SERVER}` }),
-	] satisfies PluginOption[]
+	]
 }

@@ -18,7 +18,9 @@ export function merge(...args: (Metadata | undefined)[]) {
 		const rawTitle = item.title?.toString()
 		if (rawTitle) titleSegments.unshift(rawTitle)
 
-		const hasTemplate = titleSegments.some(segment => segment.includes(TITLE_TEMPLATE_STR))
+		const hasTemplate = titleSegments.some(segment =>
+			segment.includes(TITLE_TEMPLATE_STR),
+		)
 
 		if (hasTemplate) {
 			acc.title = titleSegments.reduce((accTitle, segment) => {
@@ -30,19 +32,16 @@ export function merge(...args: (Metadata | undefined)[]) {
 			acc.title = titleSegments[0]
 		}
 
-		acc.meta = dedupeWithPriority<MetaTag>(
-			acc.meta,
-			item.meta,
-			tag =>
-				'name' in tag && tag.name
-					? tag.name
-					: 'property' in tag && tag.property
-						? tag.property
-						: 'httpEquiv' in tag && tag.httpEquiv
-							? tag.httpEquiv
-							: 'charSet' in tag && tag.charSet
-								? tag.charSet
-								: JSON.stringify(tag)
+		acc.meta = dedupeWithPriority<MetaTag>(acc.meta, item.meta, tag =>
+			'name' in tag && tag.name
+				? tag.name
+				: 'property' in tag && tag.property
+					? tag.property
+					: 'httpEquiv' in tag && tag.httpEquiv
+						? tag.httpEquiv
+						: 'charSet' in tag && tag.charSet
+							? tag.charSet
+							: JSON.stringify(tag),
 		)
 
 		acc.link = dedupeWithPriority<LinkTag>(
@@ -55,7 +54,7 @@ export function merge(...args: (Metadata | undefined)[]) {
 				(tag.type ?? '') +
 				(tag.media ?? '') +
 				(tag.sizes ?? '') +
-				(tag.crossOrigin ?? '')
+				(tag.crossOrigin ?? ''),
 		)
 
 		return acc

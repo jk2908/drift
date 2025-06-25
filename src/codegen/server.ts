@@ -19,13 +19,13 @@ export function createServer({
     import { serveStatic } from 'hono/bun'
     import { isbot } from 'isbot'
 
-    import { runtime } from '@jk2908/drift/runtime'
+    import { runtime } from 'drift/runtime'
 
-    import { router, RouterProvider } from '../plugins/drift/router'
-    import { $Redirect, REDIRECT_SYMBOL } from '../plugins/drift/redirect'
-    import { $error, $Error, ERROR_SYMBOL } from '../plugins/drift/error'
-    import { HYDRATE_ID } from '../plugins/drift/config'
-    import { merge } from '../plugins/drift/metadata'
+    import { router, RouterProvider } from '@jk2908/drift/router'
+    import { $Redirect, REDIRECT_SYMBOL } from '@jk2908/drift/redirect'
+    import { $error, $Error, ERROR_SYMBOL } from '@jk2908/drift/error'
+    import { HYDRATE_ID } from '@jk2908/drift/config'
+    import { merge } from '@jk2908/drift/metadata'
 
     ${[...imports.entries()].map(([key, value]) => `import { ${key} } from '${value}'`).join('\n')}
 
@@ -53,32 +53,32 @@ export function createServer({
           }))
         ${handlers.join('\n')}
         .get('*', async c => {
-          let controller: AbortController | null = new AbortController();
-          let error = null;
+          let controller: AbortController | null = new AbortController()
+          let error = null
 
           if (c.req.path.startsWith('/.well-known/appspecific/com.chrome.devtools.json')) {
-            return c.body(null, 204);
+            return c.body(null, 204)
           }
 
           try {
-            const match = router.match(c.req.path);
+            const match = router.match(c.req.path)
 
-            if (!match) $error(404, 'Not Found');
+            if (!match) $error(404, 'Not Found')
 
             if (match?.prerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
               const outPath =
                 c.req.path === '/'
                   ? path.join(import.meta.dir, 'index.html')
-                  : path.join(import.meta.dir, c.req.path, 'index.html');
+                  : path.join(import.meta.dir, c.req.path, 'index.html')
 
-              return c.html(await Bun.file(outPath).text());
+              return c.html(await Bun.file(outPath).text())
             }
 
             const metadata = merge(
               ${JSON.stringify(config.metadata ?? {})},
               await match.metadata?.({ params: match.params })
-            );
-            const data = JSON.stringify({ config: ${JSON.stringify(config)}, metadata });
+            )
+            const data = JSON.stringify({ config: ${JSON.stringify(config)}, metadata })
 
             const assets = (
               <>
@@ -92,7 +92,7 @@ export function createServer({
                   }}
                 />
               </>
-            );
+            )
 
             const stream = await renderToReadableStream(
               <RouterProvider 
@@ -110,12 +110,12 @@ export function createServer({
                 signal: controller?.signal,
                 onError(err: unknown) {
                   console.error('drift:server:stream', err)
-                  error = err;
+                  error = err
                 }
               },
-            );
+            )
 
-            if (error) throw error;
+            if (error) throw error
             if (isbot(c.req.header('User-Agent'))) await stream.allReady
 
             return c.body(stream, {
@@ -124,7 +124,7 @@ export function createServer({
                 'Content-Type': 'text/html',
                 'Transfer-Encoding': 'chunked',
               },
-            });
+            })
           } catch (err) {
             if (
               err &&
@@ -134,11 +134,11 @@ export function createServer({
             ) {
               console.log('drift:server:redirect', err.url, err.status)
 
-              controller?.abort();
-              controller = null;
-              error = null;
+              controller?.abort()
+              controller = null
+              error = null
 
-              return c.redirect(err.url, err.status);
+              return c.redirect(err.url, err.status)
             }
 
             if (

@@ -80,7 +80,8 @@ export async function* prerender(route: string, app: Hono) {
 		const req = new Request(url.toString())
 		const res = await app.fetch(req)
 
-		if (!res.ok) throw new Error(`framework:prerender:prerender* ${route} returned ${res.status}`)
+		if (!res.ok)
+			throw new Error(`framework:prerender:prerender* ${route} returned ${res.status}`)
 
 		yield {
 			route,

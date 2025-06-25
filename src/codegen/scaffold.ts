@@ -1,91 +1,49 @@
-import path from 'node:path';
-import { APP_DIR, ENTRY_SERVER, ENTRY_CLIENT } from '../constants';
+import path from 'node:path'
+import { APP_DIR, ENTRY_SERVER, ENTRY_CLIENT, GENERATED_DIR } from '../constants'
 
 export async function createAppEntries() {
-  const cwd = process.cwd();
+	const cwd = process.cwd()
 
-  const appDir = path.join(cwd, APP_DIR);
-  const serverEntry = path.join(appDir, ENTRY_SERVER);
-  const clientEntry = path.join(appDir, ENTRY_CLIENT);
-  const shellEntry = path.join(appDir, 'shell.tsx');
+	const generatedDir = path.join(cwd, GENERATED_DIR)
+	const serverEntry = path.join(generatedDir, ENTRY_SERVER)
+	const clientEntry = path.join(generatedDir, ENTRY_CLIENT)
+	const rootLayoutImport = `../${APP_DIR}/layout`
 
-  const promises: Promise<number>[] = [];
+	const promises: Promise<number>[] = []
 
-  if (!(await Bun.file(serverEntry).exists())) {
-    promises.push(
-      Bun.write(
-        serverEntry,
-        `
-          import { handle } from '@jk2908/drift/server'
-          
-          import { Shell } from './shell'
-          
-          const app = handle(({ children, assets, metadata }) => 
-            <Shell assets={assets} metadata={metadata}>
-              {children}
-            </Shell>
-          )
-          
-          export default app
-        `.trim()
-      )
-    );
-  }
+	promises.push(
+		Bun.write(
+			serverEntry,
+			`
+        import { handle } from 'drift/server';
+        import RootLayout from '${rootLayoutImport}';
 
-  if (!(await Bun.file(clientEntry).exists())) {
-    promises.push(
-      Bun.write(
-        clientEntry,
-        `
-          import { mount } from '@jk2908/drift/client'
+        const app = handle(({ children, assets, metadata }) =>
+          <RootLayout assets={assets} metadata={metadata}>
+            {children}
+          </RootLayout>
+        );
 
-          import { Shell } from './shell'
+        export default app;
+      `.trim(),
+		),
+	)
 
-          mount(({ children, assets, metadata }) =>
-            <Shell assets={assets} metadata={metadata}>
-              {children}
-            </Shell>
-          )
-        `.trim()
-      )
-    );
-  }
+	promises.push(
+		Bun.write(
+			clientEntry,
+			`
+        import { mount } from 'drift/client';
+        import RootLayout from '${rootLayoutImport}';
 
-  if (!(await Bun.file(shellEntry).exists())) {
-    promises.push(
-      Bun.write(
-        shellEntry,
-        `
-          export function Shell({
-            children,
-            metadata,
-            assets,
-          }: {
-            children: React.ReactNode
-            assets: React.ReactNode
-            metadata?: React.ReactNode
-          }) {
-            return (
-              <html lang="en">
-                <head>
-                  <meta charSet="utf-8" />
-                  <meta content="width=device-width, initial-scale=1" name="viewport" />
+        mount(({ children, assets, metadata }) =>
+          <RootLayout assets={assets} metadata={metadata}>
+            {children}
+          </RootLayout>
+        );
+      `.trim(),
+		),
+	)
 
-                  {metadata}
-                </head>
-
-                <body>
-                  {children}
-
-                  {assets}
-                </body>
-              </html>
-            )
-          }
-        `.trim()
-      )
-    );
-  }
-
-  return promises;
+	return promises
 }

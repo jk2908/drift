@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { ROUTES_DIR } from '../constants'
+import { APP_DIR } from '../constants'
 
 /**
  * Compose the tree of the server
@@ -22,7 +22,6 @@ export async function compose(
 	},
 	prev: string[] = [],
 ) {
-	
 	const files = await fs.readdir(dir)
 	const cwd = process.cwd()
 
@@ -44,7 +43,7 @@ export async function compose(
 				curr = relative
 			}
 
-			if (relative.startsWith(`${ROUTES_DIR}/api/`)) {
+			if (relative.startsWith(`${APP_DIR}/api/`)) {
 				if (extensions.apis.includes(ext)) {
 					results.apis.push(relative)
 				}

@@ -1,13 +1,18 @@
 {
-  "name": "drift-example-basic",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "drift": "github:jk2908/drift#main"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0"
-  }
-} 
+	"name": "drift-example-basic",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bunx --bun vite"
+	},
+	"dependencies": {
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"vite-tsconfig-paths": "^5.1.4"
+	},
+	"devDependencies": {
+		"@types/react": "latest",
+		"@types/react-dom": "latest",
+		"typescript": "^5.0.0"
+	}
+}

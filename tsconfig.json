@@ -1,29 +1,22 @@
 {
-    "compilerOptions": {
-      "target": "ESNext",
-      "lib": [
-        "ESNext",
-        "DOM"
-      ],
-      "module": "ESNext",
-      "moduleResolution": "bundler",
-      "strict": true,
-      "jsx": "react-jsx",
-      "jsxImportSource": "react",
-      "allowSyntheticDefaultImports": true,
-      "paths": {
-        "#/*": ["./*"],
-        "drift/manifest": ["./src/codegen/manifest.ts"],
-        "drift/client": ["./src/codegen/client.ts"],
-        "drift/runtime": ["./src/codegen/runtime.ts"],
-        "drift/server": ["./src/codegen/server.ts"]
-      },
-      "types": [      
-        "vite/client",
-        "bun",
-      ]
-    },
-    "include": [
-      "src"
-    ]
-  }
+	"compilerOptions": {
+		"baseUrl": ".",
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "react",
+		"allowSyntheticDefaultImports": true,
+		"paths": {
+			"#/*": ["./*"],
+			"drift/manifest": [".drift/manifest.ts"],
+			"drift/client": [".drift/client.tsx"],
+			"drift/runtime": [".drift/runtime.tsx"],
+			"drift/server": [".drift/server.tsx"]
+		},
+		"types": ["vite/client", "bun"]
+	},
+	"include": ["src"]
+}
