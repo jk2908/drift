@@ -1,37 +1,77 @@
 {
-	"organizeImports": {
-		"enabled": true
-	},
-	"formatter": {
-		"enabled": true,
-		"formatWithErrors": false,
-		"ignore": [],
-		"attributePosition": "auto",
-		"indentStyle": "tab",
-		"indentWidth": 2,
-		"lineWidth": 90,
-		"lineEnding": "lf"
-	},
-	"javascript": {
-		"formatter": {
-			"arrowParentheses": "asNeeded",
-			"bracketSameLine": true,
-			"bracketSpacing": true,
-			"jsxQuoteStyle": "double",
-			"quoteProperties": "asNeeded",
-			"semicolons": "asNeeded",
-			"trailingCommas": "all",
-			"quoteStyle": "single"
-		}
-	},
-	"css": {
-		"linter": {
-			"enabled": false
-		}
-	},
-	"json": {
-		"formatter": {
-			"trailingCommas": "none"
-		}
-	}
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":NODE:", ":BUN:"],
+              ":BLANK_LINE:",
+              "vite",
+              ":BLANK_LINE:",
+              ["react", "react-dom"],
+              ":BLANK_LINE:",
+              "hono",
+              ":BLANK_LINE:",
+              ["@jk2908/drift/**/*", ".drift/**/*"],
+              ":PACKAGE:",
+              ":BLANK_LINE:",
+              ["./", "../"],
+              ":BLANK_LINE:",
+              ["./types", "../types"],
+              ":BLANK_LINE:",
+              ["./config", "../config"],
+              ":BLANK_LINE:",
+              ["./shared/**/*", "../shared/**/*"],
+              ":BLANK_LINE:",
+              ["./server/**/*", "../server/**/*"],
+              ":BLANK_LINE:",
+              ["./client/**/*", "../client/**/*"],
+              ":BLANK_LINE:",
+              ["./ui/**/*", "../ui/**/*"],
+              ":BLANK_LINE:",
+              ["./build/**/*", "../build/**/*"],
+              ":BLANK_LINE:",
+              ["./codegen/**/*", "../codegen/**/*"],
+              ":BLANK_LINE:",
+              ["./**/*", "../**/*"],
+              ":BLANK_LINE:"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "attributePosition": "auto",
+    "indentStyle": "tab",
+    "indentWidth": 2,
+    "lineWidth": 90,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "arrowParentheses": "asNeeded",
+      "bracketSameLine": true,
+      "bracketSpacing": true,
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all",
+      "quoteStyle": "single"
+    }
+  },
+  "css": {
+    "linter": {
+      "enabled": false
+    }
+  },
+  "json": {
+    "formatter": {
+      "trailingCommas": "none"
+    }
+  }
 }

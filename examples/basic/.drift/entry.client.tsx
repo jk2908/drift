@@ -1,8 +1,9 @@
-import { mount } from 'drift/client'
-import RootLayout from '../app/layout'
+import { mount } from '.drift/client'
+
+import Shell from '../app/+layout'
 
 mount(({ children, assets, metadata }) => (
-	<RootLayout assets={assets} metadata={metadata}>
+	<Shell assets={assets} metadata={metadata}>
 		{children}
-	</RootLayout>
+	</Shell>
 ))

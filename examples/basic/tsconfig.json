@@ -1,16 +1,21 @@
 {
-	"extends": "../../tsconfig.json",
 	"compilerOptions": {
 		"baseUrl": ".",
-		"paths": {
-			"#/*": ["./app/*"],
-			"drift/manifest": [".drift/manifest.ts"],
-			"drift/client": [".drift/client.tsx"],
-			"drift/runtime": [".drift/runtime.tsx"],
-			"drift/server": [".drift/server.tsx"]
-		},
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
 		"jsx": "react-jsx",
-		"jsxImportSource": "react"
+		"jsxImportSource": "react",
+		"allowSyntheticDefaultImports": true,
+		"paths": {
+			"#/*": ["./*"]
+		},
+		"types": ["vite/client", "bun"]
 	},
-	"include": ["app", ".drift/*"]
+	"include": [
+		"app",
+		".drift/*"
+	]
 }

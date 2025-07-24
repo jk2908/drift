@@ -1,19 +1,27 @@
+/// <reference types="bun" />
+
 import path from 'node:path'
 
-// @ts-expect-error
 import { renderToReadableStream } from 'react-dom/server.browser'
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
+import { trimTrailingSlash as trailingSlash } from 'hono/trailing-slash'
 import { isbot } from 'isbot'
 
-import { runtime } from 'drift/runtime'
+import { runtime } from '.drift/runtime'
+import { manifest } from '.drift/manifest'
 
-import { router, RouterProvider } from '@jk2908/drift/router'
-import { $Redirect, REDIRECT_SYMBOL } from '@jk2908/drift/redirect'
-import { $error, $Error, ERROR_SYMBOL } from '@jk2908/drift/error'
 import { HYDRATE_ID } from '@jk2908/drift/config'
-import { merge } from '@jk2908/drift/metadata'
+
+import { Logger } from '@jk2908/drift/shared/logger'
+import { Router, RouterProvider } from '@jk2908/drift/shared/router'
+import { Redirect } from '@jk2908/drift/shared/redirect'
+import { HTTPException } from '@jk2908/drift/shared/error'
+import { merge } from '@jk2908/drift/shared/metadata'
+
+const router = new Router(manifest)
+const logger = new Logger('error')
 
 export function handle(
 	render: ({
@@ -37,10 +45,11 @@ export function handle(
 				precompressed: true,
 			}),
 		)
+		.use(trailingSlash())
 
 		.get('*', async c => {
 			let controller: AbortController | null = new AbortController()
-			let error = null
+			let caughtError = null
 
 			if (c.req.path.startsWith('/.well-known/appspecific/com.chrome.devtools.json')) {
 				return c.body(null, 204)
@@ -48,8 +57,7 @@ export function handle(
 
 			try {
 				const match = router.match(c.req.path)
-
-				if (!match) $error(404, 'Not Found')
+				if (!match) throw new HTTPException(404, 'Not Found')
 
 				if (match?.prerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
 					const outPath =
@@ -77,6 +85,8 @@ export function handle(
 						precompress: true,
 						prerender: 'full',
 						outDir: 'dist',
+						trailingSlash: false,
+						logger: { level: 'debug' },
 						ctx: {
 							mode: 'development',
 							command: 'serve',
@@ -99,6 +109,7 @@ export function handle(
 				const assets = (
 					<>
 						{runtime}
+
 						<script
 							id={HYDRATE_ID}
 							type="application/json"
@@ -123,13 +134,13 @@ export function handle(
 					{
 						signal: controller?.signal,
 						onError(err: unknown) {
-							console.error('drift:server:stream', err)
-							error = err
+							logger.error(Logger.print(err), err)
+							caughtError = err
 						},
 					},
 				)
 
-				if (error) throw error
+				if (caughtError) throw caughtError
 				if (isbot(c.req.header('User-Agent'))) await stream.allReady
 
 				return c.body(stream, {
@@ -140,41 +151,23 @@ export function handle(
 					},
 				})
 			} catch (err) {
-				if (
-					err &&
-					typeof err === 'object' &&
-					REDIRECT_SYMBOL in err &&
-					err instanceof $Redirect
-				) {
-					console.log('drift:server:redirect', err.url, err.status)
+				if (err && err instanceof Redirect) {
+					logger.info(`redirecting to ${err.url}`)
 
 					controller?.abort()
 					controller = null
-					error = null
+					caughtError = null
 
 					return c.redirect(err.url, err.status)
 				}
 
-				if (
-					err &&
-					typeof err === 'object' &&
-					ERROR_SYMBOL in err &&
-					err instanceof $Error
-				) {
-					console.log('drift:error', err)
+				if (err && err instanceof HTTPException) {
+					logger.error(Logger.print(err), err)
 
 					controller?.abort()
 					controller = null
-					error = null
+					caughtError = null
 
-					const message =
-						typeof err.error === 'string'
-							? err.error
-							: typeof err.error === 'object' && 'message' in err.error
-								? err.error.message
-								: JSON.stringify(err.error)
-
-					const fallback = router.fallback
 					const metadata = merge(
 						{
 							title: '%s - jk2908',
@@ -185,13 +178,14 @@ export function handle(
 								},
 							],
 						},
-						await fallback.metadata?.({ error: { ...err, message } }),
+						{},
 					)
-					const data = JSON.stringify({ metadata, error: { ...err, message } })
+					const data = JSON.stringify({ metadata, error: err })
 
 					const assets = (
 						<>
 							{runtime}
+
 							<script
 								id={HYDRATE_ID}
 								type="application/json"
@@ -208,9 +202,7 @@ export function handle(
 							<RouterProvider router={router} initial={{ match: null, metadata }}>
 								{({ metadata }) =>
 									render({
-										children: (
-											<fallback.Component error={{ message, status: err.status }} />
-										),
+										children: null,
 										assets,
 										metadata,
 									})
@@ -227,11 +219,11 @@ export function handle(
 					)
 				}
 
-				console.error('drift:server:error', err)
+				logger.error(Logger.print(err), err)
 
 				controller?.abort()
 				controller = null
-				error = null
+				caughtError = null
 
 				return c.text('drift: internal server error', 500)
 			}

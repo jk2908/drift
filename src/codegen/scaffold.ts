@@ -1,49 +1,50 @@
 import path from 'node:path'
-import { APP_DIR, ENTRY_SERVER, ENTRY_CLIENT, GENERATED_DIR } from '../constants'
 
-export async function createAppEntries() {
+import { APP_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from '../config'
+
+export async function createScaffold() {
 	const cwd = process.cwd()
 
 	const generatedDir = path.join(cwd, GENERATED_DIR)
-	const serverEntry = path.join(generatedDir, ENTRY_SERVER)
-	const clientEntry = path.join(generatedDir, ENTRY_CLIENT)
-	const rootLayoutImport = `../${APP_DIR}/layout`
+	const shellImport = `../${APP_DIR}/+layout`
 
-	const promises: Promise<number>[] = []
+	const scaffold: Promise<number>[] = []
 
-	promises.push(
+	scaffold.push(
 		Bun.write(
-			serverEntry,
+			path.join(generatedDir, ENTRY_SERVER),
 			`
-        import { handle } from 'drift/server';
-        import RootLayout from '${rootLayoutImport}';
+        import { handle } from '${GENERATED_DIR}/server'
+
+        import Shell from '${shellImport}'
 
         const app = handle(({ children, assets, metadata }) =>
-          <RootLayout assets={assets} metadata={metadata}>
+          <Shell assets={assets} metadata={metadata}>
             {children}
-          </RootLayout>
-        );
+          </Shell>
+        )
 
-        export default app;
+        export default app
       `.trim(),
 		),
 	)
 
-	promises.push(
+	scaffold.push(
 		Bun.write(
-			clientEntry,
+			path.join(generatedDir, ENTRY_CLIENT),
 			`
-        import { mount } from 'drift/client';
-        import RootLayout from '${rootLayoutImport}';
+        import { mount } from '${GENERATED_DIR}/client'
+
+        import Shell from '${shellImport}'
 
         mount(({ children, assets, metadata }) =>
-          <RootLayout assets={assets} metadata={metadata}>
+          <Shell assets={assets} metadata={metadata}>
             {children}
-          </RootLayout>
-        );
+          </Shell>
+        )
       `.trim(),
 		),
 	)
 
-	return promises
+	return scaffold
 }

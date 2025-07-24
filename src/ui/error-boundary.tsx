@@ -8,10 +8,10 @@ type Props = {
 
 /**
  * A component that catches synchronous errors in its child component tree and displays a fallback UI
- * @param props - The props for the component
- * @param props.fallback - The fallback UI to display when an error occurs, can be a function or a React node
- * @param props.onReset - A callback function to call when the error is reset
- * @param props.children - The child components to render
+ * @param props - the props for the component
+ * @param props.fallback - the fallback UI to display when an error occurs, can be a function or a React node
+ * @param props.onReset - a callback function to call when the error is reset
+ * @param props.children - the child components to render
  * @returns Component
  */
 export class ErrorBoundary extends Component<

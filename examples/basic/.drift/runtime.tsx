@@ -6,7 +6,7 @@ export const runtime = (
 					type="module"
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: //
 					dangerouslySetInnerHTML={{
-						__html: `import RefreshRuntime from '@react-refresh'
+						__html: `import RefreshRuntime from '../@react-refresh'
                   
                     RefreshRuntime.injectIntoGlobalHook(window)
                     window.$RefreshReg$ = () => {}
@@ -15,13 +15,14 @@ export const runtime = (
                 `,
 					}}
 				/>
-				<script type="module" src="/@vite/client" />
+
+				<script type="module" src="../@vite/client" />
 			</>
 		)}
 		<script
 			type="module"
 			src={
-				import.meta.env.PROD ? '/assets/$$$INJECT_RUNTIME$$$' : '/.drift/entry.client.tsx'
+				import.meta.env.PROD ? '/assets/__DRIFT_RUNTIME__' : '/.drift/entry.client.tsx'
 			}
 		/>
 	</>

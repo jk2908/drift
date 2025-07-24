@@ -1,4 +1,4 @@
-import { ASSETS_DIR, INJECT_RUNTIME } from '/constants'
+import { ASSETS_DIR, GENERATED_DIR, INJECT_RUNTIME } from '../config'
 
 export function createRuntime() {
 	return `
@@ -11,7 +11,7 @@ export function createRuntime() {
               // biome-ignore lint/security/noDangerouslySetInnerHtml: //
               dangerouslySetInnerHTML={{
                 __html: 
-                  \`import RefreshRuntime from '@react-refresh'
+                  \`import RefreshRuntime from '../@react-refresh'
                   
                     RefreshRuntime.injectIntoGlobalHook(window)
                     window.$RefreshReg$ = () => {}
@@ -20,12 +20,13 @@ export function createRuntime() {
                 \`,
               }}
             />
-            <script type="module" src="/@vite/client" />
+
+            <script type="module" src="../@vite/client" />
           </>
         )}
         <script
           type="module"
-          src={import.meta.env.PROD ? '/${ASSETS_DIR}/${INJECT_RUNTIME}' : '/.drift/entry.client.tsx'}
+          src={import.meta.env.PROD ? '/${ASSETS_DIR}/${INJECT_RUNTIME}' : '/${GENERATED_DIR}/entry.client.tsx'}
         />
       </>
     )

@@ -1,17 +1,21 @@
+/// <reference types="bun" />
+
 import { StrictMode } from 'react'
 import { hydrateRoot, createRoot } from 'react-dom/client'
 import { hc } from 'hono/client'
 
-import type { App } from 'drift/server'
-import { runtime } from 'drift/runtime'
+import type { App } from '.drift/server'
+import { runtime } from '.drift/runtime'
+import { manifest } from '.drift/manifest'
 
 import { HYDRATE_ID } from '@jk2908/drift/config'
-import { router, RouterProvider } from '@jk2908/drift/router'
-import { merge } from '@jk2908/drift/metadata'
+import { Router, RouterProvider } from '@jk2908/drift/shared/router'
+import { merge } from '@jk2908/drift/shared/metadata'
 
 export const client = hc<App>(import.meta.env.VITE_APP_URL)
+const router = new Router(manifest)
 
-function getData() {
+function getHydrationData() {
 	const el = document.getElementById(HYDRATE_ID)
 	return !el || !el.textContent ? null : JSON.parse(JSON.stringify(el.textContent))
 }
@@ -28,7 +32,7 @@ export async function mount(
 	}) => React.ReactNode,
 ) {
 	const match = router.match(window.location.pathname)
-	const data = getData()
+	const data = getHydrationData()
 	const { error, ...rest } = data ? JSON.parse(data) : {}
 
 	const assets = (
@@ -46,7 +50,6 @@ export async function mount(
 	)
 
 	if (error) {
-		const fallback = router.fallback
 		const metadata = merge(
 			{
 				title: '%s - jk2908',
@@ -54,7 +57,7 @@ export async function mount(
 					{ name: 'random', content: 'This is a random meta tag for testing purposes' },
 				],
 			},
-			await fallback.metadata?.({ error }),
+			{},
 		)
 
 		createRoot(document).render(
@@ -62,9 +65,7 @@ export async function mount(
 				<RouterProvider router={router} initial={{ match: null, metadata }}>
 					{({ el, metadata }) =>
 						render({
-							children: el ?? <fallback.Component error={error} />,
-							assets,
-							metadata,
+							children: null,
 						})
 					}
 				</RouterProvider>

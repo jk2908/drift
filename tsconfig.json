@@ -9,14 +9,7 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "react",
 		"allowSyntheticDefaultImports": true,
-		"paths": {
-			"#/*": ["./*"],
-			"drift/manifest": [".drift/manifest.ts"],
-			"drift/client": [".drift/client.tsx"],
-			"drift/runtime": [".drift/runtime.tsx"],
-			"drift/server": [".drift/server.tsx"]
-		},
 		"types": ["vite/client", "bun"]
 	},
-	"include": ["src"]
+	"include": ["src"],
 }

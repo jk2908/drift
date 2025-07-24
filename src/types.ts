@@ -1,22 +1,42 @@
 import type { ConfigEnv } from 'vite'
+
 import type { Context } from 'hono'
 
-import type { HTTP_METHODS } from './constants'
+import type { EntryKind } from './config'
 
-export type Config = {
+import type { HTTPException } from './shared/error'
+import type { Logger, LogLevel } from './shared/logger'
+
+export type PluginConfig = {
 	ctx: ConfigEnv
 	precompress?: boolean
 	prerender?: 'full' | 'declarative'
 	outDir?: string
 	metadata?: Metadata
+	trailingSlash?: boolean
+	logger?: {
+		level?: LogLevel
+	}
 }
 
-export type Params<
-	K extends string = string,
-	V extends string | number | boolean = string,
-> = {
-	[key in K]: V
+export type BuildContext = {
+	outDir: string
+	bundle: {
+		server: {
+			entryPath: string | null
+			outDir: string | null
+		}
+		client: {
+			entryPath: string | null
+			outDir: string | null
+		}
+	}
+	transpiler: InstanceType<typeof Bun.Transpiler>
+	logger: InstanceType<typeof Logger>
+	prerenders: Set<string>
 }
+
+export type Params = Record<string, string | string[]>
 
 type TagValue = string | number | boolean | undefined
 
@@ -42,25 +62,45 @@ export type Metadata = {
 	link?: LinkTag[]
 }
 
-export type MetadataFn = ({ params }: { params?: Params }) => Promise<Metadata>
-
-export type PageRoute = {
-	// biome-ignore lint/suspicious/noExplicitAny: //
-	Component: React.LazyExoticComponent<React.ComponentType<{ params?: any }>>
-	layouts: React.ComponentType<{ children: React.ReactNode; params: Params }>[]
-	metadata?: MetadataFn
+export type PageRoute<P extends Params = Params> = {
+	id: string
+	Shell: React.ComponentType<{
+		children: React.ReactNode
+		params?: P
+		assets?: React.ReactNode
+		metadata?: React.ReactNode
+	}>
+	layouts: React.LazyExoticComponent<
+		React.ComponentType<{
+			children: React.ReactNode
+			params?: P
+			assets?: React.ReactNode
+			metadata?: React.ReactNode
+		}>
+	>[]
+	Cmp: React.LazyExoticComponent<React.ComponentType<{ params?: P }>>
+	Err: React.LazyExoticComponent<
+		React.ComponentType<{
+			error: Error | HTTPException
+		}>
+	> | null
+	metadata?: ({ params }: { params?: P }) => Promise<Metadata>
+	error?: HTTPException | Error
 	prerender: boolean
 	dynamic: boolean
-	type: 'page'
+	catchAll: boolean
+	type: typeof EntryKind.PAGE
 }
 
 export type ApiRoute = {
+	id: string
 	method: string
 	handler: (ctx: Context) => Promise<Response> | Response
-	type: 'api'
+	type: typeof EntryKind.API
 }
 
-export type Route = PageRoute | ApiRoute
+// biome-ignore lint/suspicious/noExplicitAny: @todo
+export type Route = PageRoute<any> | ApiRoute
 
 export type Routes = {
 	[key: string]: Route
@@ -69,5 +109,3 @@ export type Routes = {
 export type Manifest = {
 	[key: string]: Route | Route[]
 }
-
-export type HttpMethod = (typeof HTTP_METHODS)[number]

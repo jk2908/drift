@@ -1,21 +1,27 @@
-import type { Config } from '../types'
+import type { PluginConfig } from '../types'
 
-export function createClient({ config }: { config: Config }) {
+import { GENERATED_DIR, PKG_NAME } from '../config'
+
+export function createClient({ config }: { config: PluginConfig }) {
 	return `
+    /// <reference types="bun" />
+
     import { StrictMode } from 'react'
     import { hydrateRoot, createRoot } from 'react-dom/client'
     import { hc } from 'hono/client'
 
-    import type { App } from 'drift/server'
-    import { runtime } from 'drift/runtime'
+    import type { App } from '${GENERATED_DIR}/server'
+    import { runtime } from '${GENERATED_DIR}/runtime'
+    import { manifest } from '${GENERATED_DIR}/manifest'
 
-    import { HYDRATE_ID } from '@jk2908/drift/config'
-    import { router, RouterProvider } from '@jk2908/drift/router'
-    import { merge } from '@jk2908/drift/metadata'
+    import { HYDRATE_ID } from '${PKG_NAME}/config'
+    import { Router, RouterProvider } from '${PKG_NAME}/shared/router'
+    import { merge } from '${PKG_NAME}/shared/metadata'
     
     export const client = hc<App>(import.meta.env.VITE_APP_URL)
+    const router = new Router(manifest)
 
-    function getData() {
+    function getHydrationData() {
       const el = document.getElementById(HYDRATE_ID)
       return !el || !el.textContent ? null : JSON.parse(JSON.stringify(el.textContent))
     }
@@ -32,7 +38,7 @@ export function createClient({ config }: { config: Config }) {
       }) => React.ReactNode,
     ) {
       const match = router.match(window.location.pathname)
-      const data = getData()
+      const data = getHydrationData()
       const { error, ...rest } = data ? JSON.parse(data) : {}
 
       const assets = (
@@ -50,10 +56,9 @@ export function createClient({ config }: { config: Config }) {
       )
 
       if (error) {
-        const fallback = router.fallback
         const metadata = merge(
           ${JSON.stringify(config.metadata ?? {})},
-          await fallback.metadata?.({ error })
+          {}
         )
 
         createRoot(document).render(
@@ -63,7 +68,7 @@ export function createClient({ config }: { config: Config }) {
               initial={{ match: null, metadata }}>
               {({ el, metadata }) => (
                 render({
-                  children: el ?? <fallback.Component error={error} />, assets, metadata,
+                  children: null
                 })
               )}
             </RouterProvider>

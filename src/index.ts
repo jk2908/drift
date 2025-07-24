@@ -1,93 +1,53 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { type PluginOption, loadEnv } from 'vite'
+import { loadEnv, type PluginOption } from 'vite'
 
+import bunBuild from '@hono/vite-build/bun'
 import devServer from '@hono/vite-dev-server'
 import adapter from '@hono/vite-dev-server/bun'
-import bunBuild from '@hono/vite-build/bun'
 import react from '@vitejs/plugin-react'
-import { customAlphabet } from 'nanoid'
 
-import type { Config } from './types'
+import type { BuildContext, PluginConfig } from './types'
 
-import {
-	APP_DIR,
-	ENTRY_CLIENT,
-	ENTRY_SERVER,
-	GENERATED_DIR,
-	HTTP_METHODS,
-	ASSETS_DIR,
-} from './constants'
+import { APP_DIR, ASSETS_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from './config'
 
-import {
-	isPrerenderable,
-	getPrerenderParamsList,
-	prerender,
-	createPrerenderRoutesFromParamsList,
-} from './server/prerender'
+import { Logger } from './shared/logger'
+
 import { compress } from './server/compress'
-import { compose } from './server/tree'
+import { prerender } from './server/prerender'
 import { injectRuntime } from './server/runtime'
+import { format } from './server/utils'
 
-import { createAppEntries } from './codegen/scaffold'
-import { createManifest } from './codegen/manifest'
-import { createServer } from './codegen/server'
+import { RouteProcessor } from './build/route-processor'
+
 import { createClient } from './codegen/client'
+import { createManifest } from './codegen/manifest'
 import { createRuntime } from './codegen/runtime'
-
-import { getImportPath, isDynamicRoute, routify } from './utils/routes'
-
-const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789$_', 8)
-
-const PAGE_ID_PREFIX = '$P'
-const LAYOUT_ID_PREFIX = '$L'
-const API_ID_PREFIX = '$A'
-
-type Build = {
-	outDir: string
-	bundle: {
-		server: {
-			entryPath: string | null
-			outDir: string | null
-		}
-		client: {
-			entryPath: string | null
-			outDir: string | null
-		}
-	}
-}
+import { createScaffold } from './codegen/scaffold'
+import { createServer } from './codegen/server'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: 'declarative',
 	outDir: 'dist',
-} as const satisfies Partial<Config>
+	trailingSlash: false,
+	logger: {
+		level: Bun.env.PROD ? 'error' : 'debug',
+	},
+} as const satisfies Partial<PluginConfig>
 
-export default function drift(c: Config): PluginOption[] {
+function drift(c: PluginConfig): PluginOption[] {
 	const config = { ...DEFAULT_CONFIG, ...c }
 
-	if (!config.ctx) throw new Error('drift: vite ctx is required')
-
-	const { mode } = config.ctx
-	const env = loadEnv(mode, process.cwd(), '')
-
-	let routes: { pages: { page: string; layouts: string[] }[]; apis: string[] } | null =
-		null
-	let entries: string[] = []
-	let handlers: string[] = []
-	let prerenders: Set<string> = new Set()
+	if (!config.ctx) throw new Error('Vite context is required to be passed to the plugin')
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
+	const logger = new Logger(config.logger.level)
 
-	const imports = {
-		dynamic: new Map<string, string>(),
-		static: new Map<string, string>(),
-	}
+	const env = loadEnv(config.ctx.mode, process.cwd(), '')
 
-	const layoutCache = new Map<string, { id: string; prerender: boolean }>()
-
-	const build: Build = {
+	const buildCtx: BuildContext = {
 		outDir: config.outDir,
 		bundle: {
 			server: {
@@ -99,144 +59,29 @@ export default function drift(c: Config): PluginOption[] {
 				outDir: null,
 			},
 		},
+		transpiler,
+		logger,
+		prerenders: new Set<string>(),
 	}
 
 	return [
 		{
-			name: 'drift:prebuild',
+			name: 'prebuild',
 			enforce: 'pre',
 			async buildStart() {
-				imports.dynamic.clear()
-				imports.static.clear()
-
-				routes = null
-				entries = []
-				handlers = []
-				prerenders = new Set()
-
 				const cwd = process.cwd()
 				const routesDir = path.join(cwd, APP_DIR)
 				const generatedDir = path.join(cwd, GENERATED_DIR)
 
-				await fs.mkdir(routesDir, { recursive: true })
-				await fs.mkdir(generatedDir, { recursive: true })
+				await Promise.all([
+					fs.mkdir(routesDir, { recursive: true }),
+					fs.mkdir(generatedDir, { recursive: true }),
+				])
 
-				routes = await compose(routesDir, {
-					pages: ['.tsx', '.jsx'],
-					apis: ['.ts', '.js'],
-				})
+				const processor = new RouteProcessor(buildCtx, config)
+				const { entries, imports, apiHandlers, prerenders } = await processor.run()
 
-				for (const { page, layouts } of routes.pages) {
-					const pageImportPath = getImportPath(page)
-					const pageRoute = routify(page)
-					const pageId = `${PAGE_ID_PREFIX}${nanoid()}`
-					const isDynamic = isDynamicRoute(pageRoute)
-
-					const layoutIds = []
-					let hasInheritedPrerender = false
-
-					for (const layoutPath of layouts) {
-						let layout = layoutCache.get(layoutPath)
-
-						if (!layout) {
-							const layoutId = `${LAYOUT_ID_PREFIX}${nanoid()}`
-							layout = {
-								id: layoutId,
-								prerender: await isPrerenderable(layoutPath, transpiler),
-							}
-
-							layoutCache.set(layoutPath, layout)
-							imports.dynamic.set(layoutId, `import('${getImportPath(layoutPath)}')`)
-						}
-
-						layoutIds.push(layout.id)
-						hasInheritedPrerender ||= layout.prerender
-					}
-
-					const shouldPrerender =
-						hasInheritedPrerender ||
-						(config.prerender === 'full' && !isDynamic) ||
-						(await isPrerenderable(page, transpiler))
-
-					if (shouldPrerender) {
-						if (!isDynamic) {
-							prerenders.add(pageRoute)
-						} else {
-							const list = await getPrerenderParamsList(path.resolve(cwd, page))
-
-							if (!list?.length) {
-								console.warn(
-									`drift:prerender: no prerenderable params found for ${page}, skipping prerendering`,
-								)
-							}
-
-							const routes = createPrerenderRoutesFromParamsList(pageRoute, list)
-
-							if (!routes?.length) {
-								console.warn(
-									`drift:prerender: no prerenderable routes found for ${page}, skipping prerendering`,
-								)
-
-								continue
-							}
-
-							for (const route of routes) prerenders.add(route)
-						}
-					}
-
-					imports.dynamic.set(pageId, `import('${pageImportPath}')`)
-
-					entries.push(`'${pageRoute}': {
-						layouts: [${layoutIds.map(id => `${id}.then(m => m.default)`).join(', ')}],
-						Component: lazy(() => ${pageId}.then(m => ({ default: m.default }))),
-						async metadata({ params }: { params?: Params }) {
-							const m = await ${pageId}
-							// @todo: fix type
-							const metadata = 'metadata' in m ? m.metadata as MetadataFn | Metadata : null
-
-							if (!metadata) return {}
-							if (typeof metadata !== 'function') return metadata
-							
-							return metadata.length > 0 ? metadata({ params }) : metadata({})
-						},
-						prerender: ${shouldPrerender},
-						dynamic: ${isDynamic},
-						type: 'page',
-					}`)
-				}
-
-				for (const file of routes.apis) {
-					const importPath = getImportPath(file)
-					const route = routify(file)
-					const mod = await import(path.resolve(cwd, file))
-
-					const group: string[] = []
-
-					for (const key in mod) {
-						if (!HTTP_METHODS.includes(key as (typeof HTTP_METHODS)[number])) continue
-
-						const method = key.toLowerCase()
-						const handler = `${API_ID_PREFIX}${nanoid()}`
-
-						imports.static.set(`${key} as ${handler}`, importPath)
-
-						group.push(`{
-							method: '${method.toUpperCase()}',
-							handler: ${handler},
-							type: 'api'
-						}`)
-
-						handlers.push(`.${method}('${route}', ${handler})`)
-					}
-
-					if (!group?.length) continue
-
-					if (group.length > 1) {
-						entries.push(`'${route}': [${group.join(',\n')}]`)
-					} else {
-						entries.push(`'${route}': ${group[0]}`)
-					}
-				}
+				buildCtx.prerenders = prerenders
 
 				await Promise.all([
 					Bun.write(
@@ -250,8 +95,8 @@ export default function drift(c: Config): PluginOption[] {
 					Bun.write(
 						path.join(generatedDir, 'server.tsx'),
 						createServer({
-							imports: imports.static,
-							handlers,
+							imports: imports.apis.static,
+							apiHandlers,
 							config,
 						}),
 					),
@@ -259,14 +104,16 @@ export default function drift(c: Config): PluginOption[] {
 					Bun.write(path.join(generatedDir, 'client.tsx'), createClient({ config })),
 					Bun.write(path.join(generatedDir, 'runtime.tsx'), createRuntime()),
 
-					...(await createAppEntries()),
+					...(await createScaffold()),
 				])
+
+				await format(GENERATED_DIR, buildCtx)
 			},
 		},
 		{
 			name: 'drift',
 			config(viteConfig) {
-				if (mode === 'client') {
+				if (config.ctx.mode === 'client') {
 					return {
 						...viteConfig,
 						build: {
@@ -308,20 +155,16 @@ export default function drift(c: Config): PluginOption[] {
 					resolve: {
 						alias: {
 							...(viteConfig.resolve?.alias ?? {}),
-							'drift/server': path.resolve(process.cwd(), '.drift/server.tsx'),
-							'drift/client': path.resolve(process.cwd(), '.drift/client.tsx'),
-							'drift/runtime': path.resolve(process.cwd(), '.drift/runtime.tsx'),
-							'drift/manifest': path.resolve(process.cwd(), '.drift/manifest.ts'),
-							'#/app': path.resolve(process.cwd(), APP_DIR),
+							'.drift': path.resolve(process.cwd(), GENERATED_DIR),
 						},
 					},
 				}
 			},
 			async writeBundle(options, output) {
-				if (mode === 'client' || env.NODE_ENV === 'development') return
+				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
 				try {
-					const manifest = Bun.file(
+					const viteManifest = Bun.file(
 						path.resolve(
 							process.cwd(),
 							options.dir ?? config.outDir,
@@ -329,92 +172,80 @@ export default function drift(c: Config): PluginOption[] {
 						),
 					)
 
-					if (!(await manifest.exists())) {
-						throw new Error(
-							'drift:server:writeBundle: no manifest found, cannot get client hash',
-						)
+					if (!(await viteManifest.exists())) {
+						throw new Error('No manifest found, cannot get client hash')
 					}
 
-					const json = await manifest.json()
+					const json = await viteManifest.json()
 					const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_CLIENT}`].file
 
-					build.bundle.client.entryPath = path.join(
+					buildCtx.bundle.client.entryPath = path.join(
 						options.dir ?? config.outDir,
 						clientEntryPath,
 					)
-					build.bundle.client.outDir = `${options.dir ?? config.outDir}/${ASSETS_DIR}`
+					buildCtx.bundle.client.outDir = `${options.dir ?? config.outDir}/${ASSETS_DIR}`
 
 					const serverEntryChunk = Object.entries(output).find(
 						([_, chunk]) => chunk.type === 'chunk' && chunk.isEntry,
 					)
 
-					if (!serverEntryChunk)
-						throw new Error('drift:server:writeBundle: no entry chunk found')
+					if (!serverEntryChunk) throw new Error('No server entry chunk found')
 
 					const [serverEntryPath] = serverEntryChunk
 
-					build.bundle.server.entryPath = path.join(
+					buildCtx.bundle.server.entryPath = path.join(
 						options.dir ?? config.outDir,
 						serverEntryPath,
 					)
-					build.bundle.server.outDir = options.dir ?? config.outDir
+					buildCtx.bundle.server.outDir = options.dir ?? config.outDir
 				} catch (err) {
-					console.error('drift:server:writeBundle: error writing bundle', err)
+					logger.error('server:writeBundle', err)
 				}
 			},
-			buildEnd() {
-				if (mode === 'client') return
-
-				routes = null
-			},
 			async closeBundle() {
-				if (mode === 'client' || env.NODE_ENV === 'development') return
+				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
 				try {
 					try {
-						if (!build.bundle.server.entryPath) {
-							throw new Error('drift:server:closeBundle:runtime: no entry path found')
+						if (!buildCtx.bundle.server.entryPath) {
+							throw new Error('No server entry path found')
 						}
 
 						await Bun.write(
-							build.bundle.server.entryPath,
-							await injectRuntime(build.bundle),
+							buildCtx.bundle.server.entryPath,
+							await injectRuntime(buildCtx.bundle, buildCtx),
 						)
 					} catch (err) {
-						console.error(
-							'drift:server:closeBundle:runtime: error injecting runtime',
-							err,
-						)
+						logger.error('server:closeBundle:injectRuntime', err)
 					}
 
-					if (prerenders.size > 0) {
+					if (buildCtx.prerenders.size > 0) {
 						Bun.env.PRERENDER = 'true'
 						let server: ReturnType<typeof Bun.serve> | null = null
 
 						try {
-							if (!build.bundle.server.outDir || !build.bundle.server.entryPath) {
-								throw new Error(
-									'drift:server:closeBundle:prerender: no server outDir or entryPath found',
-								)
+							if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
+								throw new Error('No server outDir or entryPath found')
 							}
 
 							const app = (
-								await import(`file://${Bun.file(build.bundle.server.entryPath).name}`)
+								await import(`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`)
 							).default
 
-							console.log('drift:server:closeBundle:prerender: starting server')
+							const PORT = Bun.env.PRERENDER_PORT || 8787
+							logger.info(`server:closeBundle: starting server on ${PORT}`)
 
 							server = Bun.serve({
-								port: 8787,
+								port: PORT,
 								fetch: app.fetch,
 							})
 
-							for (const route of prerenders) {
-								const { value, done } = await prerender(route, app).next()
+							for (const route of buildCtx.prerenders) {
+								const { value, done } = await prerender(route, app, buildCtx).next()
 
 								if (done || !value) {
-									console.warn(
-										`drift:server:closeBundle:prerender: skipped prerendering ${route}: no output`,
+									logger.warn(
+										`server:closeBundle: skipped prerendering ${route}: no output`,
 									)
 									continue
 								}
@@ -422,29 +253,26 @@ export default function drift(c: Config): PluginOption[] {
 								const { status, body } = value
 
 								if (status !== 200) {
-									console.warn(
-										`drift:server:closeBundle:prerender: skipped prerendering for ${route}: ${status}`,
+									logger.warn(
+										`server:closeBundle: skipped prerendering ${route}: ${status}`,
 									)
-
 									continue
 								}
 
 								const outPath =
 									route === '/'
-										? path.join(build.bundle.server.outDir, 'index.html')
-										: path.join(build.bundle.server.outDir, route, 'index.html')
+										? path.join(buildCtx.bundle.server.outDir, 'index.html')
+										: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
 
 								await fs.mkdir(path.dirname(outPath), { recursive: true })
 								await Bun.write(outPath, body)
 
-								console.log(
-									`drift:server:closeBundle:prerender: prerendered ${route} to ${outPath}`,
-								)
+								logger.info(`prerendered ${route} to ${outPath}`)
 							}
 						} catch (err) {
-							console.error('drift:server:closeBundle:prerender', err)
+							logger.error('server:closeBundle:prerender', err)
 						} finally {
-							console.log('drift:server:closeBundle:prerender: stopping server')
+							logger.info('stopping server')
 
 							Bun.env.PRERENDER = 'false'
 							server?.stop()
@@ -456,29 +284,26 @@ export default function drift(c: Config): PluginOption[] {
 						try {
 							const dir = path.resolve(process.cwd(), config.outDir)
 
-							for await (const { input, compressed } of compress(dir, {
+							for await (const { input, compressed } of compress(dir, buildCtx, {
 								filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 							})) {
 								await Bun.write(`${input}.br`, compressed)
-
-								console.log(
-									`drift:server:closeBundle:precompress: compressed ${input} to ${input}.br`,
-								)
+								logger.info(`compressed ${input} to ${input}.br`)
 							}
 						} catch (err) {
-							console.error('drift:server:closeBundle:precompress', err)
+							logger.error('server:closeBundle:precompress', err)
 						}
 					}
 				} catch (err) {
-					console.error('drift:server:closeBundle', err)
+					logger.error('server:closeBundle', err)
 					return
 				} finally {
-					build.bundle.server = {
+					buildCtx.bundle.server = {
 						entryPath: null,
 						outDir: null,
 					}
 
-					// @TODO: check why the build hangs without forcing exit
+					// @todo: check why the build hangs without forcing exit
 					process.exit(0)
 				}
 			},
@@ -501,3 +326,28 @@ export default function drift(c: Config): PluginOption[] {
 		bunBuild({ entry: `./${APP_DIR}/${ENTRY_SERVER}` }),
 	]
 }
+
+function toManifestRoute(file: string) {
+	const route = file
+		.replace(new RegExp(`^${APP_DIR}`), '')
+		.replace(/\/\+page\.(j|t)sx?$/, '')
+		.replace(/\[\.\.\.(.+?)\]/g, ':$1*')
+		.replace(/\[(.+?)\]/g, ':$1')
+
+	if (!route || route === '') return '/'
+
+	return route.startsWith('/') ? route : `/${route}`
+}
+
+function getImportPath(file: string, generatedDir: string, cwd: string) {
+	return path
+		.relative(generatedDir, path.resolve(cwd, file))
+		.replace(/\\/g, '/')
+		.replace(/\.(t|j)sx?$/, '')
+}
+
+export default drift
+
+export * from './types'
+
+export type * from './drift.d.ts'

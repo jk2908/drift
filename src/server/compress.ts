@@ -2,15 +2,20 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { brotliCompress } from 'node:zlib'
 
+import type { BuildContext } from '../types'
+
 /**
  * Compress a file or directory
- * @param input - The input file or directory
- * @param config - The configuration for the compression
- * @param config.filter - A filter function to determine which files to compress
- * @returns The compressed file or directory
+ * @param input - the input file or directory
+ * @param ctx - the build context
+ * @param config - the config options
+ * @param config.filter - a filter function to determine which files to compress
+ * @returns an async generator that yields the compressed files
+ * @throws if an error occurs during compression
  */
 export async function* compress(
 	input: string,
+	ctx: BuildContext,
 	config: {
 		filter?: (f: string) => boolean
 	} = {},
@@ -24,7 +29,7 @@ export async function* compress(
 
 		if (stat.isDirectory()) {
 			for (const entry of await fs.readdir(input)) {
-				yield* compress(path.join(input, entry), config)
+				yield* compress(path.join(input, entry), ctx, config)
 			}
 		} else if (filter(input)) {
 			const file = Bun.file(input)
@@ -46,7 +51,7 @@ export async function* compress(
 			}
 		}
 	} catch (err) {
-		console.error('framework:compress:compress* error compressing', err)
+		ctx.logger.error(`compress:compress* ${input}`, err)
 		throw err
 	}
 }
