@@ -32,6 +32,10 @@
 			"types": "./dist/types.d.ts",
 			"default": "./dist/index.js"
 		},
+		"./server/ssr": {
+			"types": "./dist/server/ssr.d.ts",
+			"default": "./dist/server/ssr.js"
+		},
 		"./shared/router": {
 			"types": "./dist/shared/router.d.ts",
 			"default": "./dist/shared/router.js"
@@ -51,6 +55,18 @@
 		"./shared/logger": {
 			"types": "./dist/shared/logger.d.ts",
 			"default": "./dist/shared/logger.js"
+		},
+		"./shared/utils": {
+			"types": "./dist/shared/utils.d.ts",
+			"default": "./dist/shared/utils.js"
+		},
+		"./client/hydration": {
+			"types": "./dist/client/hydration.d.ts",
+			"default": "./dist/client/hydration.js"
+		},
+		"./client/runtime": {
+			"types": "./dist/client/runtime.d.ts",
+			"default": "./dist/client/runtime.js"
 		},
 		"./config": {
 			"types": "./dist/config.d.ts",

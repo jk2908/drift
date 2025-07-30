@@ -2,29 +2,29 @@ import { lazy } from 'react'
 
 import type { Metadata, Params, Manifest } from '@jk2908/drift'
 
-import { default as $SPxEgsr0m9M } from '../app/+layout'
+import { default as $SwrEV_5eJ0n } from '../app/+layout'
 
-const $PfrQ3oxd0yo = import('../app/+page')
-const $L7ynHM9KPnq = import('../app/about/+layout')
-const $P6CIuL2L04i = import('../app/about/another/+page')
-const $ERRz6n7Q857au = import('../app/about/another/+error')
-const $L4wILzwGNUi = import('../app/about/+layout')
-const $PTp3Gzo21uD = import('../app/about/+page')
-const $LIOtS4RXT8L = import('../app/about/+layout')
-const $Pe3QLLhTP7i = import('../app/test/[...catch]/+page')
-const $LcVDZxCsf1U = import('../app/about/me/+layout')
-const $PnP9UjUXSnb = import('../app/about/me/+page')
-const $PZ7WjifBvU4 = import('../app/p/[id]/+page')
+const $PM6ZwMaAlD3 = import('../app/+page')
+const $PBCE5a_B6c2 = import('../app/test/[...catch]/+page')
+const $Lsmgvch9MRw = import('../app/about/+layout')
+const $LnMQ1sQyKHl = import('../app/about/+layout')
+const $Pu24vMGxWo8 = import('../app/about/+page')
+const $LlmlG_JzGDZ = import('../app/about/+layout')
+const $PYG2nZSkA18 = import('../app/about/another/+page')
+const $ERR5eZpI9l9pv = import('../app/about/another/+error')
+const $PR4QQZDIzfN = import('../app/p/[id]/+page')
+const $LL9ZpQcp0po = import('../app/about/me/+layout')
+const $PJ9kXYTTKxX = import('../app/about/me/+page')
 
 export const manifest = {
 	'/': {
-		id: '$PfrQ3oxd0yo',
-		Shell: $SPxEgsr0m9M,
+		id: '$PM6ZwMaAlD3',
+		Shell: $SwrEV_5eJ0n,
 		layouts: [],
-		Cmp: lazy(() => $PfrQ3oxd0yo.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PM6ZwMaAlD3.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PfrQ3oxd0yo
+			const m = await $PM6ZwMaAlD3
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -44,13 +44,13 @@ export const manifest = {
 		type: '$P',
 	},
 	'/about': {
-		id: '$PTp3Gzo21uD',
-		Shell: $SPxEgsr0m9M,
-		layouts: [lazy(() => $L4wILzwGNUi.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $PTp3Gzo21uD.then(m => ({ default: m.default }))),
+		id: '$Pu24vMGxWo8',
+		Shell: $SwrEV_5eJ0n,
+		layouts: [lazy(() => $LnMQ1sQyKHl.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $Pu24vMGxWo8.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PTp3Gzo21uD
+			const m = await $Pu24vMGxWo8
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -70,13 +70,13 @@ export const manifest = {
 		type: '$P',
 	},
 	'/about/another': {
-		id: '$P6CIuL2L04i',
-		Shell: $SPxEgsr0m9M,
-		layouts: [lazy(() => $L7ynHM9KPnq.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $P6CIuL2L04i.then(m => ({ default: m.default }))),
-		Err: lazy(() => $ERRz6n7Q857au.then(m => ({ default: m.default }))),
+		id: '$PYG2nZSkA18',
+		Shell: $SwrEV_5eJ0n,
+		layouts: [lazy(() => $LlmlG_JzGDZ.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $PYG2nZSkA18.then(m => ({ default: m.default }))),
+		Err: lazy(() => $ERR5eZpI9l9pv.then(m => ({ default: m.default }))),
 		async metadata({ params }: { params?: Params }) {
-			const m = await $P6CIuL2L04i
+			const m = await $PYG2nZSkA18
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -96,16 +96,16 @@ export const manifest = {
 		type: '$P',
 	},
 	'/about/me': {
-		id: '$PnP9UjUXSnb',
-		Shell: $SPxEgsr0m9M,
+		id: '$PJ9kXYTTKxX',
+		Shell: $SwrEV_5eJ0n,
 		layouts: [
-			lazy(() => $LcVDZxCsf1U.then(m => ({ default: m.default }))),
-			lazy(() => $LIOtS4RXT8L.then(m => ({ default: m.default }))),
+			lazy(() => $LL9ZpQcp0po.then(m => ({ default: m.default }))),
+			lazy(() => $Lsmgvch9MRw.then(m => ({ default: m.default }))),
 		],
-		Cmp: lazy(() => $PnP9UjUXSnb.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PJ9kXYTTKxX.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PnP9UjUXSnb
+			const m = await $PJ9kXYTTKxX
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -125,13 +125,13 @@ export const manifest = {
 		type: '$P',
 	},
 	'/p/:id': {
-		id: '$PZ7WjifBvU4',
-		Shell: $SPxEgsr0m9M,
+		id: '$PR4QQZDIzfN',
+		Shell: $SwrEV_5eJ0n,
 		layouts: [],
-		Cmp: lazy(() => $PZ7WjifBvU4.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PR4QQZDIzfN.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PZ7WjifBvU4
+			const m = await $PR4QQZDIzfN
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -151,13 +151,13 @@ export const manifest = {
 		type: '$P',
 	},
 	'/test/:catch*': {
-		id: '$Pe3QLLhTP7i',
-		Shell: $SPxEgsr0m9M,
+		id: '$PBCE5a_B6c2',
+		Shell: $SwrEV_5eJ0n,
 		layouts: [],
-		Cmp: lazy(() => $Pe3QLLhTP7i.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PBCE5a_B6c2.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $Pe3QLLhTP7i
+			const m = await $PBCE5a_B6c2
 			// @todo: fix type
 			const metadata =
 				'metadata' in m

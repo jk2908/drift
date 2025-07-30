@@ -1,15 +1,8 @@
 import { PKG_NAME } from '../config'
 
-export function createManifest({
-	imports,
-	entries,
-}: {
-	imports: {
-		apis: { static: Map<string, string> }
-		pages: { static: Map<string, string>; dynamic: Map<string, string> }
-	}
-	entries: string[]
-}) {
+import type { Imports } from '../build/route-processor'
+
+export function createManifest(imports: Imports, entries: string[]) {
 	return `
     import { lazy } from 'react'
 

@@ -1,8 +1,6 @@
-import type { PluginConfig } from '../types'
-
 import { GENERATED_DIR, PKG_NAME } from '../config'
 
-export function createClient({ config }: { config: PluginConfig }) {
+export function createClient() {
 	return `
     /// <reference types="bun" />
 
@@ -11,20 +9,20 @@ export function createClient({ config }: { config: PluginConfig }) {
     import { hc } from 'hono/client'
 
     import type { App } from '${GENERATED_DIR}/server'
-    import { runtime } from '${GENERATED_DIR}/runtime'
     import { manifest } from '${GENERATED_DIR}/manifest'
+    import { config } from '${GENERATED_DIR}/config'
 
     import { HYDRATE_ID } from '${PKG_NAME}/config'
+    
     import { Router, RouterProvider } from '${PKG_NAME}/shared/router'
     import { merge } from '${PKG_NAME}/shared/metadata'
+    import { getRelativeBasePath } from '${PKG_NAME}/shared/utils'
+
+    import { getHydrationData } from '${PKG_NAME}/client/hydration'
+    import { Runtime } from '${PKG_NAME}/client/runtime'
     
     export const client = hc<App>(import.meta.env.VITE_APP_URL)
     const router = new Router(manifest)
-
-    function getHydrationData() {
-      const el = document.getElementById(HYDRATE_ID)
-      return !el || !el.textContent ? null : JSON.parse(JSON.stringify(el.textContent))
-    }
 
     export async function mount(
       render: ({
@@ -38,12 +36,15 @@ export function createClient({ config }: { config: PluginConfig }) {
       }) => React.ReactNode,
     ) {
       const match = router.match(window.location.pathname)
+      const relativeBase = getRelativeBasePath(window.location.pathname)
+
       const data = getHydrationData()
       const { error, ...rest } = data ? JSON.parse(data) : {}
 
       const assets = (
         <>
-          {runtime}
+          <Runtime relativeBase={relativeBase} />
+
           <script
             id={HYDRATE_ID}
             type="application/json"
@@ -57,7 +58,7 @@ export function createClient({ config }: { config: PluginConfig }) {
 
       if (error) {
         const metadata = merge(
-          ${JSON.stringify(config.metadata ?? {})},
+          config.metadata ?? {},
           {}
         )
 

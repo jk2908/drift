@@ -109,3 +109,13 @@ export type Routes = {
 export type Manifest = {
 	[key: string]: Route | Route[]
 }
+
+export type Render = ({
+	children,
+	assets,
+	metadata,
+}: {
+	children: React.ReactNode
+	assets: React.ReactNode
+	metadata: React.ReactNode
+}) => React.ReactNode

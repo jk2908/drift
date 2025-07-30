@@ -5,20 +5,20 @@ import { hydrateRoot, createRoot } from 'react-dom/client'
 import { hc } from 'hono/client'
 
 import type { App } from '.drift/server'
-import { runtime } from '.drift/runtime'
 import { manifest } from '.drift/manifest'
+import { config } from '.drift/config'
 
 import { HYDRATE_ID } from '@jk2908/drift/config'
+
 import { Router, RouterProvider } from '@jk2908/drift/shared/router'
 import { merge } from '@jk2908/drift/shared/metadata'
+import { getRelativeBasePath } from '@jk2908/drift/shared/utils'
+
+import { getHydrationData } from '@jk2908/drift/client/hydration'
+import { Runtime } from '@jk2908/drift/client/runtime'
 
 export const client = hc<App>(import.meta.env.VITE_APP_URL)
 const router = new Router(manifest)
-
-function getHydrationData() {
-	const el = document.getElementById(HYDRATE_ID)
-	return !el || !el.textContent ? null : JSON.parse(JSON.stringify(el.textContent))
-}
 
 export async function mount(
 	render: ({
@@ -32,12 +32,15 @@ export async function mount(
 	}) => React.ReactNode,
 ) {
 	const match = router.match(window.location.pathname)
+	const relativeBase = getRelativeBasePath(window.location.pathname)
+
 	const data = getHydrationData()
 	const { error, ...rest } = data ? JSON.parse(data) : {}
 
 	const assets = (
 		<>
-			{runtime}
+			<Runtime relativeBase={relativeBase} />
+
 			<script
 				id={HYDRATE_ID}
 				type="application/json"
@@ -50,15 +53,7 @@ export async function mount(
 	)
 
 	if (error) {
-		const metadata = merge(
-			{
-				title: '%s - jk2908',
-				meta: [
-					{ name: 'random', content: 'This is a random meta tag for testing purposes' },
-				],
-			},
-			{},
-		)
+		const metadata = merge(config.metadata ?? {}, {})
 
 		createRoot(document).render(
 			<StrictMode>

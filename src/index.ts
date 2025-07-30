@@ -22,8 +22,8 @@ import { format } from './server/utils'
 import { RouteProcessor } from './build/route-processor'
 
 import { createClient } from './codegen/client'
+import { createConfig } from './codegen/config'
 import { createManifest } from './codegen/manifest'
-import { createRuntime } from './codegen/runtime'
 import { createScaffold } from './codegen/scaffold'
 import { createServer } from './codegen/server'
 
@@ -79,31 +79,21 @@ function drift(c: PluginConfig): PluginOption[] {
 				])
 
 				const processor = new RouteProcessor(buildCtx, config)
-				const { entries, imports, apiHandlers, prerenders } = await processor.run()
+				const { entries, imports, handlers, prerenders } = await processor.run()
 
 				buildCtx.prerenders = prerenders
 
 				await Promise.all([
+					Bun.write(path.join(generatedDir, 'config.ts'), createConfig(config)),
 					Bun.write(
 						path.join(generatedDir, 'manifest.ts'),
-						createManifest({
-							imports,
-							entries,
-						}),
+						createManifest(imports, entries),
 					),
-
 					Bun.write(
 						path.join(generatedDir, 'server.tsx'),
-						createServer({
-							imports: imports.apis.static,
-							apiHandlers,
-							config,
-						}),
+						createServer(imports, handlers),
 					),
-
-					Bun.write(path.join(generatedDir, 'client.tsx'), createClient({ config })),
-					Bun.write(path.join(generatedDir, 'runtime.tsx'), createRuntime()),
-
+					Bun.write(path.join(generatedDir, 'client.tsx'), createClient()),
 					...(await createScaffold()),
 				])
 
@@ -325,25 +315,6 @@ function drift(c: PluginConfig): PluginOption[] {
 		}),
 		bunBuild({ entry: `./${APP_DIR}/${ENTRY_SERVER}` }),
 	]
-}
-
-function toManifestRoute(file: string) {
-	const route = file
-		.replace(new RegExp(`^${APP_DIR}`), '')
-		.replace(/\/\+page\.(j|t)sx?$/, '')
-		.replace(/\[\.\.\.(.+?)\]/g, ':$1*')
-		.replace(/\[(.+?)\]/g, ':$1')
-
-	if (!route || route === '') return '/'
-
-	return route.startsWith('/') ? route : `/${route}`
-}
-
-function getImportPath(file: string, generatedDir: string, cwd: string) {
-	return path
-		.relative(generatedDir, path.resolve(cwd, file))
-		.replace(/\\/g, '/')
-		.replace(/\.(t|j)sx?$/, '')
 }
 
 export default drift

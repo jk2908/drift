@@ -25,3 +25,17 @@ export function id(length = 10) {
 		length,
 	)()
 }
+
+/**
+ * Get the relative base path for the client runtime
+ * @param path - the path to get the relative base path from
+ * @returns - the relative base path
+ */
+export function getRelativeBasePath(path: string) {
+	if (import.meta.env.DEV) {
+		const segments = path.split('/').filter(Boolean)
+		return segments.length === 0 ? '/' : segments.map(() => '../').join('')
+	}
+
+	return import.meta.env.BASE_URL ?? '/'
+}

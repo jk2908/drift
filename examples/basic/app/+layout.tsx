@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react'
-
 export default function Shell({
 	children,
 	assets,
 	metadata,
-}: { children: ReactNode; assets?: ReactNode; metadata?: ReactNode }) {
+}: {
+	children: React.ReactNode
+	assets?: React.ReactNode
+	metadata?: React.ReactNode
+}) {
 	return (
 		<html lang="en">
 			<head>
@@ -12,7 +14,7 @@ export default function Shell({
 
 				{assets}
 			</head>
-			
+
 			<body>
 				<header>Drift Example App</header>
 				<main>{children}</main>

@@ -30,31 +30,25 @@ export class RouteProcessor {
 	ctx: BuildContext | null = null
 	config: PluginConfig | null = null
 
-	cwd: ReturnType<NodeJS.Process['cwd']> = ''
-	generatedDir: string = ''
-
 	#prerenders: BuildContext['prerenders'] = new Set()
-	#apiHandlers: Handlers = []
 	#imports: Imports = {
 		apis: { static: new Map() },
 		pages: { static: new Map(), dynamic: new Map() },
 	}
+	#handlers: Handlers = []
 
 	constructor(ctx: BuildContext, config: PluginConfig) {
 		this.ctx = ctx
 		this.config = config
-
-		this.cwd = process.cwd()
-		this.generatedDir = path.join(this.cwd, GENERATED_DIR)
 	}
 
 	/**
-	 * Run the scanner to get the app route and associated data
+	 * Run the RouteProcessor to get the app route and associated data
 	 * needed for codegen
 	 * @returns data needed for codegen
 	 * @returns data.entries - the full list of entries for the manifest
 	 * @returns data.imports - the dynamic and static imports for page and API routes
-	 * @returns data.apiHandlers - the API handlers ids
+	 * @returns data.handlers - the Hono route handlers
 	 * @returns data.prerenders - the prerenderable routes
 	 * @throws if an error occurs during scanning
 	 */
@@ -69,11 +63,11 @@ export class RouteProcessor {
 			return {
 				entries: [...pageEntries, ...apiEntries].filter(e => e !== null),
 				imports: this.#imports,
-				apiHandlers: this.#apiHandlers,
+				handlers: this.#handlers,
 				prerenders: this.#prerenders,
 			}
 		} catch (err) {
-			this.ctx?.logger.error('Scanner:run: failed to build manifest', err)
+			this.ctx?.logger.error('RouteProcessor:run: failed to build manifest', err)
 			throw err
 		}
 	}
@@ -81,7 +75,6 @@ export class RouteProcessor {
 	/**
 	 * Compose the route manifest from the file system
 	 * @param dir the directory to compose the tree from
-	 * @param EXTENSIONS the EXTENSIONS to compose the tree from
 	 * @param res the result object to populate
 	 * @param prev the previous layout and error results
 	 * @returns the composed route manifest
@@ -110,7 +103,7 @@ export class RouteProcessor {
 				[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
 				[TYPES.error]: new Set(EXTENSIONS.page.map(ext => `${TYPES.error}.${ext}`)),
 				[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
-				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)), // route.ts, route.js
+				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)), 
 			}
 
 			let currLayout: string | undefined
@@ -128,7 +121,7 @@ export class RouteProcessor {
 					await this.compose(route, res, next)
 				} else {
 					const base = path.basename(file.name)
-					const relative = path.relative(this.cwd, route).replace(/\\/g, '/')
+					const relative = path.relative(process.cwd(), route).replace(/\\/g, '/')
 
 					if (validFiles[TYPES.layout].has(base)) {
 						currLayout = relative
@@ -156,7 +149,7 @@ export class RouteProcessor {
 			return res satisfies ComposeResult
 		} catch (err) {
 			this.ctx?.logger.error(
-				`Scanner:compose: Failed to compose manifest from ${dir}`,
+				`RouteProcessor:compose: Failed to compose manifest from ${dir}`,
 				err,
 			)
 
@@ -187,12 +180,12 @@ export class RouteProcessor {
 
 					const layoutIds: string[] = []
 
-					const pageImportPath = this.#getImportPath(page)
-					const pageRoute = this.#toManifestRoute(page)
+					const pageImportPath = RouteProcessor.getImportPath(page)
+					const [pageRoute, honoRoute] = RouteProcessor.getRoutePair(page)
 					const pageId = `${EntryKind.PAGE}${id()}`
 
-					const isDynamic = pageRoute.includes(':')
-					const isCatchAll = isDynamic && pageRoute.includes('*')
+					const isDynamicRoute = pageRoute.includes(':')
+					const isCatchAllRoute = isDynamicRoute && pageRoute.includes('*')
 
 					let hasInheritedPrerender = false
 					let cachedShell = layoutCache.get(shell)
@@ -208,7 +201,7 @@ export class RouteProcessor {
 						layoutCache.set(shell, cachedShell)
 						this.#imports.pages.static?.set(
 							`default as ${shellId}`,
-							this.#getImportPath(shell),
+							RouteProcessor.getImportPath(shell),
 						)
 					}
 
@@ -228,7 +221,7 @@ export class RouteProcessor {
 							layoutCache.set(layout, cachedLayout)
 							this.#imports.pages.dynamic?.set(
 								layoutId,
-								`import('${this.#getImportPath(layout)}')`,
+								`import('${RouteProcessor.getImportPath(layout)}')`,
 							)
 						}
 
@@ -238,15 +231,15 @@ export class RouteProcessor {
 
 					const shouldPrerender =
 						hasInheritedPrerender ||
-						(this.config?.prerender === 'full' && !isDynamic) ||
+						(this.config?.prerender === 'full' && !isDynamicRoute) ||
 						(await isPrerenderable(page, this.ctx))
 
 					if (shouldPrerender) {
-						if (!isDynamic) {
+						if (!isDynamicRoute) {
 							this.#prerenders.add(page)
 						} else {
 							const list = await getPrerenderParamsList(
-								path.resolve(this.cwd, page),
+								path.resolve(process.cwd(), page),
 								this.ctx,
 							)
 
@@ -269,13 +262,14 @@ export class RouteProcessor {
 					}
 
 					this.#imports.pages.dynamic?.set(pageId, `import('${pageImportPath}')`)
+					this.#handlers.push(`.get('${honoRoute}', c => ssr(c, render, manifest, config))`)
 
 					if (error) {
 						errorId = `${EntryKind.ERROR}${id()}`
 
 						this.#imports.pages.dynamic?.set(
 							errorId,
-							`import('${this.#getImportPath(error)}')`,
+							`import('${RouteProcessor.getImportPath(error)}')`,
 						)
 					}
 
@@ -301,8 +295,8 @@ export class RouteProcessor {
                 return metadata.length > 0 ? metadata({ params }) : metadata({})
               },
               prerender: ${shouldPrerender},
-              dynamic: ${isDynamic},
-              catchAll: ${isCatchAll},
+              dynamic: ${isDynamicRoute},
+              catchAll: ${isCatchAllRoute},
               type: '${EntryKind.PAGE}',
             }
           `.trim()
@@ -312,9 +306,10 @@ export class RouteProcessor {
 			return entries.filter(Boolean)
 		} catch (err) {
 			this.ctx?.logger.error(
-				'Scanner:createPageEntries: Failed to create page entries',
+				'RouteProcessor:createPageEntries: Failed to create page entries',
 				err,
 			)
+
 			return []
 		}
 	}
@@ -332,9 +327,10 @@ export class RouteProcessor {
 				routes.map(async file => {
 					if (!this.ctx) throw new Error('Build context is not set')
 
-					const importPath = this.#getImportPath(file)
-					const route = this.#toManifestRoute(file)
-					const mod = await import(path.resolve(this.cwd, file))
+					const importPath = RouteProcessor.getImportPath(file)
+					const [manifestRoute, honoRoute] = RouteProcessor.getRoutePair(file)
+
+					const mod = await import(path.resolve(process.cwd(), file))
 
 					const group: string[] = []
 
@@ -358,14 +354,15 @@ export class RouteProcessor {
               type: '${EntryKind.API}',
             }`)
 
-						this.#apiHandlers.push(`.${method}('${route}', ${apiId})`)
+						this.#handlers.push(`.${method}('${honoRoute}', ${apiId})`)
 					}
 
 					if (group.length) {
 						if (group.length > 1) {
-							return `'${route}': [${group.join(',\n')}]`
+							return `'${manifestRoute}': [${group.join(',\n')}]`
 						}
-						return `'${route}': ${group[0]}`
+
+						return `'${manifestRoute}': ${group[0]}`
 					}
 
 					return null
@@ -375,20 +372,41 @@ export class RouteProcessor {
 			return entries.filter(Boolean)
 		} catch (err) {
 			this.ctx?.logger.error(
-				`Scanner:createAPIEntries: Failed to create API entries`,
+				`RouteProcessor:createAPIEntries: Failed to create API entries`,
 				err,
 			)
+
 			return []
 		}
 	}
 
 	/**
-	 * Convert a file path to a valid manifest route
-	 * @param file the file to convert to a manifest route
-	 * @returns the converted manifest route
-	 * @example `./+page.tsx` becomes `/`
+	 * Get both the manifest route and the Hono-compatible route from a file path
+	 * @param file - the file to get the route pair for
+	 * @returns a tuple containing the manifest route and the Hono compatible route
+	 * @example
+	 * ```ts
+	 * const [manifestRoute, honoRoute] = RouteProcessor.getRoutePair('/app/+page.tsx')
+	 * ```
 	 */
-	#toManifestRoute(file: string) {
+	static getRoutePair(file: string) {
+		const manifestRoute = RouteProcessor.#toManifestRoute(file)
+		const honoRoute = RouteProcessor.#toHonoRoute(manifestRoute)
+
+		return [manifestRoute, honoRoute] as const
+	}
+
+	/**
+	 * Convert a file path to a valid manifest route
+	 * @param file - the file to convert to a manifest route
+	 * @returns the converted manifest route
+	 * @example
+	 * ```ts
+	 * const route = this.toManifestRoute('/src/app/+page.tsx')
+	 * route === '/'
+	 * ```
+	 */
+	static #toManifestRoute(file: string) {
 		const route = file
 			.replace(new RegExp(`^${APP_DIR}`), '')
 			.replace(/\/\+page\.(j|t)sx?$/, '')
@@ -402,6 +420,20 @@ export class RouteProcessor {
 	}
 
 	/**
+	 * Convert a manifest route to a Hono-compatible route
+	 * @param route - the manifest route to convert to a Hono-compatible route
+	 * @returns a Hono-compatible route string
+	 * @example
+	 * ```ts
+	 * const honoRoute = RouteProcessor.toHonoRoute('/path/:name*')
+	 * // honoRoute === '/path/*'
+	 * ```
+	 */
+	static #toHonoRoute(route: string) {
+		return route.replace(/\/:[a-zA-Z0-9]+\*$/, '/*')
+	}
+
+	/**
 	 * Get the import path for a file
 	 * This finds the relative path from the generated
 	 * directory to the file, removes the extension and
@@ -409,9 +441,12 @@ export class RouteProcessor {
 	 * @param file the file to get the import path for
 	 * @returns the import path for the file
 	 */
-	#getImportPath(file: string) {
+	static getImportPath(file: string) {
+		const cwd = process.cwd()
+		const generatedDir = path.join(cwd, GENERATED_DIR)
+
 		return path
-			.relative(this.generatedDir, path.resolve(this.cwd, file))
+			.relative(generatedDir, path.resolve(cwd, file))
 			.replace(/\\/g, '/')
 			.replace(/\.(t|j)sx?$/, '')
 	}
