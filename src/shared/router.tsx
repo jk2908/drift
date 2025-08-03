@@ -9,7 +9,9 @@ import {
 	useTransition,
 } from 'react'
 
-import type { Manifest, Metadata, Params, PluginConfig } from '../types'
+import { RegExpRouter } from 'hono/router/reg-exp-router'
+
+import type { Manifest, Metadata, PageRoute, Params, PluginConfig } from '../types'
 
 import { EntryKind, HYDRATE_ID } from '../config'
 
@@ -20,24 +22,10 @@ import { HTTPException } from './error'
 
 export type Match = ReturnType<Router['match']>
 
-type Pattern = {
-	parts: (string | null)[]
-	indices: number[]
-	names: string[]
-	signature: string
-	specificity: number
-}
-
 type GoConfig = {
 	replace?: boolean
 	query?: Record<string, string | number | boolean>
 }
-
-const markers = {
-	STATIC: 'S',
-	DYNAMIC: 'D',
-	CATCH_ALL: 'C',
-} as const
 
 /**
  * Handle routing and matching of within the application
@@ -46,176 +34,86 @@ const markers = {
  */
 export class Router {
 	#manifest: Manifest = {}
-	#patterns = new Map<string, Pattern>()
-	#lengths = new Map<number, string[]>()
+	#router: RegExpRouter<PageRoute> = new RegExpRouter()
 
 	constructor(manifest: Manifest) {
 		this.#manifest = manifest
 
-		for (const [route, entry] of Object.entries(this.#manifest)) {
-			// @note: an api entry can be singular or an array of
-			// multiple HTTP methods. Either way, don't parse it
-			if (Array.isArray(entry) || entry.type === EntryKind.API) continue
+		for (const path in this.#manifest) {
+			const entry = this.#manifest[path]
 
-			this.parse(route)
-		}
+			if (Array.isArray(entry) || entry.type !== EntryKind.PAGE) continue
 
-		for (const [length, routes] of this.#lengths.entries()) {
-			const sorted = routes.sort((a, b) => {
-				const patternA = this.#patterns.get(a)
-				const patternB = this.#patterns.get(b)
-
-				return (patternB?.specificity ?? 0) - (patternA?.specificity ?? 0)
-			})
-
-			this.#lengths.set(length, sorted)
+			this.#router.add('GET', path, entry)
 		}
 	}
 
 	/**
-	 * Parse a route and register it in the router
-	 * @param route - the path to parse
+	 * Match a route against the registered routes using Hono's engine
+	 * @param path - the path to match against the routes
+	 * @returns the matched route or the closest parent for a 404.
 	 */
-	parse(route: string) {
-		if (this.#patterns.has(route)) return
+	match(path: string) {
+		const result = this.#router.match('GET', path)
 
-		const parts = route.split('/')
-		const pattern: Pattern = {
-			parts: [],
-			indices: [],
-			names: [],
-			signature: '',
-			specificity: 0,
-		}
+		if (result) {
+			const [handlers, paramStash] = result
+			const entry = handlers?.[0]?.[0]
 
-		let signature = ''
+			// a match is valid if we have a handler. Params are optional
+			if (entry) {
+				const params: Params = {}
 
-		for (let i = 0; i < parts.length; i++) {
-			const segment = parts[i]
+				// only process parameters if the router returned any
+				if (paramStash?.length) {
+					if (entry.catchAll) {
+						// for a catch-all, we use the __path property on the matched entry.
+						// Neccessary because Hono doesn't expose wildcard params so we need
+						// to grab them from here. Derive the value by removing the
+						// static part of the pattern from the full path that was
+						// matched by the router
+						const staticPart = entry.__path.substring(0, entry.__path.indexOf('*'))
+						const value = paramStash[0].substring(staticPart.length)
+						params[entry.__params[0]] = value.split('/')
+					} else {
+						// for dynamic routes, values are in paramStash starting at index 1
+						const paramValues = paramStash.slice(1)
 
-			if (segment.startsWith(':')) {
-				pattern.indices.push(i)
+						// loop through the params and assign values to match.params
+						for (let i = 0; i < entry.__params.length; i++) {
+							const name = entry.__params[i]
+							const value = paramValues[i]
 
-				if (segment.endsWith('*')) {
-					pattern.names.push(segment.slice(1, -1))
-					pattern.parts.push(null)
-					signature += markers.CATCH_ALL
-				} else {
-					pattern.names.push(segment.slice(1))
-					pattern.parts.push(null)
-					signature += markers.DYNAMIC
+							if (value === undefined) continue
+
+							params[name] = value
+						}
+					}
 				}
-			} else {
-				pattern.parts.push(segment)
-				signature += markers.STATIC
-				pattern.specificity++
+
+				return {
+					...entry,
+					params,
+				}
 			}
 		}
 
-		pattern.signature = signature
+		// @note: if there's no match we'll traverse backwards
+		// to find the closest user supplied error boundary
+		const entry = this.#getNearestErrorBoundary(path)
 
-		this.#patterns.set(route, pattern)
-		const routes = this.#lengths.get(parts.length) || []
-		this.#lengths.set(parts.length, routes)
-
-		routes.push(route)
-	}
-
-	/**
-	 * Match a route against the registered routes
-	 * @param route - the path to match against the routes
-	 * @returns the matched route (component, params, metadata) or null if no match is found
-	 */
-	match(route: string) {
-		const entry = this.#manifest?.[route]
-
-		if (Array.isArray(entry) || entry?.type === EntryKind.API) return null
-
-		if (entry?.type === EntryKind.PAGE) {
+		if (entry) {
 			return {
 				...entry,
 				params: {},
-			}
-		}
-
-		// no route found, this might be a dynamic route
-		const pathParts = route.split('/')
-
-		const candidateLengths = [...this.#lengths.keys()].filter(
-			length => length <= pathParts.length,
-		)
-
-		if (!candidateLengths.length) return null
-
-		for (const patternLength of candidateLengths) {
-			const candidates = this.#lengths.get(patternLength) || []
-
-			for (const routePattern of candidates) {
-				const pattern = this.#patterns.get(routePattern)
-				if (!pattern) continue
-
-				const hasCatchAll = pattern.signature.includes(markers.CATCH_ALL)
-				if (!hasCatchAll && pattern.parts.length !== pathParts.length) continue
-
-				let isMatch = true
-				const params: Params = {}
-
-				for (let i = 0; i < pattern.parts.length; i++) {
-					const patternPart = pattern.parts[i]
-					const pathPart = pathParts[i]
-
-					if (patternPart !== null) {
-						// static segment - must match exactly
-						if (patternPart !== pathPart) {
-							isMatch = false
-							break
-						}
-					} else {
-						// dynamic segment - extract parameter
-						const paramIdx = pattern.indices.indexOf(i)
-						if (paramIdx === -1) continue
-
-						const paramName = pattern.names[paramIdx]
-						const signatureChar = pattern.signature[i]
-
-						if (signatureChar === markers.CATCH_ALL) {
-							// catch-all parameter - collect remaining segments
-							params[paramName] = pathParts.slice(i)
-							break // catch-all consumes rest of path
-						} else {
-							// regular dynamic parameter
-							params[paramName] = pathPart
-						}
-					}
-				}
-
-				if (isMatch) {
-					const entry = this.#manifest?.[routePattern]
-					if (!entry || Array.isArray(entry) || entry.type === EntryKind.API) continue
-
-					return {
-						...entry,
-						params,
-					}
-				}
-			}
-		}
-
-		// no match found, try find closest route
-		const closest = this.#getClosestParent(route)
-
-		if (closest) {
-			return {
-				...closest,
-				params: {},
-				error: new HTTPException(404, 'Not Found'),
+				error: new HTTPException(404, 'Not found'),
 			}
 		}
 
 		return null
 	}
 
-	#getClosestParent(route: string) {
+	#getNearestErrorBoundary(route: string) {
 		const parts = route.split('/').filter(Boolean)
 
 		for (let i = parts.length; i >= 0; i--) {
@@ -228,6 +126,10 @@ export class Router {
 		}
 
 		return null
+	}
+
+	get manifest() {
+		return this.#manifest
 	}
 }
 

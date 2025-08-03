@@ -2,29 +2,29 @@ import { lazy } from 'react'
 
 import type { Metadata, Params, Manifest } from '@jk2908/drift'
 
-import { default as $SwrEV_5eJ0n } from '../app/+layout'
+import { default as $SeNA1jSjZ1w } from '../app/+layout'
 
-const $PM6ZwMaAlD3 = import('../app/+page')
-const $PBCE5a_B6c2 = import('../app/test/[...catch]/+page')
-const $Lsmgvch9MRw = import('../app/about/+layout')
-const $LnMQ1sQyKHl = import('../app/about/+layout')
-const $Pu24vMGxWo8 = import('../app/about/+page')
-const $LlmlG_JzGDZ = import('../app/about/+layout')
-const $PYG2nZSkA18 = import('../app/about/another/+page')
-const $ERR5eZpI9l9pv = import('../app/about/another/+error')
-const $PR4QQZDIzfN = import('../app/p/[id]/+page')
-const $LL9ZpQcp0po = import('../app/about/me/+layout')
-const $PJ9kXYTTKxX = import('../app/about/me/+page')
+const $PT8IoUbMgpg = import('../app/+page')
+const $Pe9rup584Zq = import('../app/test/[...catch]/+page')
+const $LSnrvfTPZG2 = import('../app/about/+layout')
+const $P5yIgcA7iUG = import('../app/about/+page')
+const $Ltwxs1vIgEZ = import('../app/about/+layout')
+const $LLRV2YfdLlC = import('../app/about/+layout')
+const $PofnqlveX9q = import('../app/about/another/+page')
+const $ERRdrrlhRGtEO = import('../app/about/another/+error')
+const $PMQx36_EfYm = import('../app/p/[id]/+page')
+const $Lkp2lCa2d_W = import('../app/about/me/+layout')
+const $PGwdoQyZ59T = import('../app/about/me/+page')
 
 export const manifest = {
 	'/': {
-		id: '$PM6ZwMaAlD3',
-		Shell: $SwrEV_5eJ0n,
+		id: '$PT8IoUbMgpg',
+		Shell: $SeNA1jSjZ1w,
 		layouts: [],
-		Cmp: lazy(() => $PM6ZwMaAlD3.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PT8IoUbMgpg.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PM6ZwMaAlD3
+			const m = await $PT8IoUbMgpg
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -41,16 +41,17 @@ export const manifest = {
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
+		__params: [],
 		type: '$P',
 	},
 	'/about': {
-		id: '$Pu24vMGxWo8',
-		Shell: $SwrEV_5eJ0n,
-		layouts: [lazy(() => $LnMQ1sQyKHl.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $Pu24vMGxWo8.then(m => ({ default: m.default }))),
+		id: '$P5yIgcA7iUG',
+		Shell: $SeNA1jSjZ1w,
+		layouts: [lazy(() => $LSnrvfTPZG2.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $P5yIgcA7iUG.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $Pu24vMGxWo8
+			const m = await $P5yIgcA7iUG
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -67,16 +68,17 @@ export const manifest = {
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
+		__params: [],
 		type: '$P',
 	},
 	'/about/another': {
-		id: '$PYG2nZSkA18',
-		Shell: $SwrEV_5eJ0n,
-		layouts: [lazy(() => $LlmlG_JzGDZ.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $PYG2nZSkA18.then(m => ({ default: m.default }))),
-		Err: lazy(() => $ERR5eZpI9l9pv.then(m => ({ default: m.default }))),
+		id: '$PofnqlveX9q',
+		Shell: $SeNA1jSjZ1w,
+		layouts: [lazy(() => $LLRV2YfdLlC.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $PofnqlveX9q.then(m => ({ default: m.default }))),
+		Err: lazy(() => $ERRdrrlhRGtEO.then(m => ({ default: m.default }))),
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PYG2nZSkA18
+			const m = await $PofnqlveX9q
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -93,19 +95,20 @@ export const manifest = {
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
+		__params: [],
 		type: '$P',
 	},
 	'/about/me': {
-		id: '$PJ9kXYTTKxX',
-		Shell: $SwrEV_5eJ0n,
+		id: '$PGwdoQyZ59T',
+		Shell: $SeNA1jSjZ1w,
 		layouts: [
-			lazy(() => $LL9ZpQcp0po.then(m => ({ default: m.default }))),
-			lazy(() => $Lsmgvch9MRw.then(m => ({ default: m.default }))),
+			lazy(() => $Lkp2lCa2d_W.then(m => ({ default: m.default }))),
+			lazy(() => $Ltwxs1vIgEZ.then(m => ({ default: m.default }))),
 		],
-		Cmp: lazy(() => $PJ9kXYTTKxX.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PGwdoQyZ59T.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PJ9kXYTTKxX
+			const m = await $PGwdoQyZ59T
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -122,16 +125,17 @@ export const manifest = {
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
+		__params: [],
 		type: '$P',
 	},
 	'/p/:id': {
-		id: '$PR4QQZDIzfN',
-		Shell: $SwrEV_5eJ0n,
+		id: '$PMQx36_EfYm',
+		Shell: $SeNA1jSjZ1w,
 		layouts: [],
-		Cmp: lazy(() => $PR4QQZDIzfN.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PMQx36_EfYm.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PR4QQZDIzfN
+			const m = await $PMQx36_EfYm
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -148,16 +152,17 @@ export const manifest = {
 		prerender: true,
 		dynamic: true,
 		catchAll: false,
+		__params: ['id'],
 		type: '$P',
 	},
-	'/test/:catch*': {
-		id: '$PBCE5a_B6c2',
-		Shell: $SwrEV_5eJ0n,
+	'/test/*': {
+		id: '$Pe9rup584Zq',
+		Shell: $SeNA1jSjZ1w,
 		layouts: [],
-		Cmp: lazy(() => $PBCE5a_B6c2.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $Pe9rup584Zq.then(m => ({ default: m.default }))),
 		Err: null,
 		async metadata({ params }: { params?: Params }) {
-			const m = await $PBCE5a_B6c2
+			const m = await $Pe9rup584Zq
 			// @todo: fix type
 			const metadata =
 				'metadata' in m
@@ -171,9 +176,10 @@ export const manifest = {
 
 			return metadata.length > 0 ? metadata({ params }) : metadata({})
 		},
-		prerender: false,
-		dynamic: true,
+		prerender: true,
+		dynamic: false,
 		catchAll: true,
+		__params: ['catch'],
 		type: '$P',
 	},
 } satisfies Manifest

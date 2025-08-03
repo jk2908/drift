@@ -2,14 +2,16 @@
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
-import { appendTrailingSlash, trimTrailingSlash } from 'hono/trailing-slash'
+import { RegExpRouter } from 'hono/router/reg-exp-router'
+import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-import { config } from '.drift/config'
 import { manifest } from '.drift/manifest'
-import { ssr } from '@jk2908/drift/server/ssr'
+import { config } from '.drift/config'
+
+import { ssr } from '@jk2908/drift/render/ssr'
 
 export function handle(
-	render: ({
+	Shell: ({
 		children,
 		assets,
 		metadata,
@@ -19,7 +21,9 @@ export function handle(
 		metadata?: React.ReactNode
 	}) => React.ReactNode,
 ) {
-	return new Hono()
+	return new Hono({
+		router: new RegExpRouter(),
+	})
 		.use(
 			'/assets/*',
 			serveStatic({
@@ -31,12 +35,12 @@ export function handle(
 			}),
 		)
 		.use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
-		.get('/', c => ssr(c, render, manifest, config))
-		.get('/test/*', c => ssr(c, render, manifest, config))
-		.get('/about', c => ssr(c, render, manifest, config))
-		.get('/about/another', c => ssr(c, render, manifest, config))
-		.get('/p/:id', c => ssr(c, render, manifest, config))
-		.get('/about/me', c => ssr(c, render, manifest, config))
+		.get('/', c => ssr(c, Shell, manifest, config))
+		.get('/test/*', c => ssr(c, Shell, manifest, config))
+		.get('/about', c => ssr(c, Shell, manifest, config))
+		.get('/about/another', c => ssr(c, Shell, manifest, config))
+		.get('/p/:id', c => ssr(c, Shell, manifest, config))
+		.get('/about/me', c => ssr(c, Shell, manifest, config))
 }
 
 export type App = ReturnType<typeof handle>

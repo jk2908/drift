@@ -63,7 +63,9 @@ export type Metadata = {
 }
 
 export type PageRoute<P extends Params = Params> = {
-	id: string
+	__id: string
+	__path: string
+	__params: string[]
 	Shell: React.ComponentType<{
 		children: React.ReactNode
 		params?: P
@@ -93,7 +95,9 @@ export type PageRoute<P extends Params = Params> = {
 }
 
 export type ApiRoute = {
-	id: string
+	__id: string
+	__path: string
+	__params: string[]
 	method: string
 	handler: (ctx: Context) => Promise<Response> | Response
 	type: typeof EntryKind.API
@@ -109,13 +113,3 @@ export type Routes = {
 export type Manifest = {
 	[key: string]: Route | Route[]
 }
-
-export type Render = ({
-	children,
-	assets,
-	metadata,
-}: {
-	children: React.ReactNode
-	assets: React.ReactNode
-	metadata: React.ReactNode
-}) => React.ReactNode

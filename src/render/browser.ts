@@ -1,41 +1,6 @@
-import { GENERATED_DIR, PKG_NAME } from '../config'
-
-export function createClient() {
-	return `
-    /// <reference types="bun" />
-
-    import { StrictMode } from 'react'
-    import { hydrateRoot, createRoot } from 'react-dom/client'
-    import { hc } from 'hono/client'
-
-    import type { App } from '${GENERATED_DIR}/server'
-    import { manifest } from '${GENERATED_DIR}/manifest'
-    import { config } from '${GENERATED_DIR}/config'
-
-    import { HYDRATE_ID } from '${PKG_NAME}/config'
-    
-    import { Router, RouterProvider } from '${PKG_NAME}/shared/router'
-    import { merge } from '${PKG_NAME}/shared/metadata'
-    import { getRelativeBasePath } from '${PKG_NAME}/shared/utils'
-
-    import { getHydrationData } from '${PKG_NAME}/client/hydration'
-    import { Runtime } from '${PKG_NAME}/client/runtime'
-    
-    export const client = hc<App>(import.meta.env.VITE_APP_URL)
-    const router = new Router(manifest)
-
-    export async function mount(
-      Shell: ({
-        children,
-        assets,
-        metadata,
-      }: {
-        children: React.ReactNode
-        assets?: React.ReactNode
-        metadata?: React.ReactNode
-      }) => React.ReactNode,
-    ) {
-      const match = router.match(window.location.pathname)
+export async function browser() {
+  /*
+  const match = router.match(window.location.pathname)
       const relativeBase = getRelativeBasePath(window.location.pathname)
 
       const data = getHydrationData()
@@ -92,6 +57,5 @@ export function createClient() {
           </RouterProvider>
         </StrictMode>,
       )
-    }
-  `.trim()
+    }*/
 }

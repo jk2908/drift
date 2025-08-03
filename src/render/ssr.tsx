@@ -6,7 +6,7 @@ import type { Context as HonoContext } from 'hono'
 
 import { isbot } from 'isbot'
 
-import type { Manifest, PluginConfig, Render } from '../types'
+import type { Manifest, PluginConfig } from '../types'
 
 import { HYDRATE_ID, NAME } from '../config'
 
@@ -22,20 +22,28 @@ import { Runtime } from '../client/runtime'
 /**
  * SSR handler to bridge incoming Hono requests with the React renderer
  * @param c - the Hono context
- * @param render - the render function to use for rendering React components
+ * @param Shell - the app root (shell) component to render
  * @param manifest - the application manifest containing routes and metadata
  * @param config - the plugin configuration
  * @returns a Hono streaming response
  */
 export async function ssr(
 	c: HonoContext,
-	render: Render,
+	Shell: ({
+		children,
+		assets,
+		metadata,
+	}: {
+		children: React.ReactNode
+		assets: React.ReactNode
+		metadata: React.ReactNode
+	}) => React.ReactNode,
 	manifest: Manifest,
 	config: PluginConfig,
 ) {
 	const router = new Router(manifest)
 	const logger = new Logger(config.logger?.level)
-	
+
 	const relativeBase = getRelativeBasePath(c.req.path)
 
 	let controller: AbortController | null = new AbortController()
@@ -83,13 +91,11 @@ export async function ssr(
 
 		const stream = await renderToReadableStream(
 			<RouterProvider router={router} initial={{ match, metadata }}>
-				{({ el, metadata }) =>
-					render({
-						children: el,
-						assets,
-						metadata,
-					})
-				}
+				{({ el, metadata }) => (
+					<Shell assets={assets} metadata={metadata}>
+						{el}
+					</Shell>
+				)}
 			</RouterProvider>,
 			{
 				signal: controller?.signal,
@@ -149,13 +155,11 @@ export async function ssr(
 			return c.body(
 				await renderToReadableStream(
 					<RouterProvider router={router} initial={{ match: null, metadata }}>
-						{({ metadata }) =>
-							render({
-								children: null,
-								assets,
-								metadata,
-							})
-						}
+						{({ metadata }) => (
+							<Shell assets={assets} metadata={metadata}>
+								{null}
+							</Shell>
+						)}
 					</RouterProvider>,
 				),
 				{

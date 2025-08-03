@@ -21,7 +21,7 @@ export const client = hc<App>(import.meta.env.VITE_APP_URL)
 const router = new Router(manifest)
 
 export async function mount(
-	render: ({
+	Shell: ({
 		children,
 		assets,
 		metadata,
@@ -59,7 +59,7 @@ export async function mount(
 			<StrictMode>
 				<RouterProvider router={router} initial={{ match: null, metadata }}>
 					{({ el, metadata }) =>
-						render({
+						Shell({
 							children: null,
 						})
 					}
@@ -75,7 +75,7 @@ export async function mount(
 		document,
 		<StrictMode>
 			<RouterProvider router={router} initial={{ match, metadata }}>
-				{({ el, metadata }) => render({ children: el, assets, metadata })}
+				{({ el, metadata }) => Shell({ children: el, assets, metadata })}
 			</RouterProvider>
 		</StrictMode>,
 	)

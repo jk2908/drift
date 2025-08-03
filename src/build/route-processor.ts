@@ -103,7 +103,7 @@ export class RouteProcessor {
 				[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
 				[TYPES.error]: new Set(EXTENSIONS.page.map(ext => `${TYPES.error}.${ext}`)),
 				[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
-				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)), 
+				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)),
 			}
 
 			let currLayout: string | undefined
@@ -181,11 +181,13 @@ export class RouteProcessor {
 					const layoutIds: string[] = []
 
 					const pageImportPath = RouteProcessor.getImportPath(page)
-					const [pageRoute, honoRoute] = RouteProcessor.getRoutePair(page)
+					const route = RouteProcessor.toCanonicalRoute(page)
+					const params = RouteProcessor.#getParams(page)
+
 					const pageId = `${EntryKind.PAGE}${id()}`
 
-					const isDynamicRoute = pageRoute.includes(':')
-					const isCatchAllRoute = isDynamicRoute && pageRoute.includes('*')
+					const isDynamicRoute = route.includes(':')
+					const isCatchAllRoute = route.includes('*')
 
 					let hasInheritedPrerender = false
 					let cachedShell = layoutCache.get(shell)
@@ -262,7 +264,7 @@ export class RouteProcessor {
 					}
 
 					this.#imports.pages.dynamic?.set(pageId, `import('${pageImportPath}')`)
-					this.#handlers.push(`.get('${honoRoute}', c => ssr(c, render, manifest, config))`)
+					this.#handlers.push(`.get('${route}', c => ssr(c, Shell, manifest, config))`)
 
 					if (error) {
 						errorId = `${EntryKind.ERROR}${id()}`
@@ -274,8 +276,10 @@ export class RouteProcessor {
 					}
 
 					return `
-          '${pageRoute}': {
-              id: '${pageId}',
+          '${route}': {
+              __id: '${pageId}',
+							__path: '${route}',
+							__params: [${params.map(p => `'${p}'`).join(', ')}],
               Shell: ${shellId},
               layouts: [${layoutIds
 								.map(id => `lazy(() => ${id}.then(m => ({ default: m.default })))`)
@@ -328,7 +332,8 @@ export class RouteProcessor {
 					if (!this.ctx) throw new Error('Build context is not set')
 
 					const importPath = RouteProcessor.getImportPath(file)
-					const [manifestRoute, honoRoute] = RouteProcessor.getRoutePair(file)
+					const route = RouteProcessor.toCanonicalRoute(file)
+					const params = RouteProcessor.#getParams(file)
 
 					const mod = await import(path.resolve(process.cwd(), file))
 
@@ -348,21 +353,23 @@ export class RouteProcessor {
 						this.#imports.apis.static?.set(`${key} as ${apiId}`, importPath)
 
 						group.push(`{
-              id: '${apiId}',
+              __id: '${apiId}',
+							__path: '${route}',
+							__params: [${params.map(p => `'${p}'`).join(', ')}],
               method: '${method.toUpperCase()}',
               handler: ${apiId},
               type: '${EntryKind.API}',
             }`)
 
-						this.#handlers.push(`.${method}('${honoRoute}', ${apiId})`)
+						this.#handlers.push(`.${method}('${route}', ${apiId})`)
 					}
 
 					if (group.length) {
 						if (group.length > 1) {
-							return `'${manifestRoute}': [${group.join(',\n')}]`
+							return `'${route}': [${group.join(',\n')}]`
 						}
 
-						return `'${manifestRoute}': ${group[0]}`
+						return `'${route}': ${group[0]}`
 					}
 
 					return null
@@ -381,56 +388,30 @@ export class RouteProcessor {
 	}
 
 	/**
-	 * Get both the manifest route and the Hono-compatible route from a file path
-	 * @param file - the file to get the route pair for
-	 * @returns a tuple containing the manifest route and the Hono compatible route
-	 * @example
-	 * ```ts
-	 * const [manifestRoute, honoRoute] = RouteProcessor.getRoutePair('/app/+page.tsx')
-	 * ```
+	 * Extracts dynamic parameter names from a file path
+	 * @param file - the file path to extract parameters from
+	 * @returns an array of parameter names
 	 */
-	static getRoutePair(file: string) {
-		const manifestRoute = RouteProcessor.#toManifestRoute(file)
-		const honoRoute = RouteProcessor.#toHonoRoute(manifestRoute)
-
-		return [manifestRoute, honoRoute] as const
+	static #getParams(file: string) {
+		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
 	}
 
 	/**
-	 * Convert a file path to a valid manifest route
-	 * @param file - the file to convert to a manifest route
-	 * @returns the converted manifest route
-	 * @example
-	 * ```ts
-	 * const route = this.toManifestRoute('/src/app/+page.tsx')
-	 * route === '/'
-	 * ```
+	 * Convert a file path to a Hono-compatible route.
+	 * @param file - the file to convert to a route
+	 * @returns the converted route
 	 */
-	static #toManifestRoute(file: string) {
+	static toCanonicalRoute(file: string) {
 		const route = file
 			.replace(new RegExp(`^${APP_DIR}`), '')
 			.replace(/\/\+page\.(j|t)sx?$/, '')
 			.replace(/\/\+api\.(j|t)sx?$/, '')
-			.replace(/\[\.\.\.(.+?)\]/g, ':$1*')
-			.replace(/\[(.+?)\]/g, ':$1')
+			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
+			.replace(/\[(.+?)\]/g, ':$1') // dynamic segments
 
 		if (!route || route === '') return '/'
 
 		return route.startsWith('/') ? route : `/${route}`
-	}
-
-	/**
-	 * Convert a manifest route to a Hono-compatible route
-	 * @param route - the manifest route to convert to a Hono-compatible route
-	 * @returns a Hono-compatible route string
-	 * @example
-	 * ```ts
-	 * const honoRoute = RouteProcessor.toHonoRoute('/path/:name*')
-	 * // honoRoute === '/path/*'
-	 * ```
-	 */
-	static #toHonoRoute(route: string) {
-		return route.replace(/\/:[a-zA-Z0-9]+\*$/, '/*')
 	}
 
 	/**

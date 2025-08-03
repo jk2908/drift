@@ -8,19 +8,20 @@ export function createServer(imports: Imports, handlers: Handlers) {
 
     import { Hono } from 'hono'
     import { serveStatic } from 'hono/bun'
+    import { RegExpRouter } from 'hono/router/reg-exp-router'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
     import { manifest } from '${GENERATED_DIR}/manifest'
     import { config } from '${GENERATED_DIR}/config'
 
-    import { ssr } from '${PKG_NAME}/server/ssr'
+    import { ssr } from '${PKG_NAME}/render/ssr'
 
     ${[...imports.apis.static.entries()]
 			.map(([key, value]) => `import { ${key} } from '${value}'`)
 			.join('\n')}
 
     export function handle(
-      render: ({
+      Shell: ({
         children,
         assets,
         metadata,
@@ -30,7 +31,9 @@ export function createServer(imports: Imports, handlers: Handlers) {
         metadata?: React.ReactNode
       }) => React.ReactNode,
     ) {
-      return new Hono()
+      return new Hono({
+        router: new RegExpRouter()
+      })
         .use(
           '/assets/*', 
           serveStatic({ 

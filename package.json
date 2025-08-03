@@ -32,9 +32,13 @@
 			"types": "./dist/types.d.ts",
 			"default": "./dist/index.js"
 		},
-		"./server/ssr": {
-			"types": "./dist/server/ssr.d.ts",
-			"default": "./dist/server/ssr.js"
+		"./render/ssr": {
+			"types": "./dist/render/ssr.d.ts",
+			"default": "./dist/render/ssr.js"
+		},
+		"./render/browser": {
+			"types": "./dist/render/browser.d.ts",
+			"default": "./dist/render/browser.js"
 		},
 		"./shared/router": {
 			"types": "./dist/shared/router.d.ts",
