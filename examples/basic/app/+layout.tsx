@@ -1,3 +1,7 @@
+export const metadata = {
+	title: 'Drift Example App'
+}
+
 export default function Shell({
 	children,
 	assets,

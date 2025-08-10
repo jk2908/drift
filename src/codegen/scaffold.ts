@@ -10,6 +10,12 @@ export async function createScaffold() {
 
 	const scaffold: Promise<number>[] = []
 
+  const Shell = `
+    <Shell assets={assets} metadata={metadata}>
+      {children}
+    </Shell>
+  `
+
 	scaffold.push(
 		Bun.write(
 			path.join(generatedDir, ENTRY_SERVER),
@@ -19,9 +25,7 @@ export async function createScaffold() {
         import Shell from '${shellImport}'
 
         const app = handle(({ children, assets, metadata }) =>
-          <Shell assets={assets} metadata={metadata}>
-            {children}
-          </Shell>
+          ${Shell}
         )
 
         export default app
@@ -38,9 +42,7 @@ export async function createScaffold() {
         import Shell from '${shellImport}'
 
         mount(({ children, assets, metadata }) =>
-          <Shell assets={assets} metadata={metadata}>
-            {children}
-          </Shell>
+          ${Shell}
         )
       `.trim(),
 		),

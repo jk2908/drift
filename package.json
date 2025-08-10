@@ -7,26 +7,27 @@
 	"scripts": {
 		"build": "bunchee"
 	},
-  "dependencies": {
-    "@biomejs/biome": "^2.1.1",
-    "@hono/vite-build": "^1.6.2", 
-    "@hono/vite-dev-server": "^0.19.1",
-    "@vitejs/plugin-react": "^4.6.0",
-    "hono": "^4.8.5",
-    "isbot": "^5.1.28"
-  },
-  "devDependencies": {
-    "@types/react": "latest",
-    "@types/react-dom": "latest", 
-    "@types/bun": "latest",
-    "bunchee": "^6.5.4"
-  },
-  "peerDependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "vite": "^7.0.4",
-    "typescript": "^5.8.3"
-  },
+	"dependencies": {
+		"@biomejs/biome": "^2.1.1",
+		"@hono/vite-build": "^1.6.2",
+		"@hono/vite-dev-server": "^0.19.1",
+		"@vitejs/plugin-react": "^4.6.0",
+		"devalue": "^5.1.1",
+		"hono": "^4.8.5",
+		"isbot": "^5.1.28"
+	},
+	"devDependencies": {
+		"@types/react": "latest",
+		"@types/react-dom": "latest",
+		"@types/bun": "latest",
+		"bunchee": "^6.5.4"
+	},
+	"peerDependencies": {
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0",
+		"vite": "^7.0.4",
+		"typescript": "^5.8.3"
+	},
 	"exports": {
 		".": {
 			"types": "./dist/types.d.ts",

@@ -6,7 +6,7 @@ export const ENTRY_SERVER = 'entry.server.tsx'
 export const ENTRY_CLIENT = 'entry.client.tsx'
 export const INJECT_RUNTIME = `__${NAME.toUpperCase()}_RUNTIME__`
 export const ASSETS_DIR = 'assets'
-export const HYDRATE_ID = `__${NAME.toUpperCase()}__`
+export const DRIFT_PAYLOAD_ID = `__${NAME.toUpperCase()}__`
 
 export const EntryKind = {
   SHELL: '$S',

@@ -10,12 +10,16 @@ import {
 } from 'react'
 
 import { RegExpRouter } from 'hono/router/reg-exp-router'
+import { SmartRouter } from 'hono/router/smart-router'
+import { TrieRouter } from 'hono/router/trie-router'
 
-import type { Manifest, Metadata, PageRoute, Params, PluginConfig } from '../types'
+import * as devalue from 'devalue'
 
-import { EntryKind, HYDRATE_ID } from '../config'
+import type { Manifest, Metadata, PageRoute, Params, PluginConfig, Route } from '../types'
 
-import { merge } from '../shared/metadata'
+import { DRIFT_PAYLOAD_ID, EntryKind } from '../config'
+
+import { mergeMetadata } from '../shared/metadata'
 import { Tree } from '../shared/tree'
 
 import { HTTPException } from './error'
@@ -34,7 +38,10 @@ type GoConfig = {
  */
 export class Router {
 	#manifest: Manifest = {}
-	#router: RegExpRouter<PageRoute> = new RegExpRouter()
+	// @see: https://hono.dev/docs/concepts/routers
+	#router: SmartRouter<PageRoute> = new SmartRouter({
+		routers: [new RegExpRouter(), new TrieRouter()],
+	})
 
 	constructor(manifest: Manifest) {
 		this.#manifest = manifest
@@ -42,7 +49,17 @@ export class Router {
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
 
-			if (Array.isArray(entry) || entry.type !== EntryKind.PAGE) continue
+			if (Array.isArray(entry)) {
+				for (const e of entry) {
+					if (e.type !== EntryKind.PAGE) continue
+
+					this.#router.add('GET', path, e)
+				}
+
+				continue
+			}
+
+			if (entry.type !== EntryKind.PAGE) continue
 
 			this.#router.add('GET', path, entry)
 		}
@@ -74,7 +91,7 @@ export class Router {
 						// matched by the router
 						const staticPart = entry.__path.substring(0, entry.__path.indexOf('*'))
 						const value = paramStash[0].substring(staticPart.length)
-						params[entry.__params[0]] = value.split('/')
+						params[entry.__params[0]] = value
 					} else {
 						// for dynamic routes, values are in paramStash starting at index 1
 						const paramValues = paramStash.slice(1)
@@ -100,7 +117,7 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.#getNearestErrorBoundary(path)
+		const entry = this.#resolveAncestorErrorRoute(path)
 
 		if (entry) {
 			return {
@@ -113,19 +130,29 @@ export class Router {
 		return null
 	}
 
-	#getNearestErrorBoundary(route: string) {
+	#resolveAncestorErrorRoute(route: string) {
 		const parts = route.split('/').filter(Boolean)
 
 		for (let i = parts.length; i >= 0; i--) {
 			const testPath = i === 0 ? '/' : `/${parts.slice(0, i).join('/')}`
 			const entry = this.#manifest[testPath]
 
-			if (!entry || Array.isArray(entry) || entry.type !== EntryKind.PAGE) continue
+			if (!entry) continue
 
-			return entry
+			const pageEntry = this.#getPageEntry(entry)
+
+			if (pageEntry?.Err) return pageEntry
 		}
 
 		return null
+	}
+
+	#getPageEntry(entry: Route | Route[]) {
+		if (Array.isArray(entry)) {
+			return entry.find(e => e.type === EntryKind.PAGE) || null
+		}
+
+		return entry.type === EntryKind.PAGE ? entry : null
 	}
 
 	get manifest() {
@@ -170,7 +197,7 @@ export function RouterProvider({
 	const [match, setMatch] = useState<Match | null>(initial?.match ?? null)
 	const [metadata, setMetadata] = useState<Metadata>(initial?.metadata ?? {})
 
-	const config = useRef<Partial<PluginConfig>>({})
+	const config = useRef<Readonly<Partial<PluginConfig>>>({})
 
 	const [isPending, startTransition] = useTransition()
 
@@ -178,11 +205,11 @@ export function RouterProvider({
 		setMatch(match)
 
 		if (!match) {
-			setMetadata(merge(config.current?.metadata ?? {}, {}))
+			setMetadata(mergeMetadata(config.current?.metadata ?? {}, {}))
 		} else {
 			match
 				.metadata?.({ params: match.params })
-				.then(m => setMetadata(merge(config.current?.metadata ?? {}, m)))
+				.then(([m]) => setMetadata(mergeMetadata(config.current?.metadata ?? {}, m)))
 				.catch(() => setMetadata({}))
 		}
 	}, [])
@@ -231,12 +258,14 @@ export function RouterProvider({
 	}, [router.match, update])
 
 	useEffect(() => {
-		const el = document.getElementById(HYDRATE_ID)
+		const el = document.getElementById(DRIFT_PAYLOAD_ID)
 
 		if (!el || !el.textContent) return
 
-		config.current = JSON.parse(el.textContent)?.config ?? {}
-		el.remove()
+		const parsed = devalue.parse(el.textContent) ?? {}
+		config.current = parsed.config
+
+		if (parsed?.[DRIFT_PAYLOAD_ID]?.removeOnMount) el.remove()
 	}, [])
 
 	// @todo: fix error boundary handling and error types

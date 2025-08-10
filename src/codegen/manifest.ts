@@ -8,8 +8,10 @@ export function createManifest(imports: Imports, entries: string[]) {
 
     import type { Metadata, Params, Manifest } from '${PKG_NAME}'
 
+    import { resolveMetadata } from '${PKG_NAME}/shared/metadata'
+
     ${[...imports.apis.static.entries()].map(([key, value]) => `import { ${key} } from '${value}'`).join('\n')}
-    ${[...imports.pages.static.entries()].map(([key, value]) => `import { ${key} } from '${value}'`).join('\n')}
+    ${[...imports.pages.static.entries()].map(([key, value]) => `import ${key.includes('*') ? key : `{ ${key} }`} from '${value}'`).join('\n')}
 
     ${[...imports.pages.dynamic.entries()].map(([key, value]) => `const ${key} = ${value}`).join('\n')}
 

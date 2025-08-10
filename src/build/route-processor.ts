@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildContext, PluginConfig } from '../types'
+import type { BuildContext, HTTPMethod, PluginConfig } from '../types'
 
 import { APP_DIR, EntryKind, GENERATED_DIR } from '../config'
 
@@ -23,8 +23,16 @@ export type Imports = {
 	pages: { static: Map<string, string>; dynamic: Map<string, string> }
 }
 
-export type Handlers = string[]
+export type Handlers = Map<
+	string,
+	{ handler: string; id: string; type: typeof EntryKind.PAGE | typeof EntryKind.API }
+>
+
 export type prerenders = BuildContext['prerenders']
+
+type UnifiedEntries = {
+	[route: string]: string | string[]
+}
 
 export class RouteProcessor {
 	ctx: BuildContext | null = null
@@ -35,7 +43,7 @@ export class RouteProcessor {
 		apis: { static: new Map() },
 		pages: { static: new Map(), dynamic: new Map() },
 	}
-	#handlers: Handlers = []
+	#handlers: Handlers = new Map()
 
 	constructor(ctx: BuildContext, config: PluginConfig) {
 		this.ctx = ctx
@@ -55,13 +63,15 @@ export class RouteProcessor {
 	async run() {
 		try {
 			const routes = await this.compose(APP_DIR)
-			const [pageEntries, apiEntries] = await Promise.all([
-				this.createPageEntries(routes.pages),
-				this.createAPIEntries(routes.apis),
-			])
+			const entries = this.createUnifiedEntries(
+				...(await Promise.all([
+					this.createPageEntries(routes.pages),
+					this.createAPIEntries(routes.apis),
+				])),
+			)
 
 			return {
-				entries: [...pageEntries, ...apiEntries].filter(e => e !== null),
+				entries,
 				imports: this.#imports,
 				handlers: this.#handlers,
 				prerenders: this.#prerenders,
@@ -74,9 +84,9 @@ export class RouteProcessor {
 
 	/**
 	 * Compose the route manifest from the file system
-	 * @param dir the directory to compose the tree from
-	 * @param res the result object to populate
-	 * @param prev the previous layout and error results
+	 * @param dir - the directory to compose the tree from
+	 * @param res - the result object to populate
+	 * @param prev - the previous layout and error results
 	 * @returns the composed route manifest
 	 */
 	async compose(
@@ -162,7 +172,7 @@ export class RouteProcessor {
 
 	/**
 	 * Create the page entries for the manifest
-	 * @param routes the routes to create entries for
+	 * @param routes - the routes to create entries for
 	 * @returns the created entries
 	 */
 	async createPageEntries(routes: ComposeResult['pages']) {
@@ -202,7 +212,7 @@ export class RouteProcessor {
 
 						layoutCache.set(shell, cachedShell)
 						this.#imports.pages.static?.set(
-							`default as ${shellId}`,
+							`* as ${shellId}`,
 							RouteProcessor.getImportPath(shell),
 						)
 					}
@@ -264,7 +274,11 @@ export class RouteProcessor {
 					}
 
 					this.#imports.pages.dynamic?.set(pageId, `import('${pageImportPath}')`)
-					this.#handlers.push(`.get('${route}', c => ssr(c, Shell, manifest, config))`)
+					this.#handlers.set(`get/${route}`, {
+						handler: this.#createHandlerEntry('get', route, pageId, EntryKind.PAGE),
+						id: pageId,
+						type: EntryKind.PAGE,
+					})
 
 					if (error) {
 						errorId = `${EntryKind.ERROR}${id()}`
@@ -275,35 +289,36 @@ export class RouteProcessor {
 						)
 					}
 
-					return `
-          '${route}': {
+					return {
+						route,
+						entry: `
+          	{
               __id: '${pageId}',
 							__path: '${route}',
 							__params: [${params.map(p => `'${p}'`).join(', ')}],
-              Shell: ${shellId},
+              Shell: ${shellId}.default,
               layouts: [${layoutIds
 								.map(id => `lazy(() => ${id}.then(m => ({ default: m.default })))`)
 								.reverse()
 								.join(', ')}],
               Cmp: lazy(() => ${pageId}.then(m => ({ default: m.default }))),
               Err: ${error ? `lazy(() => ${errorId}.then(m => ({ default: m.default })))` : 'null'},
-              async metadata({ params }: { params?: Params }) {
-                const m = await ${pageId}
-                // @todo: fix type
-                const metadata = 
-                  'metadata' in m ? m.metadata as ((({ params }: { params?: Params }) => Promise<Metadata>) | Metadata) : null
-  
-                if (!metadata) return {}
-                if (typeof metadata !== 'function') return metadata
-                
-                return metadata.length > 0 ? metadata({ params }) : metadata({})
-              },
+							metadata({ params, error }: { params?: Params; error?: Error }) {
+								const modules = [
+									Promise.resolve(${shellId}),
+									${layoutIds.length ? `${layoutIds.join(', ')},` : ''}
+									error ? ${errorId ? `${errorId}` : 'Promise.resolve()'} : ${pageId}
+								].filter(Boolean)
+
+								return resolveMetadata(modules, { params, error })
+							},
               prerender: ${shouldPrerender},
               dynamic: ${isDynamicRoute},
               catchAll: ${isCatchAllRoute},
               type: '${EntryKind.PAGE}',
             }
-          `.trim()
+          `.trim(),
+					}
 				}),
 			)
 
@@ -320,7 +335,7 @@ export class RouteProcessor {
 
 	/**
 	 * Create the API entries for the manifest
-	 * @param routes the routes to create entries for
+	 * @param routes - the routes to create entries for
 	 * @returns the created entries
 	 */
 	async createAPIEntries(routes: ComposeResult['apis']) {
@@ -347,7 +362,7 @@ export class RouteProcessor {
 							continue
 						}
 
-						const method = key.toLowerCase()
+						const method = key.toLowerCase() as Lowercase<HTTPMethod>
 						const apiId = `${EntryKind.API}${id()}`
 
 						this.#imports.apis.static?.set(`${key} as ${apiId}`, importPath)
@@ -361,15 +376,19 @@ export class RouteProcessor {
               type: '${EntryKind.API}',
             }`)
 
-						this.#handlers.push(`.${method}('${route}', ${apiId})`)
+						this.#handlers.set(`${method}/${route}`, {
+							handler: this.#createHandlerEntry(method, route, apiId, EntryKind.API),
+							id: apiId,
+							type: EntryKind.API,
+						})
 					}
 
 					if (group.length) {
 						if (group.length > 1) {
-							return `'${route}': [${group.join(',\n')}]`
+							return { route, entry: group }
 						}
 
-						return `'${route}': ${group[0]}`
+						return { route, entry: group[0] }
 					}
 
 					return null
@@ -385,6 +404,93 @@ export class RouteProcessor {
 
 			return []
 		}
+	}
+
+	/**
+	 * @param pageEntries - the page entries
+	 * @param apiEntries - the API entries
+	 * @returns the unified entries
+	 */
+	createUnifiedEntries(
+		pageEntries: Awaited<ReturnType<typeof this.createPageEntries>>,
+		apiEntries: Awaited<ReturnType<typeof this.createAPIEntries>>,
+	) {
+		const entries = [...pageEntries, ...apiEntries]
+			.filter(n => n !== null)
+			.reduce<UnifiedEntries>((acc, { route, entry }) => {
+				if (acc[route]) {
+					if (!Array.isArray(acc[route])) {
+						acc[route] = [acc[route]]
+					}
+
+					if (Array.isArray(entry)) {
+						acc[route].push(...entry)
+					} else {
+						acc[route].push(entry)
+					}
+				} else {
+					acc[route] = entry
+				}
+				return acc
+			}, {})
+
+		return Object.entries(entries).map(([route, entry]) => {
+			if (Array.isArray(entry)) {
+				return `'${route}': [${entry.join(',\n')}]`
+			}
+
+			return `'${route}': ${entry}`
+		})
+	}
+
+	/**
+	 * Create a handler entry for a route
+	 * @param method - the HTTP method
+	 * @param route - the route path
+	 * @param id - the entry id
+	 * @param type - the entry type
+	 * @returns the handler entry
+	 */
+	#createHandlerEntry(
+		method: Lowercase<HTTPMethod>,
+		route: string,
+		id: string,
+		type: typeof EntryKind.PAGE | typeof EntryKind.API,
+	) {
+		const key = `${method}/${route}`
+
+		if (!this.#handlers.has(key)) {
+			switch (type) {
+				case EntryKind.PAGE: {
+					return `.${method}('${route}', c => ssr(c, Shell, manifest, config))`
+				}
+				case EntryKind.API: {
+					return `.${method}('${route}', ${id})`
+				}
+				default: {
+					throw new Error(`createHandlerEntry: Unknown entry type: ${type}`)
+				}
+			}
+		}
+
+		// @note: if we reach here, there is a page route and an API route
+		// with the same method (GET) and path
+
+		const existing = this.#handlers.get(key)
+		const handler = (existing?.type === EntryKind.API && existing?.id) || id
+
+		return `.${method}('${route}', async c => {
+			const accept = c.req.header('Accept') ?? ''
+
+			if (accept.includes('text/html')) {
+				return ssr(c, Shell, manifest, config)
+			}
+
+			// handler might be called with no args so 
+			// ignore to prevent red squigglies
+			// @ts-ignore
+			return ${handler}(c)
+		})`
 	}
 
 	/**
@@ -407,7 +513,7 @@ export class RouteProcessor {
 			.replace(/\/\+page\.(j|t)sx?$/, '')
 			.replace(/\/\+api\.(j|t)sx?$/, '')
 			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
-			.replace(/\[(.+?)\]/g, ':$1') // dynamic segments
+			.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
 
 		if (!route || route === '') return '/'
 

@@ -4,15 +4,16 @@ import { renderToReadableStream } from 'react-dom/server.browser'
 
 import type { Context as HonoContext } from 'hono'
 
+import * as devalue from 'devalue'
 import { isbot } from 'isbot'
 
 import type { Manifest, PluginConfig } from '../types'
 
-import { HYDRATE_ID, NAME } from '../config'
+import { DRIFT_PAYLOAD_ID, NAME } from '../config'
 
 import { HTTPException } from '../shared/error'
 import { Logger } from '../shared/logger'
-import { merge } from '../shared/metadata'
+import { mergeMetadata } from '../shared/metadata'
 import { Redirect } from '../shared/redirect'
 import { Router, RouterProvider } from '../shared/router'
 import { getRelativeBasePath } from '../shared/utils'
@@ -20,7 +21,7 @@ import { getRelativeBasePath } from '../shared/utils'
 import { Runtime } from '../client/runtime'
 
 /**
- * SSR handler to bridge incoming Hono requests with the React renderer
+ * Server-side rendering handler to bridge incoming Hono requests with React
  * @param c - the Hono context
  * @param Shell - the app root (shell) component to render
  * @param manifest - the application manifest containing routes and metadata
@@ -66,20 +67,22 @@ export async function ssr(
 			return c.html(await Bun.file(outPath).text())
 		}
 
-		const metadata = merge(
+		const metadata = mergeMetadata(
 			config.metadata ?? {},
-			await match.metadata?.({
+			...((await match.metadata?.({
 				params: match.params,
-			}),
+				error: match.error,
+			})) ?? []),
 		)
-		const data = JSON.stringify({ config, metadata })
+
+		const data = devalue.stringify({ config, metadata })
 
 		const assets = (
 			<>
 				<Runtime relativeBase={relativeBase} />
 
 				<script
-					id={HYDRATE_ID}
+					id={DRIFT_PAYLOAD_ID}
 					type="application/json"
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: //
 					dangerouslySetInnerHTML={{
@@ -134,15 +137,15 @@ export async function ssr(
 			controller = null
 			caughtError = null
 
-			const metadata = merge(config.metadata ?? {}, {})
-			const data = JSON.stringify({ metadata, error: err })
+			const metadata = mergeMetadata(config.metadata ?? {}, {})
+			const data = devalue.stringify({ metadata, error: err })
 
 			const assets = (
 				<>
 					<Runtime relativeBase={relativeBase} />
 
 					<script
-						id={HYDRATE_ID}
+						id={DRIFT_PAYLOAD_ID}
 						type="application/json"
 						// biome-ignore lint/security/noDangerouslySetInnerHtml: //
 						dangerouslySetInnerHTML={{

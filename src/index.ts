@@ -10,7 +10,14 @@ import react from '@vitejs/plugin-react'
 
 import type { BuildContext, PluginConfig } from './types'
 
-import { APP_DIR, ASSETS_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from './config'
+import {
+	APP_DIR,
+	ASSETS_DIR,
+	DRIFT_PAYLOAD_ID,
+	ENTRY_CLIENT,
+	ENTRY_SERVER,
+	GENERATED_DIR,
+} from './config'
 
 import { Logger } from './shared/logger'
 
@@ -27,6 +34,8 @@ import { createManifest } from './codegen/manifest'
 import { createScaffold } from './codegen/scaffold'
 import { createServer } from './codegen/server'
 
+import { debounce } from './utils'
+
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: 'declarative',
@@ -34,6 +43,9 @@ const DEFAULT_CONFIG = {
 	trailingSlash: false,
 	logger: {
 		level: Bun.env.PROD ? 'error' : 'debug',
+	},
+	[DRIFT_PAYLOAD_ID]: {
+		removeOnMount: false,
 	},
 } as const satisfies Partial<PluginConfig>
 
@@ -64,40 +76,40 @@ function drift(c: PluginConfig): PluginOption[] {
 		prerenders: new Set<string>(),
 	}
 
+	async function build() {
+		const cwd = process.cwd()
+		const routesDir = path.join(cwd, APP_DIR)
+		const generatedDir = path.join(cwd, GENERATED_DIR)
+
+		await Promise.all([
+			fs.mkdir(routesDir, { recursive: true }),
+			fs.mkdir(generatedDir, { recursive: true }),
+		])
+
+		const processor = new RouteProcessor(buildCtx, config)
+		const { entries, imports, handlers, prerenders } = await processor.run()
+
+		buildCtx.prerenders = prerenders
+
+		await Promise.all([
+			Bun.write(path.join(generatedDir, 'config.ts'), createConfig(config)),
+			Bun.write(path.join(generatedDir, 'manifest.ts'), createManifest(imports, entries)),
+			Bun.write(path.join(generatedDir, 'server.tsx'), createServer(imports, handlers)),
+			Bun.write(path.join(generatedDir, 'client.tsx'), createClient()),
+			...(await createScaffold()),
+		])
+
+		await format(GENERATED_DIR, buildCtx)
+	}
+
+	const rebuild = debounce(build, 100)
+
 	return [
 		{
 			name: 'prebuild',
 			enforce: 'pre',
 			async buildStart() {
-				const cwd = process.cwd()
-				const routesDir = path.join(cwd, APP_DIR)
-				const generatedDir = path.join(cwd, GENERATED_DIR)
-
-				await Promise.all([
-					fs.mkdir(routesDir, { recursive: true }),
-					fs.mkdir(generatedDir, { recursive: true }),
-				])
-
-				const processor = new RouteProcessor(buildCtx, config)
-				const { entries, imports, handlers, prerenders } = await processor.run()
-
-				buildCtx.prerenders = prerenders
-
-				await Promise.all([
-					Bun.write(path.join(generatedDir, 'config.ts'), createConfig(config)),
-					Bun.write(
-						path.join(generatedDir, 'manifest.ts'),
-						createManifest(imports, entries),
-					),
-					Bun.write(
-						path.join(generatedDir, 'server.tsx'),
-						createServer(imports, handlers),
-					),
-					Bun.write(path.join(generatedDir, 'client.tsx'), createClient()),
-					...(await createScaffold()),
-				])
-
-				await format(GENERATED_DIR, buildCtx)
+				await build()
 			},
 		},
 		{
@@ -149,6 +161,20 @@ function drift(c: PluginConfig): PluginOption[] {
 						},
 					},
 				}
+			},
+			configureServer(server) {
+				logger.info(`Watching for changes in ./${APP_DIR}...`)
+
+				server.watcher
+					.on('add', path => {
+						if (path.includes(APP_DIR)) rebuild()
+					})
+					.on('change', path => {
+						if (path.includes(APP_DIR)) rebuild()
+					})
+					.on('unlink', path => {
+						if (path.includes(APP_DIR)) rebuild()
+					})
 			},
 			async writeBundle(options, output) {
 				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return

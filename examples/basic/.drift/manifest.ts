@@ -2,184 +2,223 @@ import { lazy } from 'react'
 
 import type { Metadata, Params, Manifest } from '@jk2908/drift'
 
-import { default as $SeNA1jSjZ1w } from '../app/+layout'
+import { resolveMetadata } from '@jk2908/drift/shared/metadata'
 
-const $PT8IoUbMgpg = import('../app/+page')
-const $Pe9rup584Zq = import('../app/test/[...catch]/+page')
-const $LSnrvfTPZG2 = import('../app/about/+layout')
-const $P5yIgcA7iUG = import('../app/about/+page')
-const $Ltwxs1vIgEZ = import('../app/about/+layout')
-const $LLRV2YfdLlC = import('../app/about/+layout')
-const $PofnqlveX9q = import('../app/about/another/+page')
-const $ERRdrrlhRGtEO = import('../app/about/another/+error')
-const $PMQx36_EfYm = import('../app/p/[id]/+page')
-const $Lkp2lCa2d_W = import('../app/about/me/+layout')
-const $PGwdoQyZ59T = import('../app/about/me/+page')
+import { GET as $AK7lKN8reGt } from '../app/posts/+api'
+import { POST as $AWyqilYZGpp } from '../app/posts/+api'
+import * as $SSNcp3tCB2B from '../app/+layout'
+
+const $P3mcuKkUeGB = import('../app/+page')
+const $PtysNIDZa_y = import('../app/foo/+page')
+const $PvISJNqa80G = import('../app/posts/+page')
+const $PLNzLiMz29j = import('../app/test/[...catch]/+page')
+const $LYbyK5bdjO1 = import('../app/about/+layout')
+const $PRGXPZ0XB3N = import('../app/about/+page')
+const $LuqgzqOqh6A = import('../app/about/+layout')
+const $LlZvscfwV6I = import('../app/about/+layout')
+const $PNahRsKtZNt = import('../app/about/another/+page')
+const $ERRr_E8L1BS0F = import('../app/about/another/+error')
+const $LISOGeZXnLe = import('../app/about/me/+layout')
+const $PmUaLaZaKvL = import('../app/about/me/+page')
+const $Pousr1nLMIV = import('../app/p/[id]/+page')
 
 export const manifest = {
 	'/': {
-		id: '$PT8IoUbMgpg',
-		Shell: $SeNA1jSjZ1w,
+		__id: '$P3mcuKkUeGB',
+		__path: '/',
+		__params: [],
+		Shell: $SSNcp3tCB2B.default,
 		layouts: [],
-		Cmp: lazy(() => $PT8IoUbMgpg.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $P3mcuKkUeGB.then(m => ({ default: m.default }))),
 		Err: null,
-		async metadata({ params }: { params?: Params }) {
-			const m = await $PT8IoUbMgpg
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
+				error ? Promise.resolve() : $P3mcuKkUeGB,
+			].filter(Boolean)
 
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
-		__params: [],
 		type: '$P',
 	},
 	'/about': {
-		id: '$P5yIgcA7iUG',
-		Shell: $SeNA1jSjZ1w,
-		layouts: [lazy(() => $LSnrvfTPZG2.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $P5yIgcA7iUG.then(m => ({ default: m.default }))),
+		__id: '$PRGXPZ0XB3N',
+		__path: '/about',
+		__params: [],
+		Shell: $SSNcp3tCB2B.default,
+		layouts: [lazy(() => $LYbyK5bdjO1.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $PRGXPZ0XB3N.then(m => ({ default: m.default }))),
 		Err: null,
-		async metadata({ params }: { params?: Params }) {
-			const m = await $P5yIgcA7iUG
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
+				$LYbyK5bdjO1,
+				error ? Promise.resolve() : $PRGXPZ0XB3N,
+			].filter(Boolean)
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
-
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
-		__params: [],
 		type: '$P',
 	},
 	'/about/another': {
-		id: '$PofnqlveX9q',
-		Shell: $SeNA1jSjZ1w,
-		layouts: [lazy(() => $LLRV2YfdLlC.then(m => ({ default: m.default })))],
-		Cmp: lazy(() => $PofnqlveX9q.then(m => ({ default: m.default }))),
-		Err: lazy(() => $ERRdrrlhRGtEO.then(m => ({ default: m.default }))),
-		async metadata({ params }: { params?: Params }) {
-			const m = await $PofnqlveX9q
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		__id: '$PNahRsKtZNt',
+		__path: '/about/another',
+		__params: [],
+		Shell: $SSNcp3tCB2B.default,
+		layouts: [lazy(() => $LlZvscfwV6I.then(m => ({ default: m.default })))],
+		Cmp: lazy(() => $PNahRsKtZNt.then(m => ({ default: m.default }))),
+		Err: lazy(() => $ERRr_E8L1BS0F.then(m => ({ default: m.default }))),
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
+				$LlZvscfwV6I,
+				error ? $ERRr_E8L1BS0F : $PNahRsKtZNt,
+			].filter(Boolean)
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
-
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
-		__params: [],
 		type: '$P',
 	},
 	'/about/me': {
-		id: '$PGwdoQyZ59T',
-		Shell: $SeNA1jSjZ1w,
+		__id: '$PmUaLaZaKvL',
+		__path: '/about/me',
+		__params: [],
+		Shell: $SSNcp3tCB2B.default,
 		layouts: [
-			lazy(() => $Lkp2lCa2d_W.then(m => ({ default: m.default }))),
-			lazy(() => $Ltwxs1vIgEZ.then(m => ({ default: m.default }))),
+			lazy(() => $LISOGeZXnLe.then(m => ({ default: m.default }))),
+			lazy(() => $LuqgzqOqh6A.then(m => ({ default: m.default }))),
 		],
-		Cmp: lazy(() => $PGwdoQyZ59T.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PmUaLaZaKvL.then(m => ({ default: m.default }))),
 		Err: null,
-		async metadata({ params }: { params?: Params }) {
-			const m = await $PGwdoQyZ59T
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
+				$LuqgzqOqh6A,
+				$LISOGeZXnLe,
+				error ? $ERRr_E8L1BS0F : $PmUaLaZaKvL,
+			].filter(Boolean)
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
-
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: false,
 		catchAll: false,
+		type: '$P',
+	},
+	'/foo': {
+		__id: '$PtysNIDZa_y',
+		__path: '/foo',
 		__params: [],
+		Shell: $SSNcp3tCB2B.default,
+		layouts: [],
+		Cmp: lazy(() => $PtysNIDZa_y.then(m => ({ default: m.default }))),
+		Err: null,
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
+
+				error ? Promise.resolve() : $PtysNIDZa_y,
+			].filter(Boolean)
+
+			return resolveMetadata(modules, { params, error })
+		},
+		prerender: true,
+		dynamic: false,
+		catchAll: false,
 		type: '$P',
 	},
 	'/p/:id': {
-		id: '$PMQx36_EfYm',
-		Shell: $SeNA1jSjZ1w,
+		__id: '$Pousr1nLMIV',
+		__path: '/p/:id',
+		__params: ['id'],
+		Shell: $SSNcp3tCB2B.default,
 		layouts: [],
-		Cmp: lazy(() => $PMQx36_EfYm.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $Pousr1nLMIV.then(m => ({ default: m.default }))),
 		Err: null,
-		async metadata({ params }: { params?: Params }) {
-			const m = await $PMQx36_EfYm
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
+				error ? $ERRr_E8L1BS0F : $Pousr1nLMIV,
+			].filter(Boolean)
 
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: true,
 		catchAll: false,
-		__params: ['id'],
 		type: '$P',
 	},
+	'/posts': [
+		{
+			__id: '$PvISJNqa80G',
+			__path: '/posts',
+			__params: [],
+			Shell: $SSNcp3tCB2B.default,
+			layouts: [],
+			Cmp: lazy(() => $PvISJNqa80G.then(m => ({ default: m.default }))),
+			Err: null,
+			metadata({ params, error }: { params?: Params; error?: Error }) {
+				const modules = [
+					Promise.resolve($SSNcp3tCB2B),
+
+					error ? Promise.resolve() : $PvISJNqa80G,
+				].filter(Boolean)
+
+				return resolveMetadata(modules, { params, error })
+			},
+			prerender: true,
+			dynamic: false,
+			catchAll: false,
+			type: '$P',
+		},
+		{
+			__id: '$AK7lKN8reGt',
+			__path: '/posts',
+			__params: [],
+			method: 'GET',
+			handler: $AK7lKN8reGt,
+			type: '$A',
+		},
+		{
+			__id: '$AWyqilYZGpp',
+			__path: '/posts',
+			__params: [],
+			method: 'POST',
+			handler: $AWyqilYZGpp,
+			type: '$A',
+		},
+	],
 	'/test/*': {
-		id: '$Pe9rup584Zq',
-		Shell: $SeNA1jSjZ1w,
+		__id: '$PLNzLiMz29j',
+		__path: '/test/*',
+		__params: ['catch'],
+		Shell: $SSNcp3tCB2B.default,
 		layouts: [],
-		Cmp: lazy(() => $Pe9rup584Zq.then(m => ({ default: m.default }))),
+		Cmp: lazy(() => $PLNzLiMz29j.then(m => ({ default: m.default }))),
 		Err: null,
-		async metadata({ params }: { params?: Params }) {
-			const m = await $Pe9rup584Zq
-			// @todo: fix type
-			const metadata =
-				'metadata' in m
-					? (m.metadata as
-							| (({ params }: { params?: Params }) => Promise<Metadata>)
-							| Metadata)
-					: null
+		metadata({ params, error }: { params?: Params; error?: Error }) {
+			const modules = [
+				Promise.resolve($SSNcp3tCB2B),
 
-			if (!metadata) return {}
-			if (typeof metadata !== 'function') return metadata
+				error ? Promise.resolve() : $PLNzLiMz29j,
+			].filter(Boolean)
 
-			return metadata.length > 0 ? metadata({ params }) : metadata({})
+			return resolveMetadata(modules, { params, error })
 		},
 		prerender: true,
 		dynamic: false,
 		catchAll: true,
-		__params: ['catch'],
 		type: '$P',
 	},
 } satisfies Manifest

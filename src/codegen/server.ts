@@ -8,7 +8,6 @@ export function createServer(imports: Imports, handlers: Handlers) {
 
     import { Hono } from 'hono'
     import { serveStatic } from 'hono/bun'
-    import { RegExpRouter } from 'hono/router/reg-exp-router'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
     import { manifest } from '${GENERATED_DIR}/manifest'
@@ -31,9 +30,7 @@ export function createServer(imports: Imports, handlers: Handlers) {
         metadata?: React.ReactNode
       }) => React.ReactNode,
     ) {
-      return new Hono({
-        router: new RegExpRouter()
-      })
+      return new Hono()
         .use(
           '/assets/*', 
           serveStatic({ 
@@ -44,7 +41,7 @@ export function createServer(imports: Imports, handlers: Handlers) {
             precompressed: config.precompress,
           }))
         .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
-        ${handlers.join('\n')}
+        ${[...handlers.entries()].map(([, { handler }]) => handler).join('\n')}
     }
 
     export type App = ReturnType<typeof handle>

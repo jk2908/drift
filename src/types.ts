@@ -2,7 +2,7 @@ import type { ConfigEnv } from 'vite'
 
 import type { Context } from 'hono'
 
-import type { EntryKind } from './config'
+import { DRIFT_PAYLOAD_ID, type EntryKind } from './config'
 
 import type { HTTPException } from './shared/error'
 import type { Logger, LogLevel } from './shared/logger'
@@ -16,6 +16,9 @@ export type PluginConfig = {
 	trailingSlash?: boolean
 	logger?: {
 		level?: LogLevel
+	}
+	[DRIFT_PAYLOAD_ID]?: {
+		removeOnMount?: boolean
 	}
 }
 
@@ -86,7 +89,7 @@ export type PageRoute<P extends Params = Params> = {
 			error: Error | HTTPException
 		}>
 	> | null
-	metadata?: ({ params }: { params?: P }) => Promise<Metadata>
+	metadata?: ({ params, error }: { params?: P; error?: Error }) => Promise<Metadata[]>
 	error?: HTTPException | Error
 	prerender: boolean
 	dynamic: boolean
@@ -98,7 +101,7 @@ export type ApiRoute = {
 	__id: string
 	__path: string
 	__params: string[]
-	method: string
+	method: HTTPMethod
 	handler: (ctx: Context) => Promise<Response> | Response
 	type: typeof EntryKind.API
 }
@@ -113,3 +116,5 @@ export type Routes = {
 export type Manifest = {
 	[key: string]: Route | Route[]
 }
+
+export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'

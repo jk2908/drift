@@ -100,5 +100,3 @@ export class Logger {
 		return String(err)
 	}
 }
-
-export const logger = new Logger(Bun.env.PROD ? 'error' : 'debug')
