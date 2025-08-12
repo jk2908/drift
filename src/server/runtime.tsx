@@ -19,14 +19,14 @@ export async function injectRuntime(
 	try {
 		// @note: to be used inside closeBundle
 		if (!bundle.server?.entryPath || !bundle.client?.entryPath) {
-			throw new Error('no server or client entry path found, cannot inject runtime')
+			throw new Error('No server or client entry path found, cannot inject runtime')
 		}
 
 		const serverEntry = Bun.file(path.resolve(process.cwd(), bundle.server.entryPath))
 		const code = await serverEntry.text()
 		const runtime = bundle.client.entryPath.replace(/\\/g, '/').split('/').pop()
 
-		if (!runtime) throw new Error('no runtime found')
+		if (!runtime) throw new Error('No runtime found')
 
 		return code.replaceAll(INJECT_RUNTIME, runtime)
 	} catch (err) {

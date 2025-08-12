@@ -42,6 +42,7 @@ export function createServer(imports: Imports, handlers: Handlers) {
           }))
         .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         ${[...handlers.entries()].map(([, { handler }]) => handler).join('\n')}
+        .notFound(c => ssr(c, Shell, manifest, config))
     }
 
     export type App = ReturnType<typeof handle>

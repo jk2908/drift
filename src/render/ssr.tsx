@@ -20,6 +20,8 @@ import { getRelativeBasePath } from '../shared/utils'
 
 import { Runtime } from '../client/runtime'
 
+import * as fallback from '../ui/+error'
+
 /**
  * Server-side rendering handler to bridge incoming Hono requests with React
  * @param c - the Hono context
@@ -54,10 +56,12 @@ export async function ssr(
 		return c.body(null, 204)
 	}
 
+	const NOT_FOUND = new HTTPException(404, 'Not found')
+
 	try {
 		const match = router.match(c.req.path)
-		if (!match) throw new HTTPException(404, 'Not Found')
 
+		// early return of static html if route is prerendered
 		if (match?.prerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
 			const outPath =
 				c.req.path === '/'
@@ -67,15 +71,25 @@ export async function ssr(
 			return c.html(await Bun.file(outPath).text())
 		}
 
-		const metadata = mergeMetadata(
-			config.metadata ?? {},
-			...((await match.metadata?.({
-				params: match.params,
-				error: match.error,
-			})) ?? []),
-		)
+		const routeMetadata = match
+			? await match.metadata?.({
+					params: match.params,
+					error: match.error,
+				})
+			: [await fallback.metadata({ error: NOT_FOUND })]
+		const metadata = mergeMetadata(config.metadata ?? {}, ...(routeMetadata ?? []))
 
-		const data = devalue.stringify({ config, metadata })
+		const payload = devalue.stringify(
+			{
+				entry: {
+					__path: match?.__path,
+					params: match?.params,
+					error: match?.error,
+					metadata,
+				},
+			},
+			payloadReducer,
+		)
 
 		const assets = (
 			<>
@@ -86,17 +100,17 @@ export async function ssr(
 					type="application/json"
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: //
 					dangerouslySetInnerHTML={{
-						__html: data,
+						__html: payload,
 					}}
 				/>
 			</>
 		)
 
 		const stream = await renderToReadableStream(
-			<RouterProvider router={router} initial={{ match, metadata }}>
+			<RouterProvider router={router} initial={{ match, metadata }} config={config}>
 				{({ el, metadata }) => (
 					<Shell assets={assets} metadata={metadata}>
-						{el}
+						{el ?? <fallback.default error={NOT_FOUND} />}
 					</Shell>
 				)}
 			</RouterProvider>,
@@ -112,8 +126,10 @@ export async function ssr(
 		if (caughtError) throw caughtError
 		if (isbot(c.req.header('User-Agent'))) await stream.allReady
 
+		const status = Router.getMatchStatusCode(match)
+
 		return c.body(stream, {
-			status: 200,
+			status,
 			headers: {
 				'Content-Type': 'text/html',
 				'Transfer-Encoding': 'chunked',
@@ -131,14 +147,31 @@ export async function ssr(
 		}
 
 		if (err && err instanceof HTTPException) {
-			logger.error(Logger.print(err), err)
+			logger.warn(`HTTPException thrown during render: ${err.status} ${err.message}`)
 
 			controller?.abort()
 			controller = null
 			caughtError = null
 
-			const metadata = mergeMetadata(config.metadata ?? {}, {})
-			const data = devalue.stringify({ metadata, error: err })
+			const errorMatch = router.errorFor(c.req.path)
+			const match = errorMatch ? { ...errorMatch, params: {}, error: err } : null
+
+			const routeMetadata = match
+				? await match.metadata?.({ params: match.params, error: match.error })
+				: [await fallback.metadata({ error: err })]
+			const metadata = mergeMetadata(config.metadata ?? {}, ...(routeMetadata ?? []))
+
+			const payload = devalue.stringify(
+				{
+					entry: {
+						__path: match?.__path,
+						params: {},
+						error: err,
+						metadata,
+					},
+				},
+				payloadReducer,
+			)
 
 			const assets = (
 				<>
@@ -149,30 +182,31 @@ export async function ssr(
 						type="application/json"
 						// biome-ignore lint/security/noDangerouslySetInnerHtml: //
 						dangerouslySetInnerHTML={{
-							__html: data,
+							__html: payload,
 						}}
 					/>
 				</>
 			)
 
-			return c.body(
-				await renderToReadableStream(
-					<RouterProvider router={router} initial={{ match: null, metadata }}>
-						{({ metadata }) => (
-							<Shell assets={assets} metadata={metadata}>
-								{null}
-							</Shell>
-						)}
-					</RouterProvider>,
-				),
-				{
-					status: err.status,
-					headers: {
-						'Content-Type': 'text/html',
-						'Transfer-Encoding': 'chunked',
-					},
-				},
+			const stream = await renderToReadableStream(
+				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+					{({ el, metadata }) => (
+						<Shell assets={assets} metadata={metadata}>
+							{el ?? <fallback.default error={NOT_FOUND} />}
+						</Shell>
+					)}
+				</RouterProvider>,
 			)
+
+			if (isbot(c.req.header('User-Agent'))) await stream.allReady
+
+			return c.body(stream, {
+				status: Router.getMatchStatusCode(match),
+				headers: {
+					'Content-Type': 'text/html',
+					'Transfer-Encoding': 'chunked',
+				},
+			})
 		}
 
 		logger.error(Logger.print(err), err)
@@ -183,4 +217,19 @@ export async function ssr(
 
 		return c.text(`${NAME}: internal server error`, 500)
 	}
+}
+
+const payloadReducer = {
+	Error: (v: unknown) => {
+		if (!(v instanceof Error)) return false
+
+		return [
+			v.constructor.name,
+			v.message,
+			v.cause,
+			v.stack,
+			v instanceof HTTPException ? v.status : undefined,
+			v instanceof HTTPException ? v.payload : undefined,
+		]
+	},
 }

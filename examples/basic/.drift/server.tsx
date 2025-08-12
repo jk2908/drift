@@ -9,8 +9,8 @@ import { config } from '.drift/config'
 
 import { ssr } from '@jk2908/drift/render/ssr'
 
-import { GET as $AK7lKN8reGt } from '../app/posts/+api'
-import { POST as $AWyqilYZGpp } from '../app/posts/+api'
+import { GET as $AHK8Cp3nYPg } from '../app/posts/+api'
+import { POST as $A5H9VRHqwYP } from '../app/posts/+api'
 
 export function handle(
 	Shell: ({
@@ -35,8 +35,6 @@ export function handle(
 			}),
 		)
 		.use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
-		.get('/', c => ssr(c, Shell, manifest, config))
-		.get('/foo', c => ssr(c, Shell, manifest, config))
 		.get('/posts', async c => {
 			const accept = c.req.header('Accept') ?? ''
 
@@ -47,14 +45,17 @@ export function handle(
 			// handler might be called with no args so
 			// ignore to prevent red squigglies
 			// @ts-ignore
-			return $AK7lKN8reGt(c)
+			return $AHK8Cp3nYPg(c)
 		})
-		.post('/posts', $AWyqilYZGpp)
+		.post('/posts', $A5H9VRHqwYP)
+		.get('/', c => ssr(c, Shell, manifest, config))
+		.get('/foo', c => ssr(c, Shell, manifest, config))
 		.get('/test/*', c => ssr(c, Shell, manifest, config))
-		.get('/about', c => ssr(c, Shell, manifest, config))
 		.get('/about/another', c => ssr(c, Shell, manifest, config))
+		.get('/about', c => ssr(c, Shell, manifest, config))
 		.get('/about/me', c => ssr(c, Shell, manifest, config))
 		.get('/p/:id', c => ssr(c, Shell, manifest, config))
+		.notFound(c => ssr(c, Shell, manifest, config))
 }
 
 export type App = ReturnType<typeof handle>

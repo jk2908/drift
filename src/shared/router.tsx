@@ -4,7 +4,6 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 	useTransition,
 } from 'react'
@@ -13,11 +12,9 @@ import { RegExpRouter } from 'hono/router/reg-exp-router'
 import { SmartRouter } from 'hono/router/smart-router'
 import { TrieRouter } from 'hono/router/trie-router'
 
-import * as devalue from 'devalue'
-
 import type { Manifest, Metadata, PageRoute, Params, PluginConfig, Route } from '../types'
 
-import { DRIFT_PAYLOAD_ID, EntryKind } from '../config'
+import { EntryKind } from '../config'
 
 import { mergeMetadata } from '../shared/metadata'
 import { Tree } from '../shared/tree'
@@ -117,7 +114,7 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.#resolveAncestorErrorRoute(path)
+		const entry = this.errorFor(path)
 
 		if (entry) {
 			return {
@@ -130,8 +127,13 @@ export class Router {
 		return null
 	}
 
-	#resolveAncestorErrorRoute(route: string) {
-		const parts = route.split('/').filter(Boolean)
+	/**
+	 * Resolve the closest ancestor error boundary for a given path
+	 * @param path - the path to resolve the error boundary for
+	 * @returns the resolved error boundary entry or null
+	 */
+	errorFor(path: string) {
+		const parts = path.split('/').filter(Boolean)
 
 		for (let i = parts.length; i >= 0; i--) {
 			const testPath = i === 0 ? '/' : `/${parts.slice(0, i).join('/')}`
@@ -139,7 +141,7 @@ export class Router {
 
 			if (!entry) continue
 
-			const pageEntry = this.#getPageEntry(entry)
+			const pageEntry = Router.narrow(entry)
 
 			if (pageEntry?.Err) return pageEntry
 		}
@@ -147,14 +149,32 @@ export class Router {
 		return null
 	}
 
-	#getPageEntry(entry: Route | Route[]) {
+	/**
+	 * Narrow down a route entry to a page entry if it exists
+	 * @param entry - the route entry to narrow
+	 * @returns the narrowed page entry or null
+	 */
+	static narrow(entry?: Route | Route[]) {
 		if (Array.isArray(entry)) {
 			return entry.find(e => e.type === EntryKind.PAGE) || null
 		}
 
-		return entry.type === EntryKind.PAGE ? entry : null
+		return entry?.type === EntryKind.PAGE ? entry : null
 	}
 
+	static getMatchStatusCode(match: Match | null) {
+		if (!match) return 404
+
+		if (match.error) {
+			return match.error instanceof HTTPException ? match.error.status : 500
+		}
+
+		return 200
+	}
+
+	/**
+	 * Get the manifest for the router
+	 */
 	get manifest() {
 		return this.#manifest
 	}
@@ -177,6 +197,7 @@ export const RouterContext = createContext<{
 export function RouterProvider({
 	router,
 	initial,
+	config,
 	children,
 }: {
 	router: Router
@@ -184,6 +205,7 @@ export function RouterProvider({
 		match: Match | null
 		metadata?: Metadata
 	}
+	config: Readonly<Partial<PluginConfig>>
 	children:
 		| React.ReactNode
 		| (({
@@ -197,22 +219,23 @@ export function RouterProvider({
 	const [match, setMatch] = useState<Match | null>(initial?.match ?? null)
 	const [metadata, setMetadata] = useState<Metadata>(initial?.metadata ?? {})
 
-	const config = useRef<Readonly<Partial<PluginConfig>>>({})
-
 	const [isPending, startTransition] = useTransition()
 
-	const update = useCallback((match: Match | null) => {
-		setMatch(match)
+	const update = useCallback(
+		(match: Match | null) => {
+			setMatch(match)
 
-		if (!match) {
-			setMetadata(mergeMetadata(config.current?.metadata ?? {}, {}))
-		} else {
-			match
-				.metadata?.({ params: match.params })
-				.then(([m]) => setMetadata(mergeMetadata(config.current?.metadata ?? {}, m)))
-				.catch(() => setMetadata({}))
-		}
-	}, [])
+			if (!match) {
+				setMetadata(mergeMetadata(config.metadata ?? {}, {}))
+			} else {
+				match
+					.metadata?.({ params: match.params })
+					.then(([m]) => setMetadata(mergeMetadata(config?.metadata ?? {}, m)))
+					.catch(() => setMetadata({}))
+			}
+		},
+		[config],
+	)
 
 	/**
 	 * Navigate to a new route
@@ -257,19 +280,7 @@ export function RouterProvider({
 		}
 	}, [router.match, update])
 
-	useEffect(() => {
-		const el = document.getElementById(DRIFT_PAYLOAD_ID)
-
-		if (!el || !el.textContent) return
-
-		const parsed = devalue.parse(el.textContent) ?? {}
-		config.current = parsed.config
-
-		if (parsed?.[DRIFT_PAYLOAD_ID]?.removeOnMount) el.remove()
-	}, [])
-
-	// @todo: fix error boundary handling and error types
-	const el = useMemo(() => <Tree match={match} />, [match])
+	const el = useMemo(() => (match ? <Tree match={match} /> : null), [match])
 
 	const tags = useMemo(
 		() => (
