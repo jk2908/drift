@@ -162,6 +162,11 @@ export class Router {
 		return entry?.type === EntryKind.PAGE ? entry : null
 	}
 
+	/**
+	 * Get the status code for a matched route that may or may not have errored
+	 * @param match - the matched route
+	 * @returns the status code
+	 */
 	static getMatchStatusCode(match: Match | null) {
 		if (!match) return 404
 
@@ -172,9 +177,6 @@ export class Router {
 		return 200
 	}
 
-	/**
-	 * Get the manifest for the router
-	 */
 	get manifest() {
 		return this.#manifest
 	}

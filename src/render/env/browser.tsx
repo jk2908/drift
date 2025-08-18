@@ -5,20 +5,19 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 import * as devalue from 'devalue'
 
-import type { Manifest, PluginConfig } from '../types'
+import type { Manifest, PluginConfig } from '../../types'
 
-import { DRIFT_PAYLOAD_ID } from '../config'
+import { HTTPException, NOT_FOUND, type Payload } from '../../shared/error'
+import { Logger } from '../../shared/logger'
+import { mergeMetadata } from '../../shared/metadata'
+import { Router, RouterProvider } from '../../shared/router'
+import { getRelativeBasePath } from '../../shared/utils'
 
-import { HTTPException, type Payload } from '../shared/error'
-import { Logger } from '../shared/logger'
-import { mergeMetadata } from '../shared/metadata'
-import { Router, RouterProvider } from '../shared/router'
-import { getRelativeBasePath } from '../shared/utils'
+import { readDriftPayload } from '../../client/hydration'
 
-import { readDriftPayload } from '../client/hydration'
-import { Runtime } from '../client/runtime'
+import * as fallback from '../../ui/+error'
 
-import * as fallback from '../ui/+error'
+import { createAssets, createMetadata } from '../utils'
 
 /**
  * Hydration and routing handler for the browser env
@@ -41,8 +40,6 @@ export async function browser(
 
 	const relativeBase = getRelativeBasePath(window.location.pathname)
 
-	const NOT_FOUND = new HTTPException(404, 'Not found')
-
 	try {
 		const payload = readDriftPayload()
 		const { entry, metadata } = payload ? devalue.parse(payload, payloadReviver) : {}
@@ -56,20 +53,7 @@ export async function browser(
 		const lookup = Router.narrow(manifest[entry?.__path])
 		const match = lookup ? { ...lookup, params: entry.params, error: entry.error } : null
 
-		const assets = (
-			<>
-				<Runtime relativeBase={relativeBase} />
-
-				<script
-					id={DRIFT_PAYLOAD_ID}
-					type="application/json"
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: //
-					dangerouslySetInnerHTML={{
-						__html: payload,
-					}}
-				/>
-			</>
-		)
+		const assets = createAssets(relativeBase, payload)
 
 		hydrateRoot(
 			document,
@@ -91,19 +75,13 @@ export async function browser(
 
 		const match = router.match(window.location.pathname)
 
-		const routeMetadata = match
-			? await match.metadata?.({
-					params: match.params,
-					error: match.error,
-				})
-			: [await fallback.metadata({ error: NOT_FOUND })]
-		const metadata = mergeMetadata(config?.metadata ?? {}, ...(routeMetadata ?? []))
-
-		const assets = (
-			<>
-				<Runtime relativeBase={relativeBase} />
-			</>
+		const metadata = await createMetadata(
+			match,
+			config,
+			fallback.metadata({ error: NOT_FOUND }),
 		)
+		
+		const assets = createAssets(relativeBase)
 
 		createRoot(document).render(
 			<StrictMode>

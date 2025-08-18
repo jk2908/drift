@@ -10,7 +10,7 @@ export function createClient() {
     import { manifest } from '${GENERATED_DIR}/manifest'
     import { config } from '${GENERATED_DIR}/config'
 
-    import { browser } from '${PKG_NAME}/render/browser'
+    import { browser } from '${PKG_NAME}/render/env/browser'
     
     export const client = hc<App>(import.meta.env.VITE_APP_URL)
 

@@ -53,3 +53,5 @@ export function error(
 		cause: options?.cause,
 	})
 }
+
+export const NOT_FOUND = new HTTPException(404, 'Not found')

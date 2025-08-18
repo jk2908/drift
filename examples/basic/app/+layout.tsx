@@ -15,14 +15,14 @@ export default function Shell({
 		<html lang="en">
 			<head>
 				{metadata}
-
-				{assets}
 			</head>
 
 			<body>
 				<header>Drift Example App</header>
 				<main>{children}</main>
 				<footer>Footer</footer>
+
+				{assets}
 			</body>
 		</html>
 	)

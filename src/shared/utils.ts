@@ -15,9 +15,9 @@ export async function maybeAsync<T extends (...args: any[]) => any>(
 }
 
 /**
- * Generate a random ID
- * @param length - length of the ID (default: 10)
- * @returns a random ID string safe for variables, URLs, and file paths
+ * Generate a random id
+ * @param length - length of the id (default: 10)
+ * @returns a random id string safe for variables, URLs, and file paths
  */
 export function id(length = 10) {
 	return customAlphabet(

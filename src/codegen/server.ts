@@ -13,7 +13,7 @@ export function createServer(imports: Imports, handlers: Handlers) {
     import { manifest } from '${GENERATED_DIR}/manifest'
     import { config } from '${GENERATED_DIR}/config'
 
-    import { ssr } from '${PKG_NAME}/render/ssr'
+    import { ssr } from '${PKG_NAME}/render/env/ssr'
 
     ${[...imports.apis.static.entries()]
 			.map(([key, value]) => `import { ${key} } from '${value}'`)

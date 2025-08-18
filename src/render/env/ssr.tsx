@@ -7,20 +7,19 @@ import type { Context as HonoContext } from 'hono'
 import * as devalue from 'devalue'
 import { isbot } from 'isbot'
 
-import type { Manifest, PluginConfig } from '../types'
+import type { Manifest, PluginConfig } from '../../types'
 
-import { DRIFT_PAYLOAD_ID, NAME } from '../config'
+import { NAME } from '../../config'
 
-import { HTTPException } from '../shared/error'
-import { Logger } from '../shared/logger'
-import { mergeMetadata } from '../shared/metadata'
-import { Redirect } from '../shared/redirect'
-import { Router, RouterProvider } from '../shared/router'
-import { getRelativeBasePath } from '../shared/utils'
+import { HTTPException, NOT_FOUND } from '../../shared/error'
+import { Logger } from '../../shared/logger'
+import { Redirect } from '../../shared/redirect'
+import { Router, RouterProvider } from '../../shared/router'
+import { getRelativeBasePath } from '../../shared/utils'
 
-import { Runtime } from '../client/runtime'
+import * as fallback from '../../ui/+error'
 
-import * as fallback from '../ui/+error'
+import { createAssets, createMetadata } from '../utils'
 
 /**
  * Server-side rendering handler to bridge incoming Hono requests with React
@@ -56,8 +55,6 @@ export async function ssr(
 		return c.body(null, 204)
 	}
 
-	const NOT_FOUND = new HTTPException(404, 'Not found')
-
 	try {
 		const match = router.match(c.req.path)
 
@@ -71,13 +68,11 @@ export async function ssr(
 			return c.html(await Bun.file(outPath).text())
 		}
 
-		const routeMetadata = match
-			? await match.metadata?.({
-					params: match.params,
-					error: match.error,
-				})
-			: [await fallback.metadata({ error: NOT_FOUND })]
-		const metadata = mergeMetadata(config.metadata ?? {}, ...(routeMetadata ?? []))
+		const metadata = await createMetadata(
+			match,
+			config,
+			fallback.metadata({ error: NOT_FOUND }),
+		)
 
 		const payload = devalue.stringify(
 			{
@@ -91,20 +86,7 @@ export async function ssr(
 			payloadReducer,
 		)
 
-		const assets = (
-			<>
-				<Runtime relativeBase={relativeBase} />
-
-				<script
-					id={DRIFT_PAYLOAD_ID}
-					type="application/json"
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: //
-					dangerouslySetInnerHTML={{
-						__html: payload,
-					}}
-				/>
-			</>
-		)
+		const assets = createAssets(relativeBase, payload)
 
 		const stream = await renderToReadableStream(
 			<RouterProvider router={router} initial={{ match, metadata }} config={config}>
@@ -116,7 +98,7 @@ export async function ssr(
 			</RouterProvider>,
 			{
 				signal: controller?.signal,
-				onError(err: unknown) {
+				onError: (err: unknown) => {
 					logger.error(Logger.print(err), err)
 					caughtError = err
 				},
@@ -150,16 +132,17 @@ export async function ssr(
 			logger.warn(`HTTPException thrown during render: ${err.status} ${err.message}`)
 
 			controller?.abort()
-			controller = null
+			controller = new AbortController()
 			caughtError = null
 
 			const errorMatch = router.errorFor(c.req.path)
 			const match = errorMatch ? { ...errorMatch, params: {}, error: err } : null
 
-			const routeMetadata = match
-				? await match.metadata?.({ params: match.params, error: match.error })
-				: [await fallback.metadata({ error: err })]
-			const metadata = mergeMetadata(config.metadata ?? {}, ...(routeMetadata ?? []))
+			const metadata = await createMetadata(
+				match,
+				config,
+				fallback.metadata({ error: err }),
+			)
 
 			const payload = devalue.stringify(
 				{
@@ -173,29 +156,23 @@ export async function ssr(
 				payloadReducer,
 			)
 
-			const assets = (
-				<>
-					<Runtime relativeBase={relativeBase} />
-
-					<script
-						id={DRIFT_PAYLOAD_ID}
-						type="application/json"
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: //
-						dangerouslySetInnerHTML={{
-							__html: payload,
-						}}
-					/>
-				</>
-			)
+			const assets = createAssets(relativeBase, payload)
 
 			const stream = await renderToReadableStream(
 				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
+							{el ?? <fallback.default error={err} />}
 						</Shell>
 					)}
 				</RouterProvider>,
+				{
+					signal: controller?.signal,
+					onError: (err: unknown) => {
+						logger.error(Logger.print(err), err)
+						caughtError = err
+					},
+				},
 			)
 
 			if (isbot(c.req.header('User-Agent'))) await stream.allReady
