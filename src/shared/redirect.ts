@@ -20,8 +20,7 @@ export class Redirect {
  * Throw a redirect
  * @param status - the status code of the redirect
  * @param url - the destination 
- * @returns {never}
- * @throws {Redirect} - throws a Redirect error with the given status and URL
+ * @throws {Redirect} throws a Redirect error with the given status and URL
  */
 export function redirect(status: RedirectStatusCode, url: string): never {
 	throw new Redirect(status, url)

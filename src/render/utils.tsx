@@ -63,7 +63,7 @@ export function createAssets(relativeBase: string, payload?: string) {
  * @param match - the route match object
  * @param config - the plugin configuration
  * @param fallback - a promise that resolves to the fallback metadata
- * @returns the merged metadata
+ * @returns a promise resolving to the merged metadata
  */
 export async function createMetadata(
 	match: Match,
