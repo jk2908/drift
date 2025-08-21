@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, useEffect, useState } from 'react'
 
 import { Link } from '@jk2908/drift/ui/link'
 
@@ -11,6 +11,8 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 export default function HomePage({ params }: { params?: Record<string, string> }) {
 	const [count, setCount] = useState(0)
 	const [posts, setPosts] = useState([])
+
+	const Blue = lazy(() => import('#/app/blue').then(m => ({ default: m.Blue })))
 
 	useEffect(() => {
 		wait(3000).then(() => {
@@ -32,6 +34,8 @@ export default function HomePage({ params }: { params?: Record<string, string> }
 			{!posts.length
 				? 'Loading...'
 				: posts.map(p => <div key={p.id}>{JSON.stringify(p)}</div>)}
+
+			<Blue />
 		</div>
 	)
 }

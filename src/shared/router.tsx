@@ -343,8 +343,6 @@ export function RouterProvider({
 	return (
 		<RouterContext value={value}>
 			{typeof children === 'function' ? children({ el, metadata: tags }) : children}
-
-			<ScrollRestoration />
 		</RouterContext>
 	)
 }
@@ -353,21 +351,10 @@ export function useRouter() {
 	return use(RouterContext)
 }
 
-export function ScrollRestoration({
-	behavior = 'smooth',
-}: {
-	behavior?: ScrollToOptions['behavior']
-}) {
-	const { match } = useRouter()
+export function useParams() {
+	return useRouter().match?.params ?? {}
+}
 
-	useEffect(() => {
-		match &&
-			window.scrollTo({
-				top: 0,
-				left: 0,
-				behavior,
-			})
-	}, [match, behavior])
-
-	return null
+export function useSearchParams() {
+	// @todo
 }

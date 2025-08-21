@@ -4,39 +4,39 @@ import { lazy } from 'react'
 
     import { resolveMetadata } from '@jk2908/drift/shared/metadata'
 
-    import { GET as $ATjP1z3ZLzm } from '../app/posts/+api'
-import { POST as $AP9o6MBBAXG } from '../app/posts/+api'
-    import * as $SzFJs6XlAWb from '../app/+layout'
+    import { GET as $AM3dhYrocld } from '../app/posts/+api'
+import { POST as $AoYmOOdIubV } from '../app/posts/+api'
+    import * as $STPnu2RB1Nk from '../app/+layout'
 
-    const $PdrfatBs32g = import('../app/foo/+page')
-const $Pzd_9uUuvO6 = import('../app/posts/+page')
-const $ERRHZKgyL40ge = import('../app/posts/+error')
-const $P7feIj2QdeD = import('../app/test/[...catch]/+page')
-const $PU8RdRlrrtV = import('../app/+page')
-const $LuJ5g6JJKtQ = import('../app/about/+layout')
-const $Lx5FTp0btrx = import('../app/about/+layout')
-const $P09rw8uSKBD = import('../app/about/+page')
-const $LoGqQaImCe2 = import('../app/about/+layout')
-const $P26EvynBlCn = import('../app/about/another/+page')
-const $ERR5Bg23oCV0F = import('../app/about/another/+error')
-const $LS9H3QtJ_oh = import('../app/about/me/+layout')
-const $PcaQEg3Z5mf = import('../app/about/me/+page')
-const $Poq1CBk9YWD = import('../app/p/[id]/+page')
+    const $P3zvPYQzSNu = import('../app/+page')
+const $PCH6N2ojCvP = import('../app/foo/+page')
+const $PJj7Otks0lp = import('../app/posts/+page')
+const $ERRETW_NlKvcO = import('../app/posts/+error')
+const $PBwSQnubU_y = import('../app/test/[...catch]/+page')
+const $LGQAG0ADk95 = import('../app/about/+layout')
+const $LxTgtzv2tsv = import('../app/about/+layout')
+const $PFyoEpG1ksI = import('../app/about/another/+page')
+const $ERRaEuuN_iRaI = import('../app/about/another/+error')
+const $L7mGzjYgDYd = import('../app/about/+layout')
+const $P8NPOTqxiNk = import('../app/about/+page')
+const $P_pWCpJfy_w = import('../app/p/[id]/+page')
+const $LRdPPLBcymq = import('../app/about/me/+layout')
+const $P8ajcVsH6rO = import('../app/about/me/+page')
 
     export const manifest = {
       '/': {
-              __id: '$PU8RdRlrrtV',
+              __id: '$P3zvPYQzSNu',
 							__path: '/',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
+              Shell: $STPnu2RB1Nk.default,
               layouts: [],
-              Cmp: lazy(() => $PU8RdRlrrtV.then(m => ({ default: m.default }))),
+              Cmp: lazy(() => $P3zvPYQzSNu.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
+									Promise.resolve($STPnu2RB1Nk),
 									
-									error ? $ERRHZKgyL40ge : $PU8RdRlrrtV
+									error ? Promise.resolve() : $P3zvPYQzSNu
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -47,18 +47,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/about': {
-              __id: '$P09rw8uSKBD',
+              __id: '$P8NPOTqxiNk',
 							__path: '/about',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
-              layouts: [lazy(() => $Lx5FTp0btrx.then(m => ({ default: m.default })))],
-              Cmp: lazy(() => $P09rw8uSKBD.then(m => ({ default: m.default }))),
+              Shell: $STPnu2RB1Nk.default,
+              layouts: [lazy(() => $L7mGzjYgDYd.then(m => ({ default: m.default })))],
+              Cmp: lazy(() => $P8NPOTqxiNk.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
-									$Lx5FTp0btrx,
-									error ? $ERRHZKgyL40ge : $P09rw8uSKBD
+									Promise.resolve($STPnu2RB1Nk),
+									$L7mGzjYgDYd,
+									error ? $ERRaEuuN_iRaI : $P8NPOTqxiNk
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -69,18 +69,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/about/another': {
-              __id: '$P26EvynBlCn',
+              __id: '$PFyoEpG1ksI',
 							__path: '/about/another',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
-              layouts: [lazy(() => $LoGqQaImCe2.then(m => ({ default: m.default })))],
-              Cmp: lazy(() => $P26EvynBlCn.then(m => ({ default: m.default }))),
-              Err: lazy(() => $ERR5Bg23oCV0F.then(m => ({ default: m.default }))),
+              Shell: $STPnu2RB1Nk.default,
+              layouts: [lazy(() => $LxTgtzv2tsv.then(m => ({ default: m.default })))],
+              Cmp: lazy(() => $PFyoEpG1ksI.then(m => ({ default: m.default }))),
+              Err: lazy(() => $ERRaEuuN_iRaI.then(m => ({ default: m.default }))),
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
-									$LoGqQaImCe2,
-									error ? $ERR5Bg23oCV0F : $P26EvynBlCn
+									Promise.resolve($STPnu2RB1Nk),
+									$LxTgtzv2tsv,
+									error ? $ERRaEuuN_iRaI : $PFyoEpG1ksI
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -91,18 +91,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/about/me': {
-              __id: '$PcaQEg3Z5mf',
+              __id: '$P8ajcVsH6rO',
 							__path: '/about/me',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
-              layouts: [lazy(() => $LS9H3QtJ_oh.then(m => ({ default: m.default }))), lazy(() => $LuJ5g6JJKtQ.then(m => ({ default: m.default })))],
-              Cmp: lazy(() => $PcaQEg3Z5mf.then(m => ({ default: m.default }))),
+              Shell: $STPnu2RB1Nk.default,
+              layouts: [lazy(() => $LRdPPLBcymq.then(m => ({ default: m.default }))), lazy(() => $LGQAG0ADk95.then(m => ({ default: m.default })))],
+              Cmp: lazy(() => $P8ajcVsH6rO.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
-									$LuJ5g6JJKtQ, $LS9H3QtJ_oh,
-									error ? $ERR5Bg23oCV0F : $PcaQEg3Z5mf
+									Promise.resolve($STPnu2RB1Nk),
+									$LGQAG0ADk95, $LRdPPLBcymq,
+									error ? $ERRaEuuN_iRaI : $P8ajcVsH6rO
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -113,18 +113,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/foo': {
-              __id: '$PdrfatBs32g',
+              __id: '$PCH6N2ojCvP',
 							__path: '/foo',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
+              Shell: $STPnu2RB1Nk.default,
               layouts: [],
-              Cmp: lazy(() => $PdrfatBs32g.then(m => ({ default: m.default }))),
+              Cmp: lazy(() => $PCH6N2ojCvP.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
+									Promise.resolve($STPnu2RB1Nk),
 									
-									error ? Promise.resolve() : $PdrfatBs32g
+									error ? Promise.resolve() : $PCH6N2ojCvP
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -135,18 +135,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/p/:id': {
-              __id: '$Poq1CBk9YWD',
+              __id: '$P_pWCpJfy_w',
 							__path: '/p/:id',
 							__params: ['id'],
-              Shell: $SzFJs6XlAWb.default,
+              Shell: $STPnu2RB1Nk.default,
               layouts: [],
-              Cmp: lazy(() => $Poq1CBk9YWD.then(m => ({ default: m.default }))),
+              Cmp: lazy(() => $P_pWCpJfy_w.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
+									Promise.resolve($STPnu2RB1Nk),
 									
-									error ? $ERR5Bg23oCV0F : $Poq1CBk9YWD
+									error ? $ERRaEuuN_iRaI : $P_pWCpJfy_w
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -157,18 +157,18 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 '/posts': [{
-              __id: '$Pzd_9uUuvO6',
+              __id: '$PJj7Otks0lp',
 							__path: '/posts',
 							__params: [],
-              Shell: $SzFJs6XlAWb.default,
+              Shell: $STPnu2RB1Nk.default,
               layouts: [],
-              Cmp: lazy(() => $Pzd_9uUuvO6.then(m => ({ default: m.default }))),
-              Err: lazy(() => $ERRHZKgyL40ge.then(m => ({ default: m.default }))),
+              Cmp: lazy(() => $PJj7Otks0lp.then(m => ({ default: m.default }))),
+              Err: lazy(() => $ERRETW_NlKvcO.then(m => ({ default: m.default }))),
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
+									Promise.resolve($STPnu2RB1Nk),
 									
-									error ? $ERRHZKgyL40ge : $Pzd_9uUuvO6
+									error ? $ERRETW_NlKvcO : $PJj7Otks0lp
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
@@ -179,34 +179,34 @@ const $Poq1CBk9YWD = import('../app/p/[id]/+page')
               type: '$P',
             },
 {
-              __id: '$ATjP1z3ZLzm',
+              __id: '$AM3dhYrocld',
 							__path: '/posts',
 							__params: [],
               method: 'GET',
-              handler: $ATjP1z3ZLzm,
+              handler: $AM3dhYrocld,
               type: '$A',
             },
 {
-              __id: '$AP9o6MBBAXG',
+              __id: '$AoYmOOdIubV',
 							__path: '/posts',
 							__params: [],
               method: 'POST',
-              handler: $AP9o6MBBAXG,
+              handler: $AoYmOOdIubV,
               type: '$A',
             }],
 '/test/*': {
-              __id: '$P7feIj2QdeD',
+              __id: '$PBwSQnubU_y',
 							__path: '/test/*',
 							__params: ['catch'],
-              Shell: $SzFJs6XlAWb.default,
+              Shell: $STPnu2RB1Nk.default,
               layouts: [],
-              Cmp: lazy(() => $P7feIj2QdeD.then(m => ({ default: m.default }))),
+              Cmp: lazy(() => $PBwSQnubU_y.then(m => ({ default: m.default }))),
               Err: null,
 							metadata({ params, error }: { params?: Params; error?: Error }) {
 								const modules = [
-									Promise.resolve($SzFJs6XlAWb),
+									Promise.resolve($STPnu2RB1Nk),
 									
-									error ? $ERRHZKgyL40ge : $P7feIj2QdeD
+									error ? $ERRETW_NlKvcO : $PBwSQnubU_y
 								].filter(Boolean)
 
 								return resolveMetadata(modules, { params, error })
