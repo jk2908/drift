@@ -7,7 +7,7 @@ import type { Context as HonoContext } from 'hono'
 import * as devalue from 'devalue'
 import { isbot } from 'isbot'
 
-import type { Manifest, PluginConfig } from '../../types'
+import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
 import { NAME } from '../../config'
 
@@ -41,9 +41,10 @@ export async function ssr(
 		metadata: React.ReactNode
 	}) => React.ReactNode,
 	manifest: Manifest,
+	map: ImportMap,
 	config: PluginConfig,
 ) {
-	const router = new Router(manifest)
+	const router = new Router(manifest, map)
 	const logger = new Logger(config.logger?.level)
 
 	const relativeBase = getRelativeBasePath(c.req.path)
@@ -56,10 +57,10 @@ export async function ssr(
 	}
 
 	try {
-		const match = router.match(c.req.path)
+		const match = router.enhance(router.match(c.req.path))
 
 		// early return of static html if route is prerendered
-		if (match?.prerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
+		if (match?.shouldPrerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
 			const outPath =
 				c.req.path === '/'
 					? path.join(import.meta.dir, 'index.html')
@@ -87,9 +88,13 @@ export async function ssr(
 		)
 
 		const assets = createAssets(relativeBase, payload)
+		const initial = { match, metadata }
 
 		const stream = await renderToReadableStream(
-			<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+			<RouterProvider
+				router={router}
+				initial={initial}	
+				config={config}>
 				{({ el, metadata }) => (
 					<Shell assets={assets} metadata={metadata}>
 						{el ?? <fallback.default error={NOT_FOUND} />}
@@ -136,7 +141,9 @@ export async function ssr(
 			caughtError = null
 
 			const errorMatch = router.errorFor(c.req.path)
-			const match = errorMatch ? { ...errorMatch, params: {}, error: err } : null
+			const match = errorMatch
+				? router.enhance({ ...errorMatch, params: {}, error: err })
+				: null
 
 			const metadata = await createMetadata(
 				match,
@@ -157,9 +164,13 @@ export async function ssr(
 			)
 
 			const assets = createAssets(relativeBase, payload)
+			const initial = { match, metadata }
 
 			const stream = await renderToReadableStream(
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+				<RouterProvider
+					router={router}
+					initial={initial}
+					config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
 							{el ?? <fallback.default error={err} />}

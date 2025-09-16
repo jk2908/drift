@@ -1,5 +1,6 @@
 import {
 	createContext,
+	lazy,
 	use,
 	useCallback,
 	useEffect,
@@ -12,7 +13,19 @@ import { RegExpRouter } from 'hono/router/reg-exp-router'
 import { SmartRouter } from 'hono/router/smart-router'
 import { TrieRouter } from 'hono/router/trie-router'
 
-import type { Manifest, Metadata, PageRoute, Params, PluginConfig, Route } from '../types'
+import type {
+	DynamicImport,
+	Endpoint,
+	EnhancedMatch,
+	ImportMap,
+	Manifest,
+	ManifestEntry,
+	Match,
+	Metadata,
+	Page,
+	Params,
+	PluginConfig,
+} from '../types'
 
 import { EntryKind } from '../config'
 
@@ -20,8 +33,6 @@ import { mergeMetadata } from '../shared/metadata'
 import { Tree } from '../shared/tree'
 
 import { HTTPException } from './error'
-
-export type Match = ReturnType<Router['match']>
 
 type GoConfig = {
 	replace?: boolean
@@ -34,21 +45,35 @@ type GoConfig = {
  * @see {@link Manifest} for the structure of the manifest
  */
 export class Router {
+	static #enh = new Map<string, EnhancedMatch>()
+
+	static #mods = new WeakMap<
+		DynamicImport,
+		{
+			p: Promise<Record<string, unknown>>
+			v?: Record<string, unknown>
+			L?: React.LazyExoticComponent<React.ComponentType<any>>
+		}
+	>()
+
 	#manifest: Manifest = {}
+	#map: ImportMap = {}
+
 	// @see: https://hono.dev/docs/concepts/routers
-	#router: SmartRouter<PageRoute> = new SmartRouter({
+	#router: SmartRouter<Page> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
-	constructor(manifest: Manifest) {
+	constructor(manifest: Manifest, map: ImportMap) {
 		this.#manifest = manifest
+		this.#map = map
 
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
 
 			if (Array.isArray(entry)) {
 				for (const e of entry) {
-					if (e.type !== EntryKind.PAGE) continue
+					if (e.__kind !== EntryKind.PAGE) continue
 
 					this.#router.add('GET', path, e)
 				}
@@ -56,10 +81,72 @@ export class Router {
 				continue
 			}
 
-			if (entry.type !== EntryKind.PAGE) continue
+			if (entry.__kind !== EntryKind.PAGE) continue
 
 			this.#router.add('GET', path, entry)
 		}
+	}
+
+	/**
+	 * Narrow down a route entry to a page entry if it exists
+	 * @param entry - the route entry to narrow
+	 * @returns the narrowed page entry or null
+	 */
+	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
+		if (Array.isArray(entry)) {
+			return entry.find(e => e.__kind === EntryKind.PAGE) || null
+		}
+
+		return entry?.__kind === EntryKind.PAGE ? entry : null
+	}
+
+	/**
+	 * Get the status code for a matched route that may or may not have errored
+	 * @param match - the matched route
+	 * @returns the status code
+	 */
+	static getMatchStatusCode(match: Match | EnhancedMatch | null) {
+		if (!match) return 404
+
+		if ('error' in match) {
+			return match.error instanceof HTTPException ? match.error.status : 500
+		}
+
+		return 200
+	}
+
+	static #load(loader: DynamicImport) {
+		let e = Router.#mods.get(loader)
+		if (e) return e
+
+		const p = loader()
+			.then(mod => {
+				const entry = Router.#mods.get(loader)
+				if (entry) entry.v = mod
+				return mod
+			})
+			.catch(err => {
+				Router.#mods.delete(loader)
+				throw err
+			})
+
+		e = { p }
+		Router.#mods.set(loader, e)
+
+		return e
+	}
+
+	static #lazy<T extends React.ComponentType<any>>(loader: DynamicImport) {
+		const e = Router.#load(loader)
+		if (e.L) return e.L as React.LazyExoticComponent<T>
+
+		const L = lazy(async () => {
+			const mod = e.v ?? (await e.p)
+			return { default: mod.default as T }
+		})
+
+		e.L = L
+		return L as React.LazyExoticComponent<T>
 	}
 
 	/**
@@ -80,7 +167,7 @@ export class Router {
 
 				// only process parameters if the router returned any
 				if (paramStash?.length) {
-					if (entry.catchAll) {
+					if (entry.isCatchAll) {
 						// for a catch-all, we use the __path property on the matched entry.
 						// Neccessary because Hono doesn't expose wildcard params so we need
 						// to grab them from here. Derive the value by removing the
@@ -114,7 +201,7 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.errorFor(path)
+		const entry = this.closest(path, 'error')
 
 		if (entry) {
 			return {
@@ -128,11 +215,66 @@ export class Router {
 	}
 
 	/**
-	 * Resolve the closest ancestor error boundary for a given path
-	 * @param path - the path to resolve the error boundary for
-	 * @returns the resolved error boundary entry or null
+	 * Enhance a matched route with its associated components
+	 * @param match - the matched route to enhance
+	 * @returns the enhanced route or null
 	 */
-	errorFor(path: string) {
+	enhance(match: Match) {
+		if (!match) return null
+
+		const { __id } = match
+
+		if (Router.#enh.has(__id)) {
+			return Router.#enh.get(__id) || null
+		}
+
+		const entry = this.#map[__id]
+		if (!entry) return null
+
+		const enhanced: EnhancedMatch = {
+			ui: {
+				Shell: null,
+				layouts: [],
+				Page: null,
+				Err: null,
+			},
+			...match,
+		}
+
+		if (entry.shell) {
+			enhanced.ui.Shell = entry.shell.default as EnhancedMatch['ui']['Shell']
+		}
+
+		if (entry.layouts) {
+			enhanced.ui.layouts = entry.layouts.map(l =>
+				Router.#lazy<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l),
+			)
+		}
+
+		if (entry.page) {
+			enhanced.ui.Page = Router.#lazy<NonNullable<EnhancedMatch['ui']['Page']>>(
+				entry.page,
+			)
+		}
+
+		if (entry.error) {
+			enhanced.ui.Err = Router.#lazy<NonNullable<EnhancedMatch['ui']['Err']>>(entry.error)
+		}
+
+		if (entry.endpoint) enhanced.endpoint = entry.endpoint
+
+		Router.#enh.set(__id, enhanced)
+
+		return enhanced
+	}
+
+	/**
+	 * Find the closest ancestor entry for a given path and property
+	 * @param path - the path to start searching from
+	 * @param property - the property to match against
+	 * @returns the closest ancestor entry or null
+	 */
+	closest(path: string, property: keyof Page) {
 		const parts = path.split('/').filter(Boolean)
 
 		for (let i = parts.length; i >= 0; i--) {
@@ -143,42 +285,41 @@ export class Router {
 
 			const pageEntry = Router.narrow(entry)
 
-			if (pageEntry?.Err) return pageEntry
+			if (pageEntry && property in pageEntry && pageEntry[property] !== undefined) {
+				return pageEntry
+			}
 		}
 
 		return null
 	}
 
-	/**
-	 * Narrow down a route entry to a page entry if it exists
-	 * @param entry - the route entry to narrow
-	 * @returns the narrowed page entry or null
-	 */
-	static narrow(entry?: Route | Route[]) {
-		if (Array.isArray(entry)) {
-			return entry.find(e => e.type === EntryKind.PAGE) || null
+	async preload(path: string) {
+		const match = this.match(path)
+		if (!match) return
+
+		const imports = this.#map[match.__id]
+		if (!imports) return
+
+		const tasks: Promise<unknown>[] = []
+
+		if (imports.layouts?.length) {
+			for (const loader of imports.layouts) {
+				tasks.push(Router.#load(loader).p)
+			}
 		}
 
-		return entry?.type === EntryKind.PAGE ? entry : null
-	}
+		if (imports.page) tasks.push(Router.#load(imports.page).p)
+		if (imports.error) tasks.push(Router.#load(imports.error).p)
 
-	/**
-	 * Get the status code for a matched route that may or may not have errored
-	 * @param match - the matched route
-	 * @returns the status code
-	 */
-	static getMatchStatusCode(match: Match | null) {
-		if (!match) return 404
-
-		if (match.error) {
-			return match.error instanceof HTTPException ? match.error.status : 500
-		}
-
-		return 200
+		return Promise.allSettled(tasks)
 	}
 
 	get manifest() {
 		return this.#manifest
+	}
+
+	get map() {
+		return this.#map
 	}
 }
 
@@ -187,7 +328,7 @@ const DEFAULT_GO_CONFIG = {
 } satisfies GoConfig
 
 export const RouterContext = createContext<{
-	match: Match | null
+	match: EnhancedMatch | null
 	go: (to: string, config?: GoConfig) => string
 	isPending: boolean
 }>({
@@ -204,7 +345,7 @@ export function RouterProvider({
 }: {
 	router: Router
 	initial: {
-		match: Match | null
+		match: EnhancedMatch | null
 		metadata?: Metadata
 	}
 	config: Readonly<Partial<PluginConfig>>
@@ -218,13 +359,13 @@ export function RouterProvider({
 				metadata: React.ReactNode
 		  }) => React.ReactNode)
 }) {
-	const [match, setMatch] = useState<Match | null>(initial?.match ?? null)
+	const [match, setMatch] = useState<EnhancedMatch | null>(initial?.match ?? null)
 	const [metadata, setMetadata] = useState<Metadata>(initial?.metadata ?? {})
 
 	const [isPending, startTransition] = useTransition()
 
 	const update = useCallback(
-		(match: Match | null) => {
+		(match: EnhancedMatch | null) => {
 			setMatch(match)
 
 			if (!match) {
@@ -254,7 +395,7 @@ export function RouterProvider({
 			const path = url.pathname + url.search + url.hash
 
 			startTransition(() => {
-				update(router.match(path))
+				update(router.enhance(router.match(path)))
 
 				if (replace) {
 					window.history.replaceState(null, '', path)
@@ -265,13 +406,13 @@ export function RouterProvider({
 
 			return path
 		},
-		[router.match, update],
+		[router.match, router.enhance, update],
 	)
 
 	useEffect(() => {
 		const onPopState = () => {
 			startTransition(() => {
-				update(router.match(window.location.pathname))
+				update(router.enhance(router.match(window.location.pathname)))
 			})
 		}
 
@@ -280,7 +421,7 @@ export function RouterProvider({
 		return () => {
 			window.removeEventListener('popstate', onPopState)
 		}
-	}, [router.match, update])
+	}, [router.match, router.enhance, update])
 
 	const el = useMemo(() => (match ? <Tree match={match} /> : null), [match])
 

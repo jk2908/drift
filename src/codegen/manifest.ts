@@ -1,22 +1,21 @@
+import type { Manifest } from '../types'
+
 import { PKG_NAME } from '../config'
 
-import type { Imports } from '../build/route-processor'
+import { AUTO_GEN_MSG } from './utils'
 
-export function createManifest(imports: Imports, entries: string[]) {
+/**
+ * Generates the code to create an exported manifest object
+ * @param manifest - the application manifest
+ * @returns the stringified code
+ */
+export function writeManifest(manifest: Manifest) {
 	return `
-    import { lazy } from 'react'
+    ${AUTO_GEN_MSG}
 
-    import type { Metadata, Params, Manifest } from '${PKG_NAME}'
+    import type { Manifest } from '${PKG_NAME}'
 
-    import { resolveMetadata } from '${PKG_NAME}/shared/metadata'
-
-    ${[...imports.apis.static.entries()].map(([key, value]) => `import { ${key} } from '${value}'`).join('\n')}
-    ${[...imports.pages.static.entries()].map(([key, value]) => `import ${key.includes('*') ? key : `{ ${key} }`} from '${value}'`).join('\n')}
-
-    ${[...imports.pages.dynamic.entries()].map(([key, value]) => `const ${key} = ${value}`).join('\n')}
-
-    export const manifest = {
-      ${entries.join(',\n')}
-    } satisfies Manifest
+    export const manifest = 
+      ${JSON.stringify(manifest, null, 2)} as const satisfies Manifest
   `.trim()
 }

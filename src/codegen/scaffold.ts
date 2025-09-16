@@ -2,6 +2,12 @@ import path from 'node:path'
 
 import { APP_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from '../config'
 
+import { AUTO_GEN_MSG } from './utils'
+
+/**
+ * Generates the essential scaffold files required to run the application
+ * @returns a promise that resolves when the scaffold files have been created
+ */
 export async function createScaffold() {
 	const cwd = process.cwd()
 
@@ -10,7 +16,7 @@ export async function createScaffold() {
 
 	const scaffold: Promise<number>[] = []
 
-  const Shell = `
+	const Shell = `
     <Shell assets={assets} metadata={metadata}>
       {children}
     </Shell>
@@ -20,6 +26,8 @@ export async function createScaffold() {
 		Bun.write(
 			path.join(generatedDir, ENTRY_SERVER),
 			`
+        ${AUTO_GEN_MSG}
+
         import { handle } from '${GENERATED_DIR}/server'
 
         import Shell from '${shellImport}'
@@ -37,6 +45,8 @@ export async function createScaffold() {
 		Bun.write(
 			path.join(generatedDir, ENTRY_CLIENT),
 			`
+        ${AUTO_GEN_MSG}
+
         import { mount } from '${GENERATED_DIR}/client'
 
         import Shell from '${shellImport}'

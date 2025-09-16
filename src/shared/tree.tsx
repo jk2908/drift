@@ -1,28 +1,39 @@
+import { Suspense } from 'react'
+
+import type { EnhancedMatch } from '../types'
+
 import Fallback from '../ui/+error'
 
-import type { Match } from './router'
+export function Tree({ match }: { match: NonNullable<EnhancedMatch> }) {
+	const {
+		params,
+		error,
+		ui: { layouts, Page, Err },
+	} = match
 
-export function Tree({ match }: { match: NonNullable<Match> }) {
-	const { layouts, Cmp, params, Err, error } = match
-
-	return layouts.reduce(
-		(child, Layout, idx) => {
-			const key = `l:${idx}`
-
-			return (
-				<Layout key={key} params={params}>
-					{child}
-				</Layout>
-			)
-		},
-		error ? (
-			Err ? (
+	const initial = error ? (
+		Err ? (
+			<Suspense fallback={null}>
 				<Err error={error} />
-			) : (
-				<Fallback error={error} />
-			)
+			</Suspense>
 		) : (
-			<Cmp params={params} />
-		),
-	)
+			<Fallback error={error} />
+		)
+	) : Page ? (
+		<Suspense fallback={null}>
+			<Page params={params} />
+		</Suspense>
+	) : null
+
+	if (!layouts?.length) return initial
+
+	return layouts.reduce((child, Layout, idx) => {
+		const key = `l:${idx}`
+
+		return (
+			<Suspense key={key} fallback={null}>
+				<Layout params={params}>{child}</Layout>
+			</Suspense>
+		)
+	}, initial)
 }

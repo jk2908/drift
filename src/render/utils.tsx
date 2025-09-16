@@ -1,9 +1,8 @@
-import type { Metadata, PluginConfig } from '../types'
+import type { EnhancedMatch, Metadata, PluginConfig } from '../types'
 
 import { ASSETS_DIR, DRIFT_PAYLOAD_ID, GENERATED_DIR, INJECT_RUNTIME } from '../config'
 
 import { mergeMetadata } from '../shared/metadata'
-import type { Match } from '../shared/router'
 
 /**
  * Create the asset JSX to render
@@ -66,7 +65,7 @@ export function createAssets(relativeBase: string, payload?: string) {
  * @returns a promise resolving to the merged metadata
  */
 export async function createMetadata(
-	match: Match,
+	match: EnhancedMatch | null,
 	config: PluginConfig,
 	fallback: Promise<Metadata>,
 ) {

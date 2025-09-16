@@ -5,11 +5,10 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 import * as devalue from 'devalue'
 
-import type { Manifest, PluginConfig } from '../../types'
+import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
 import { HTTPException, NOT_FOUND, type Payload } from '../../shared/error'
 import { Logger } from '../../shared/logger'
-import { mergeMetadata } from '../../shared/metadata'
 import { Router, RouterProvider } from '../../shared/router'
 import { getRelativeBasePath } from '../../shared/utils'
 
@@ -33,9 +32,10 @@ export async function browser(
 		metadata: React.ReactNode
 	}) => React.ReactNode,
 	manifest: Manifest,
+	map: ImportMap,
 	config: PluginConfig,
 ) {
-	const router = new Router(manifest)
+	const router = new Router(manifest, map)
 	const logger = new Logger(config.logger?.level)
 
 	const relativeBase = getRelativeBasePath(window.location.pathname)
@@ -51,14 +51,21 @@ export async function browser(
 		// don't see why that would be worth it. This makes
 		// fallback error handling marginally quicker
 		const lookup = Router.narrow(manifest[entry?.__path])
-		const match = lookup ? { ...lookup, params: entry.params, error: entry.error } : null
+		
+		const match = lookup
+			? router.enhance({ ...lookup, params: entry.params, error: entry.error })
+			: null
 
 		const assets = createAssets(relativeBase, payload)
+		const initial = { match, metadata }
 
 		hydrateRoot(
 			document,
 			<StrictMode>
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+				<RouterProvider
+					router={router}
+					initial={initial}
+					config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
 							{el ?? <fallback.default error={NOT_FOUND} />}
@@ -73,19 +80,22 @@ export async function browser(
 
 		logger.error(Logger.print(err), err)
 
-		const match = router.match(window.location.pathname)
+		const match = router.enhance(router.match(window.location.pathname))
 
 		const metadata = await createMetadata(
 			match,
 			config,
 			fallback.metadata({ error: NOT_FOUND }),
 		)
-		
+
 		const assets = createAssets(relativeBase)
 
 		createRoot(document).render(
 			<StrictMode>
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+				<RouterProvider
+					router={router}
+					initial={{ match, metadata }}
+					config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
 							{el ?? <fallback.default error={NOT_FOUND} />}

@@ -1,11 +1,14 @@
 import type { ConfigEnv } from 'vite'
 
 import type { Context } from 'hono'
+import type { HTTPException } from 'hono/http-exception'
 
 import { DRIFT_PAYLOAD_ID, type EntryKind } from './config'
 
-import type { HTTPException } from './shared/error'
 import type { Logger, LogLevel } from './shared/logger'
+import type { Router } from './shared/router'
+
+import type { RouteProcessor } from './build/route-processor'
 
 export type PluginConfig = {
 	ctx: ConfigEnv
@@ -65,56 +68,86 @@ export type Metadata = {
 	link?: LinkTag[]
 }
 
-export type PageRoute<P extends Params = Params> = {
+export type Page = {
 	__id: string
 	__path: string
 	__params: string[]
-	Shell: React.ComponentType<{
-		children: React.ReactNode
-		params?: P
-		assets?: React.ReactNode
-		metadata?: React.ReactNode
-	}>
-	layouts: React.LazyExoticComponent<
-		React.ComponentType<{
-			children: React.ReactNode
-			params?: P
-			assets?: React.ReactNode
+	__kind: typeof EntryKind.PAGE
+	method: 'get'
+	paths: {
+		shell: string
+		layouts?: string[]
+		error?: string | null
+	}
+	error?: HTTPException
+	shouldPrerender: boolean
+	isDynamic: boolean
+	isCatchAll: boolean
+}
+
+export type Endpoint = {
+	__id: string
+	__path: string
+	__params: string[]
+	__kind: typeof EntryKind.ENDPOINT
+	method: Lowercase<HTTPMethod>
+}
+
+export type ManifestEntry = Page | Endpoint
+
+export type Manifest = Awaited<
+	ReturnType<typeof RouteProcessor.prototype.process>
+>['manifest']
+
+export type Match = ReturnType<Router['match']>
+
+export type EnhancedMatch = Match & {
+	ui: {
+		Shell: React.ComponentType<{
+			children?: React.ReactNode
 			metadata?: React.ReactNode
-		}>
-	>[]
-	Cmp: React.LazyExoticComponent<React.ComponentType<{ params?: P }>>
-	Err: React.LazyExoticComponent<
-		React.ComponentType<{
-			error: Error | HTTPException
-		}>
-	> | null
-	metadata?: ({ params, error }: { params?: P; error?: Error }) => Promise<Metadata[]>
-	error?: HTTPException | Error
-	prerender: boolean
-	dynamic: boolean
-	catchAll: boolean
-	type: typeof EntryKind.PAGE
+			assets?: React.ReactNode
+		}> | null
+		layouts: React.LazyExoticComponent<
+			React.ComponentType<{
+				children?: React.ReactNode
+				params?: Params
+			}>
+		>[]
+		Page: React.LazyExoticComponent<
+			React.ComponentType<{
+				children?: React.ReactNode
+				params?: Params
+			}>
+		> | null
+		Err: React.LazyExoticComponent<
+			React.ComponentType<{
+				children?: React.ReactNode
+				error?: Error
+			}>
+		> | null
+	}
+	endpoint?: (c: Context) => unknown
+	metadata?: ({
+		params,
+		error,
+	}: {
+		params?: Params
+		error?: Error
+	}) => Promise<Metadata[]>
 }
 
-export type ApiRoute = {
-	__id: string
-	__path: string
-	__params: string[]
-	method: HTTPMethod
-	handler: (ctx: Context) => Promise<Response> | Response
-	type: typeof EntryKind.API
+export type StaticImport = Record<string, unknown>
+export type DynamicImport<T = Record<string, unknown>> = () => Promise<T>
+
+export type MapEntry = {
+	shell?: StaticImport
+	page?: DynamicImport
+	layouts?: readonly DynamicImport[]
+	error?: DynamicImport
+	endpoint?: (c: Context) => unknown
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: @todo
-export type Route = PageRoute<any> | ApiRoute
-
-export type Routes = {
-	[key: string]: Route
-}
-
-export type Manifest = {
-	[key: string]: Route | Route[]
-}
+export type ImportMap = Record<string, MapEntry>
 
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'

@@ -10,6 +10,7 @@ import react from '@vitejs/plugin-react'
 
 import type { BuildContext, PluginConfig } from './types'
 
+import { writeConfig } from './codegen/config'
 import {
 	APP_DIR,
 	ASSETS_DIR,
@@ -21,18 +22,19 @@ import {
 
 import { Logger } from './shared/logger'
 
+import { writeServer } from './codegen/server'
 import { compress } from './server/compress'
 import { prerender } from './server/prerender'
 import { injectRuntime } from './server/runtime'
 import { format } from './server/utils'
 
+import { writeClient } from './codegen/client'
+
 import { RouteProcessor } from './build/route-processor'
 
-import { createClient } from './codegen/client'
-import { createConfig } from './codegen/config'
-import { createManifest } from './codegen/manifest'
+import { writeManifest } from './codegen/manifest'
+import { writeMap } from './codegen/map'
 import { createScaffold } from './codegen/scaffold'
-import { createServer } from './codegen/server'
 
 import { debounce } from './utils'
 
@@ -43,9 +45,6 @@ const DEFAULT_CONFIG = {
 	trailingSlash: false,
 	logger: {
 		level: Bun.env.PROD ? 'error' : 'debug',
-	},
-	[DRIFT_PAYLOAD_ID]: {
-		removeOnMount: false,
 	},
 } as const satisfies Partial<PluginConfig>
 
@@ -87,22 +86,24 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		const processor = new RouteProcessor(buildCtx, config)
-		const { entries, imports, handlers, prerenders } = await processor.run()
+
+		const { manifest, prerenders, imports, modules } = await processor.run()
 
 		buildCtx.prerenders = prerenders
 
 		await Promise.all([
-			Bun.write(path.join(generatedDir, 'config.ts'), createConfig(config)),
-			Bun.write(path.join(generatedDir, 'manifest.ts'), createManifest(imports, entries)),
-			Bun.write(path.join(generatedDir, 'server.tsx'), createServer(imports, handlers)),
-			Bun.write(path.join(generatedDir, 'client.tsx'), createClient()),
+			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
+			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
+			Bun.write(path.join(generatedDir, 'map.ts'), writeMap(imports, modules)),
+			Bun.write(path.join(generatedDir, 'server.tsx'), writeServer(manifest, imports)),
+			Bun.write(path.join(generatedDir, 'client.tsx'), writeClient()),
 			...(await createScaffold()),
 		])
 
 		await format(GENERATED_DIR, buildCtx)
 	}
 
-	const rebuild = debounce(build, 100)
+	const rebuild = debounce(build, 1000)
 
 	return [
 		{

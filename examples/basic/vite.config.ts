@@ -13,7 +13,7 @@ export default defineConfig((ctx: ConfigEnv) => {
 		plugins: [
 			drift({
 				ctx,
-				prerender: 'full',
+				prerender: 'declarative',
 				metadata: {
 					title: '%s - jk2908',
 					meta: [
