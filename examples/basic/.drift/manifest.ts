@@ -124,6 +124,21 @@ export const manifest = {
 			method: 'post',
 		},
 	],
+	'/profile': {
+		__id: '$P12322417016374153974',
+		__path: '/profile',
+		__params: [],
+		__kind: '$P',
+		method: 'get',
+		paths: {
+			shell: 'app/+layout.tsx',
+			layouts: [],
+			error: null,
+		},
+		shouldPrerender: false,
+		isDynamic: false,
+		isCatchAll: false,
+	},
 	'/test/*': {
 		__id: '$P10194420604043210043',
 		__path: '/test/*',

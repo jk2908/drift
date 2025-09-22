@@ -3,9 +3,10 @@ import type { ConfigEnv } from 'vite'
 import type { Context } from 'hono'
 import type { HTTPException } from 'hono/http-exception'
 
-import { DRIFT_PAYLOAD_ID, type EntryKind } from './config'
+import type { EntryKind } from './config'
 
 import type { Logger, LogLevel } from './shared/logger'
+import type { PRIORITY } from './shared/metadata'
 import type { Router } from './shared/router'
 
 import type { RouteProcessor } from './build/route-processor'
@@ -17,11 +18,8 @@ export type PluginConfig = {
 	outDir?: string
 	metadata?: Metadata
 	trailingSlash?: boolean
-	logger?: {
+	readonly logger?: {
 		level?: LogLevel
-	}
-	[DRIFT_PAYLOAD_ID]?: {
-		removeOnMount?: boolean
 	}
 }
 
@@ -101,6 +99,10 @@ export type Manifest = Awaited<
 
 export type Match = ReturnType<Router['match']>
 
+export type View<TProps> =
+	| React.ComponentType<TProps>
+	| React.LazyExoticComponent<React.ComponentType<TProps>>
+
 export type EnhancedMatch = Match & {
 	ui: {
 		Shell: React.ComponentType<{
@@ -108,24 +110,18 @@ export type EnhancedMatch = Match & {
 			metadata?: React.ReactNode
 			assets?: React.ReactNode
 		}> | null
-		layouts: React.LazyExoticComponent<
-			React.ComponentType<{
-				children?: React.ReactNode
-				params?: Params
-			}>
-		>[]
-		Page: React.LazyExoticComponent<
-			React.ComponentType<{
-				children?: React.ReactNode
-				params?: Params
-			}>
-		> | null
-		Err: React.LazyExoticComponent<
-			React.ComponentType<{
-				children?: React.ReactNode
-				error?: Error
-			}>
-		> | null
+		layouts: View<{
+			children?: React.ReactNode
+			params?: Params
+		}>[]
+		Page: View<{
+			children?: React.ReactNode
+			params?: Params
+		}> | null
+		Err: View<{
+			children?: React.ReactNode
+			error?: Error
+		}> | null
 	}
 	endpoint?: (c: Context) => unknown
 	metadata?: ({
@@ -134,7 +130,12 @@ export type EnhancedMatch = Match & {
 	}: {
 		params?: Params
 		error?: Error
-	}) => Promise<Metadata[]>
+	}) => Promise<
+		PromiseSettledResult<{
+			task: Promise<Metadata>
+			priority: (typeof PRIORITY)[keyof typeof PRIORITY]
+		}>[]
+	>
 }
 
 export type StaticImport = Record<string, unknown>
@@ -151,3 +152,5 @@ export type MapEntry = {
 export type ImportMap = Record<string, MapEntry>
 
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+
+export type Primitive = string | number | boolean | bigint | symbol | null | undefined

@@ -87,7 +87,7 @@ export async function* prerender(route: string, app: Hono, ctx: BuildContext) {
 			res,
 		}
 	} catch (err) {
-		ctx.logger.error(`prerender:prerender* ${route}`, err)
+		ctx.logger.error(`[prerender*:${route}]`, err)
 		throw err
 	}
 }

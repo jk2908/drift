@@ -57,7 +57,7 @@ export class RouteProcessor {
 		try {
 			return await this.process(await this.#scan(APP_DIR))
 		} catch (err) {
-			this.ctx?.logger.error('RouteProcessor:run: failed to bcomponentsld manifest', err)
+			this.ctx?.logger.error('[run]: failed to build manifest', err)
 			throw err
 		}
 	}
@@ -138,10 +138,7 @@ export class RouteProcessor {
 
 			return res satisfies ScanResult
 		} catch (err) {
-			this.ctx?.logger.error(
-				`RouteProcessor:compose: Failed to compose manifest from ${dir}`,
-				err,
-			)
+			this.ctx?.logger.error(`[#scan]: Failed to compose manifest from ${dir}`, err)
 
 			return {
 				pages: [],
@@ -233,6 +230,7 @@ export class RouteProcessor {
 
 						if (!paramsList?.length) {
 							this.ctx?.logger.warn(
+								'[process]',
 								`No prerenderable params found for ${page}, skipping prerendering`,
 							)
 						}
@@ -244,6 +242,7 @@ export class RouteProcessor {
 
 						if (!dynamicPrerenders?.length) {
 							this.ctx?.logger.warn(
+								'[process]',
 								`No prerenderable routes found for ${page}, skipping prerendering`,
 							)
 						} else {
@@ -261,7 +260,7 @@ export class RouteProcessor {
 					paths: {
 						shell,
 						layouts,
-						error: error ?? null,	
+						error: error ?? null,
 					},
 					shouldPrerender,
 					isDynamic,
@@ -282,7 +281,7 @@ export class RouteProcessor {
 				modules[pageId] = { shellId, layoutIds, pageId, errorId }
 				processed.add(page)
 			} catch (err) {
-				this.ctx?.logger.error('RouteProcessor:process: failed to process page', err)
+				this.ctx?.logger.error('[process]: failed to process page', err)
 			}
 		}
 
@@ -300,7 +299,10 @@ export class RouteProcessor {
 
 				for (const method of exports) {
 					if (!HTTP_VERBS.includes(method as HTTPMethod)) {
-						this.ctx?.logger.warn(`Ignoring unsupported HTTP verb: ${method} in ${file}`)
+						this.ctx?.logger.warn(
+							'[process]',
+							`Ignoring unsupported HTTP verb: ${method} in ${file}`,
+						)
 						continue
 					}
 
@@ -338,7 +340,7 @@ export class RouteProcessor {
 					manifest[route] = entry
 				}
 			} catch (err) {
-				this.ctx?.logger.error('RouteProcessor:process: failed to process API', err)
+				this.ctx?.logger.error('[process]: failed to process route', err)
 			}
 		}
 

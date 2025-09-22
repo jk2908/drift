@@ -61,6 +61,7 @@ export function handle(
 			return $E36045888637312226_get(c)
 		})
 		.post('/posts', $E36045888637312226_post)
+		.get('/profile', async c => ssr(c, Shell, manifest, map, config))
 		.get('/test/*', async c => ssr(c, Shell, manifest, map, config))
 		.notFound(c => ssr(c, Shell, manifest, map, config))
 }

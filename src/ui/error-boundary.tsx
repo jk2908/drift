@@ -1,7 +1,7 @@
 import { Component } from 'react'
 
 type Props = {
-	fallback: ((error: Error, reset: () => void) => React.ReactNode) | React.ReactNode
+	fallback: ((err: Error, reset: () => void) => React.ReactNode) | React.ReactNode
 	onReset?: () => void
 	children: React.ReactNode
 }

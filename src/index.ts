@@ -11,14 +11,7 @@ import react from '@vitejs/plugin-react'
 import type { BuildContext, PluginConfig } from './types'
 
 import { writeConfig } from './codegen/config'
-import {
-	APP_DIR,
-	ASSETS_DIR,
-	DRIFT_PAYLOAD_ID,
-	ENTRY_CLIENT,
-	ENTRY_SERVER,
-	GENERATED_DIR,
-} from './config'
+import { APP_DIR, ASSETS_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from './config'
 
 import { Logger } from './shared/logger'
 
@@ -164,7 +157,7 @@ function drift(c: PluginConfig): PluginOption[] {
 				}
 			},
 			configureServer(server) {
-				logger.info(`Watching for changes in ./${APP_DIR}...`)
+				logger.info('[configureServer]', `Watching for changes in ./${APP_DIR}...`)
 
 				server.watcher
 					.on('add', path => {
@@ -216,7 +209,7 @@ function drift(c: PluginConfig): PluginOption[] {
 					)
 					buildCtx.bundle.server.outDir = options.dir ?? config.outDir
 				} catch (err) {
-					logger.error('server:writeBundle', err)
+					logger.error('[writeBundle]', err)
 				}
 			},
 			async closeBundle() {
@@ -233,7 +226,7 @@ function drift(c: PluginConfig): PluginOption[] {
 							await injectRuntime(buildCtx.bundle, buildCtx),
 						)
 					} catch (err) {
-						logger.error('server:closeBundle:injectRuntime', err)
+						logger.error('[closeBundle:injectRuntime]', err)
 					}
 
 					if (buildCtx.prerenders.size > 0) {
@@ -250,7 +243,7 @@ function drift(c: PluginConfig): PluginOption[] {
 							).default
 
 							const PORT = Bun.env.PRERENDER_PORT || 8787
-							logger.info(`server:closeBundle: starting server on ${PORT}`)
+							logger.info('[closeBundle]', `starting server on ${PORT}`)
 
 							server = Bun.serve({
 								port: PORT,
@@ -261,18 +254,14 @@ function drift(c: PluginConfig): PluginOption[] {
 								const { value, done } = await prerender(route, app, buildCtx).next()
 
 								if (done || !value) {
-									logger.warn(
-										`server:closeBundle: skipped prerendering ${route}: no output`,
-									)
+									logger.warn('[closeBundle]', `skipped prerendering ${route}: no output`)
 									continue
 								}
 
 								const { status, body } = value
 
 								if (status !== 200) {
-									logger.warn(
-										`server:closeBundle: skipped prerendering ${route}: ${status}`,
-									)
+									logger.warn('[closeBundle]', `skipped prerendering ${route}: ${status}`)
 									continue
 								}
 
@@ -284,12 +273,12 @@ function drift(c: PluginConfig): PluginOption[] {
 								await fs.mkdir(path.dirname(outPath), { recursive: true })
 								await Bun.write(outPath, body)
 
-								logger.info(`prerendered ${route} to ${outPath}`)
+								logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
 							}
 						} catch (err) {
-							logger.error('server:closeBundle:prerender', err)
+							logger.error('[closeBundle:prerender]', err)
 						} finally {
-							logger.info('stopping server')
+							logger.info('[closeBundle]', 'stopping server')
 
 							Bun.env.PRERENDER = 'false'
 							server?.stop()
@@ -305,14 +294,17 @@ function drift(c: PluginConfig): PluginOption[] {
 								filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 							})) {
 								await Bun.write(`${input}.br`, compressed)
-								logger.info(`compressed ${input} to ${input}.br`)
+								logger.info(
+									'[closeBundle:precompress]',
+									`compressed ${input} to ${input}.br`,
+								)
 							}
 						} catch (err) {
-							logger.error('server:closeBundle:precompress', err)
+							logger.error('[closeBundle:precompress]', err)
 						}
 					}
 				} catch (err) {
-					logger.error('server:closeBundle', err)
+					logger.error('[closeBundle]', err)
 					return
 				} finally {
 					buildCtx.bundle.server = {

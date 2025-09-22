@@ -27,7 +27,9 @@ export default function HomePage({ params }: { params?: Record<string, string> }
 				Click me! Count: {count}
 			</button>
 
-			<Link href="/about">Go to About</Link>
+			<Link href="/posts" preload="none">Go to Posts</Link>
+			<Link href="/about" preload="none">Go to About</Link>
+			<Link href="/profile">Go to Profile (no preloading)</Link>
 
 			{!posts.length
 				? 'Loading...'

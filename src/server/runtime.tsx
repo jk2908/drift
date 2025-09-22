@@ -30,7 +30,7 @@ export async function injectRuntime(
 
 		return code.replaceAll(INJECT_RUNTIME, runtime)
 	} catch (err) {
-		ctx.logger.error('runtime:injectRuntime', err)
+		ctx.logger.error('[injectRuntime]', err)
 		throw err
 	}
 }

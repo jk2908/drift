@@ -9,17 +9,18 @@ import { isbot } from 'isbot'
 
 import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
-import { NAME } from '../../config'
+import { EntryKind, NAME } from '../../config'
 
 import { HTTPException, NOT_FOUND } from '../../shared/error'
 import { Logger } from '../../shared/logger'
+import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Redirect } from '../../shared/redirect'
 import { Router, RouterProvider } from '../../shared/router'
 import { getRelativeBasePath } from '../../shared/utils'
 
 import * as fallback from '../../ui/+error'
 
-import { createAssets, createMetadata } from '../utils'
+import { createAssets } from '../utils'
 
 /**
  * Server-side rendering handler to bridge incoming Hono requests with React
@@ -44,8 +45,8 @@ export async function ssr(
 	map: ImportMap,
 	config: PluginConfig,
 ) {
-	const router = new Router(manifest, map)
 	const logger = new Logger(config.logger?.level)
+	const router = new Router(manifest, map, logger)
 
 	const relativeBase = getRelativeBasePath(c.req.path)
 
@@ -69,11 +70,22 @@ export async function ssr(
 			return c.html(await Bun.file(outPath).text())
 		}
 
-		const metadata = await createMetadata(
-			match,
-			config,
-			fallback.metadata({ error: NOT_FOUND }),
-		)
+		const collection = new MetadataCollection(config.metadata)
+
+		const metadata = match
+			? await match
+					.metadata?.({ params: match.params, error: match.error })
+					.then(m =>
+						collection
+							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
+							.run(),
+					)
+			: await collection
+					.add({
+						task: fallback.metadata({ error: NOT_FOUND }),
+						priority: METADATA_PRIORITY[EntryKind.ERROR],
+					})
+					.run()
 
 		const payload = devalue.stringify(
 			{
@@ -91,10 +103,7 @@ export async function ssr(
 		const initial = { match, metadata }
 
 		const stream = await renderToReadableStream(
-			<RouterProvider
-				router={router}
-				initial={initial}	
-				config={config}>
+			<RouterProvider router={router} initial={initial} config={config}>
 				{({ el, metadata }) => (
 					<Shell assets={assets} metadata={metadata}>
 						{el ?? <fallback.default error={NOT_FOUND} />}
@@ -124,7 +133,7 @@ export async function ssr(
 		})
 	} catch (err) {
 		if (err && err instanceof Redirect) {
-			logger.info(`Redirecting to ${err.url}`)
+			logger.info('[renderToReadableStream:Redirect]', `Redirecting to ${err.url}`)
 
 			controller?.abort()
 			controller = null
@@ -134,22 +143,27 @@ export async function ssr(
 		}
 
 		if (err && err instanceof HTTPException) {
-			logger.warn(`HTTPException thrown during render: ${err.status} ${err.message}`)
+			logger.warn(
+				'[renderToReadableStream:HTTPException]',
+				`HTTPException thrown during render: ${err.status} ${err.message}`,
+			)
 
 			controller?.abort()
 			controller = new AbortController()
 			caughtError = null
 
-			const errorMatch = router.errorFor(c.req.path)
+			const errorMatch = router.closest(c.req.path, 'paths.error')
 			const match = errorMatch
 				? router.enhance({ ...errorMatch, params: {}, error: err })
 				: null
 
-			const metadata = await createMetadata(
-				match,
-				config,
-				fallback.metadata({ error: err }),
-			)
+			const collection = new MetadataCollection(config.metadata)
+			const metadata = await collection
+				.add({
+					task: fallback.metadata({ error: NOT_FOUND }),
+					priority: METADATA_PRIORITY[EntryKind.ERROR],
+				})
+				.run()
 
 			const payload = devalue.stringify(
 				{
@@ -167,10 +181,7 @@ export async function ssr(
 			const initial = { match, metadata }
 
 			const stream = await renderToReadableStream(
-				<RouterProvider
-					router={router}
-					initial={initial}
-					config={config}>
+				<RouterProvider router={router} initial={initial} config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
 							{el ?? <fallback.default error={err} />}
