@@ -93,8 +93,8 @@ export async function ssr(
 					__path: match?.__path,
 					params: match?.params,
 					error: match?.error,
-					metadata,
 				},
+				metadata,
 			},
 			payloadReducer,
 		)

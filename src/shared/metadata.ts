@@ -28,7 +28,7 @@ export class MetadataCollection {
 	/**
 	 * Merges multiple metadata objects into one
 	 * @param items - an array of metadata objects to merge
-	 * @returns Merged metadata object
+	 * @returns the merged metadata object
 	 */
 	static #merge(...items: TMetadata[]) {
 		if (!items.length) return {} satisfies TMetadata
@@ -82,7 +82,7 @@ export class MetadataCollection {
 	/**
 	 * Clones an object using structuredClone with a fallback to JSON methods
 	 * @param obj - the object to clone
-	 * @returns A clone of the object
+	 * @returns a clone of the object
 	 */
 	static #clone<T>(obj: T) {
 		if (typeof structuredClone === 'function') {
@@ -95,7 +95,7 @@ export class MetadataCollection {
 	/**
 	 * Gets a unique key for the meta tag
 	 * @param tag - the meta tag
-	 * @returns A unique key for the meta tag
+	 * @returns a unique key for the meta tag
 	 */
 	static #getMetaTagKey(tag: MetaTag) {
 		return 'name' in tag && tag.name
@@ -112,7 +112,7 @@ export class MetadataCollection {
 	/**
 	 * Gets a unique key for the link tag
 	 * @param tag - the link tag
-	 * @returns A unique key for the link tag
+	 * @returns a unique key for the link tag
 	 */
 	static #getLinkTagKey(tag: LinkTag) {
 		return tag.rel + (tag.href ?? '')
@@ -121,7 +121,7 @@ export class MetadataCollection {
 	/**
 	 * Adds tasks to the collection
 	 * @param tasks - an array of task objects containing a promise and a priority
-	 * @returns The current instance of the MetadataCollection
+	 * @returns the current instance of the MetadataCollection
 	 */
 	add(
 		...tasks: {
@@ -138,7 +138,7 @@ export class MetadataCollection {
 
 	/**
 	 * Merges metadata from all sources, sorted by priority
-	 * @returns A promise that resolves to the merged metadata
+	 * @returns a promise that resolves to the merged metadata
 	 */
 	async run() {
 		const items = [...this.#collection].sort((a, b) => a.priority - b.priority)
@@ -160,12 +160,12 @@ export class MetadataCollection {
 			.map(r => r.item)
 
 		if (ok.length) merged = MetadataCollection.#merge(merged, ...ok)
-
+		
 		return merged
 	}
 
 	/**
-	 * @returns A clone of the base metadata
+	 * @returns a clone of the base metadata
 	 */
 	get base() {
 		return MetadataCollection.#clone(this.#base)

@@ -37,8 +37,7 @@ export class HTTPException extends Error {
  * @param message - the message 
  * @param options - the options 
  * @param options.payload - the payload 
- * @returns {never}
- * @throws {HTTPException} - throws a HTTPException with the given status and options
+ * @throws a HTTPException with the given status and options
  */
 export function error(
 	status: ContentfulStatusCode,

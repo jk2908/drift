@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'About defined in layout'
+  title: 'About defined in page'
 }
 
 export default function Page() {

@@ -323,10 +323,10 @@ export class Router {
 					if (typeof metadata === 'function') {
 						tasks.push({
 							task: Promise.resolve(metadata({ params, error })).catch(err => {
-								Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+								Router.#logger?.error(`[enhance.metadata]: ${__id}`, err)
 								return Promise.resolve({})
 							}),
-							priority: 0,
+							priority: PRIORITY[EntryKind.SHELL],
 						})
 					} else if (typeof metadata === 'object') {
 						tasks.push({
@@ -341,22 +341,42 @@ export class Router {
 				for (const l of entry.layouts) {
 					const e = Router.#load(l)
 
-					if (e.v?.metadata) {
-						const metadata = e.v.metadata
+					if (e.v && 'metadata' in e.v) {
+						const metadata = e.v?.metadata
 
-						if (typeof metadata === 'function') {
-							tasks.push({
-								task: Promise.resolve(metadata({ params, error })).catch(err => {
-									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
-								}),
-								priority: PRIORITY[EntryKind.LAYOUT],
-							})
-						} else if (typeof metadata === 'object') {
-							tasks.push({
-								task: Promise.resolve(metadata),
-								priority: PRIORITY[EntryKind.LAYOUT],
-							})
+						if (metadata) {
+							if (typeof metadata === 'function') {
+								tasks.push({
+									task: Promise.resolve(metadata({ params, error })).catch(err => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									}),
+									priority: PRIORITY[EntryKind.LAYOUT],
+								})
+							} else if (typeof metadata === 'object') {
+								tasks.push({
+									task: Promise.resolve(metadata),
+									priority: PRIORITY[EntryKind.LAYOUT],
+								})
+							}
 						}
+					} else {
+						tasks.push({
+							task: e.p.then(m => {
+								const metadata = m.metadata
+								if (!metadata) return {}
+
+								if (typeof metadata === 'function') {
+									return metadata({ params, error }).catch((err: unknown) => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									})
+								} else if (typeof metadata === 'object') {
+									return metadata
+								}
+							}),
+							priority: PRIORITY[EntryKind.LAYOUT],
+						})
 					}
 				}
 			}
@@ -364,44 +384,83 @@ export class Router {
 			if (entry.page) {
 				const e = Router.#load(entry.page)
 
-				if (e.v?.metadata) {
+				if (e.v && 'metadata' in e.v) {
 					const metadata = e.v.metadata
 
-					if (typeof metadata === 'function') {
-						tasks.push({
-							task: Promise.resolve(metadata({ params, error })).catch(err => {
-								Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
-							}),
-							priority: PRIORITY[EntryKind.PAGE],
-						})
-					} else if (typeof metadata === 'object') {
-						tasks.push({
-							task: Promise.resolve(metadata),
-							priority: PRIORITY[EntryKind.PAGE],
-						})
+					if (metadata) {
+						if (typeof metadata === 'function') {
+							tasks.push({
+								task: Promise.resolve(metadata({ params, error })).catch(err => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								}),
+								priority: PRIORITY[EntryKind.PAGE],
+							})
+						} else if (typeof metadata === 'object') {
+							tasks.push({
+								task: Promise.resolve(metadata),
+								priority: PRIORITY[EntryKind.PAGE],
+							})
+						}
 					}
+				} else {
+					tasks.push({
+						task: e.p.then(m => {
+							const metadata = m.metadata
+							if (!metadata) return {}
+
+							if (typeof metadata === 'function') {
+								return metadata({ params, error }).catch((err: unknown) => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								})
+							} else if (typeof metadata === 'object') {
+								return metadata
+							}
+						}),
+						priority: PRIORITY[EntryKind.PAGE],
+					})
 				}
 			}
 
 			if (entry.error && error) {
 				const e = Router.#load(entry.error)
 
-				if (e.v?.metadata) {
+				if (e.v && 'metadata' in e.v) {
 					const metadata = e.v.metadata
 
-					if (typeof metadata === 'function') {
-						tasks.push({
-							task: Promise.resolve(metadata({ params, error })).catch(err => {
-								Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
-							}),
-							priority: PRIORITY[EntryKind.ERROR],
-						})
-					} else if (typeof metadata === 'object') {
-						tasks.push({
-							task: Promise.resolve(metadata),
-							priority: PRIORITY[EntryKind.ERROR],
-						})
+					if (metadata) {
+						if (typeof metadata === 'function') {
+							tasks.push({
+								task: Promise.resolve(metadata({ params, error })).catch(err => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+								}),
+								priority: PRIORITY[EntryKind.ERROR],
+							})
+						} else if (typeof metadata === 'object') {
+							tasks.push({
+								task: Promise.resolve(metadata),
+								priority: PRIORITY[EntryKind.ERROR],
+							})
+						}
 					}
+				} else {
+					tasks.push({
+						task: e.p.then(m => {
+							const metadata = m.metadata
+							if (!metadata) return {}
+
+							if (typeof metadata === 'function') {
+								return metadata({ params, error }).catch((err: unknown) => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								})
+							} else if (typeof metadata === 'object') {
+								return metadata
+							}
+						}),
+						priority: PRIORITY[EntryKind.ERROR],
+					})
 				}
 			}
 

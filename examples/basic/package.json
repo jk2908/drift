@@ -3,7 +3,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "bunx --bun vite"
+		"dev": "bunx --bun vite",
+		"build": "bunx --bun vite build"
 	},
 	"dependencies": {
 		"@jk2908/drift": "link:@jk2908/drift",
