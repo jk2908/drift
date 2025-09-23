@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bunx --bun vite",
-		"build": "bunx --bun vite build"
+    "build": "bunx --bun vite build --mode client && bunx --bun vite build --ssr"
 	},
 	"dependencies": {
 		"@jk2908/drift": "link:@jk2908/drift",
