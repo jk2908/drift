@@ -1,5 +1,6 @@
 import {
 	createContext,
+	lazy,
 	use,
 	useCallback,
 	useEffect,
@@ -12,16 +13,28 @@ import { RegExpRouter } from 'hono/router/reg-exp-router'
 import { SmartRouter } from 'hono/router/smart-router'
 import { TrieRouter } from 'hono/router/trie-router'
 
-import type { Manifest, Metadata, PageRoute, Params, PluginConfig, Route } from '../types'
+import type {
+	DynamicImport,
+	EnhancedMatch,
+	ImportMap,
+	Manifest,
+	ManifestEntry,
+	Match,
+	Page,
+	Params,
+	PluginConfig,
+	Primitive,
+	Metadata as TMetadata,
+	View,
+} from '../types'
 
 import { EntryKind } from '../config'
 
-import { mergeMetadata } from '../shared/metadata'
 import { Tree } from '../shared/tree'
 
 import { HTTPException } from './error'
-
-export type Match = ReturnType<Router['match']>
+import type { Logger } from './logger'
+import { MetadataCollection, PRIORITY } from './metadata'
 
 type GoConfig = {
 	replace?: boolean
@@ -31,24 +44,44 @@ type GoConfig = {
 /**
  * Handle routing and matching of within the application
  * @param manifest - contains all the routes (pages and api) and their metadata
+ * @param map - contains the static and dynamic imports for each route
+ * @param logger - logger instance for logging
  * @see {@link Manifest} for the structure of the manifest
+ * @see {@link ImportMap} for the structure of the import map
+ * @see {@link Logger} for the logger instance
  */
 export class Router {
+	static #enh = new Map<string, EnhancedMatch>()
+	static #mods = new WeakMap<
+		DynamicImport,
+		{
+			p: Promise<Record<string, unknown>>
+			v?: Record<string, unknown>
+			L?: View<React.ComponentProps<any>>
+		}
+	>()
+	static #logger: Logger | null = null
+
 	#manifest: Manifest = {}
+	#map: ImportMap = {}
+
 	// @see: https://hono.dev/docs/concepts/routers
-	#router: SmartRouter<PageRoute> = new SmartRouter({
+	#router: SmartRouter<Page> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
-	constructor(manifest: Manifest) {
+	constructor(manifest: Manifest, map: ImportMap, logger: Logger) {
+		Router.#logger = logger
+
 		this.#manifest = manifest
+		this.#map = map
 
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
 
 			if (Array.isArray(entry)) {
 				for (const e of entry) {
-					if (e.type !== EntryKind.PAGE) continue
+					if (e.__kind !== EntryKind.PAGE) continue
 
 					this.#router.add('GET', path, e)
 				}
@@ -56,10 +89,94 @@ export class Router {
 				continue
 			}
 
-			if (entry.type !== EntryKind.PAGE) continue
+			if (entry.__kind !== EntryKind.PAGE) continue
 
 			this.#router.add('GET', path, entry)
 		}
+	}
+
+	/**
+	 * Narrow down a route entry to a page entry if it exists
+	 * @param entry - the route entry to narrow
+	 * @returns the narrowed page entry or null
+	 */
+	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
+		if (Array.isArray(entry)) {
+			return entry.find(e => e.__kind === EntryKind.PAGE) || null
+		}
+
+		return entry?.__kind === EntryKind.PAGE ? entry : null
+	}
+
+	/**
+	 * Get the status code for a matched route that may or may not have errored
+	 * @param match - the matched route
+	 * @returns the status code
+	 */
+	static getMatchStatusCode(match: Match | EnhancedMatch | null) {
+		if (!match) return 404
+
+		if ('error' in match) {
+			return match.error instanceof HTTPException ? match.error.status : 500
+		}
+
+		return 200
+	}
+
+	/**
+	 * Load and cache a module from a dynamic import
+	 * @param loader - the dynamic import
+	 * @returns the module entry
+	 */
+	static #load(loader: DynamicImport) {
+		let entry = Router.#mods.get(loader)
+		if (entry) return entry
+
+		const p = loader()
+			.then(mod => {
+				const entry = Router.#mods.get(loader)
+				if (entry) entry.v = mod
+
+				return mod
+			})
+			.catch(err => {
+				Router.#mods.delete(loader)
+				throw err
+			})
+
+		entry = { p }
+		Router.#mods.set(loader, entry)
+
+		return entry
+	}
+
+	/**
+	 * Lazily load and cache a component from a dynamic import
+	 * @param loader - the dynamic import
+	 * @returns a React lazy component
+	 */
+	static #view<T extends React.ComponentType<any>>(
+		loader: DynamicImport,
+	): View<React.ComponentProps<T>> {
+		const entry = Router.#load(loader)
+
+		Router.#logger?.debug(
+			'[#view]',
+			loader.toString().slice(0, 60),
+			entry.v ? 'SYNC' : 'LAZY',
+		)
+
+		if (entry.v?.default) {
+			entry.L = entry.v.default as View<React.ComponentProps<T>>
+			return entry.L
+		}
+
+		if (entry.L) return entry.L as View<React.ComponentProps<T>>
+
+		const L = lazy(() => entry.p.then(mod => ({ default: (mod as any).default as T })))
+		entry.L = L as View<React.ComponentProps<T>>
+
+		return entry.L
 	}
 
 	/**
@@ -80,7 +197,7 @@ export class Router {
 
 				// only process parameters if the router returned any
 				if (paramStash?.length) {
-					if (entry.catchAll) {
+					if (entry.isCatchAll) {
 						// for a catch-all, we use the __path property on the matched entry.
 						// Neccessary because Hono doesn't expose wildcard params so we need
 						// to grab them from here. Derive the value by removing the
@@ -114,7 +231,7 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.errorFor(path)
+		const entry = this.closest(path, 'paths.error')
 
 		if (entry) {
 			return {
@@ -128,57 +245,307 @@ export class Router {
 	}
 
 	/**
-	 * Resolve the closest ancestor error boundary for a given path
-	 * @param path - the path to resolve the error boundary for
-	 * @returns the resolved error boundary entry or null
+	 * Enhance a matched route with its associated components
+	 * @param match - the matched route to enhance
+	 * @returns the enhanced route or null
 	 */
-	errorFor(path: string) {
+	enhance(match: Match) {
+		if (!match) return null
+
+		const { __id } = match
+		const cached = Router.#enh.get(__id)
+
+		if (cached) {
+			Router.#logger?.debug('[enhance]', __id, 'CACHED')
+
+			// this route might(?) have been loaded previously without
+			// an error present. If we've got an error now, and the
+			// cached version doesn't have an error boundary, we
+			// need to load it up
+			if ('error' in match && match.error && !cached.ui.Err) {
+				const entry = this.#map[__id]
+
+				if (entry.error) {
+					cached.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(
+						entry.error,
+					)
+				}
+			}
+
+			return cached
+		}
+
+		const entry = this.#map[__id]
+		if (!entry) return null
+
+		const enhanced: EnhancedMatch = {
+			ui: {
+				Shell: null,
+				layouts: [],
+				Page: null,
+				Err: null,
+			},
+			...match,
+		}
+
+		if (entry.shell) {
+			enhanced.ui.Shell = entry.shell.default as EnhancedMatch['ui']['Shell']
+		}
+
+		if (entry.layouts) {
+			enhanced.ui.layouts = entry.layouts.map(l =>
+				Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l),
+			)
+		}
+
+		if (entry.page) {
+			enhanced.ui.Page = Router.#view<NonNullable<EnhancedMatch['ui']['Page']>>(
+				entry.page,
+			)
+		}
+
+		// don't load an error boundary if we don't have an error.
+		// We'll cover this later (above in cached) when/if one
+		// is thrown
+		if (entry.error && 'error' in match && match.error) {
+			enhanced.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(entry.error)
+		}
+
+		if (entry.endpoint) enhanced.endpoint = entry.endpoint
+
+		enhanced.metadata = ({ params, error }: { params?: Params; error?: Error }) => {
+			const tasks: { task: Promise<TMetadata>; priority: number }[] = []
+
+			if (entry.shell) {
+				const metadata = entry.shell.metadata
+
+				if (metadata) {
+					if (typeof metadata === 'function') {
+						tasks.push({
+							task: Promise.resolve(metadata({ params, error })).catch(err => {
+								Router.#logger?.error(`[enhance.metadata]: ${__id}`, err)
+								return Promise.resolve({})
+							}),
+							priority: PRIORITY[EntryKind.SHELL],
+						})
+					} else if (typeof metadata === 'object') {
+						tasks.push({
+							task: Promise.resolve(metadata),
+							priority: PRIORITY[EntryKind.SHELL],
+						})
+					}
+				}
+			}
+
+			if (entry.layouts?.length) {
+				for (const l of entry.layouts) {
+					const e = Router.#load(l)
+
+					if (e.v && 'metadata' in e.v) {
+						const metadata = e.v?.metadata
+
+						if (metadata) {
+							if (typeof metadata === 'function') {
+								tasks.push({
+									task: Promise.resolve(metadata({ params, error })).catch(err => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									}),
+									priority: PRIORITY[EntryKind.LAYOUT],
+								})
+							} else if (typeof metadata === 'object') {
+								tasks.push({
+									task: Promise.resolve(metadata),
+									priority: PRIORITY[EntryKind.LAYOUT],
+								})
+							}
+						}
+					} else {
+						tasks.push({
+							task: e.p.then(m => {
+								const metadata = m.metadata
+								if (!metadata) return {}
+
+								if (typeof metadata === 'function') {
+									return metadata({ params, error }).catch((err: unknown) => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									})
+								} else if (typeof metadata === 'object') {
+									return metadata
+								}
+							}),
+							priority: PRIORITY[EntryKind.LAYOUT],
+						})
+					}
+				}
+			}
+
+			if (entry.page) {
+				const e = Router.#load(entry.page)
+
+				if (e.v && 'metadata' in e.v) {
+					const metadata = e.v.metadata
+
+					if (metadata) {
+						if (typeof metadata === 'function') {
+							tasks.push({
+								task: Promise.resolve(metadata({ params, error })).catch(err => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								}),
+								priority: PRIORITY[EntryKind.PAGE],
+							})
+						} else if (typeof metadata === 'object') {
+							tasks.push({
+								task: Promise.resolve(metadata),
+								priority: PRIORITY[EntryKind.PAGE],
+							})
+						}
+					}
+				} else {
+					tasks.push({
+						task: e.p.then(m => {
+							const metadata = m.metadata
+							if (!metadata) return {}
+
+							if (typeof metadata === 'function') {
+								return metadata({ params, error }).catch((err: unknown) => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								})
+							} else if (typeof metadata === 'object') {
+								return metadata
+							}
+						}),
+						priority: PRIORITY[EntryKind.PAGE],
+					})
+				}
+			}
+
+			if (entry.error && error) {
+				const e = Router.#load(entry.error)
+
+				if (e.v && 'metadata' in e.v) {
+					const metadata = e.v.metadata
+
+					if (metadata) {
+						if (typeof metadata === 'function') {
+							tasks.push({
+								task: Promise.resolve(metadata({ params, error })).catch(err => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+								}),
+								priority: PRIORITY[EntryKind.ERROR],
+							})
+						} else if (typeof metadata === 'object') {
+							tasks.push({
+								task: Promise.resolve(metadata),
+								priority: PRIORITY[EntryKind.ERROR],
+							})
+						}
+					}
+				} else {
+					tasks.push({
+						task: e.p.then(m => {
+							const metadata = m.metadata
+							if (!metadata) return {}
+
+							if (typeof metadata === 'function') {
+								return metadata({ params, error }).catch((err: unknown) => {
+									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									return {}
+								})
+							} else if (typeof metadata === 'object') {
+								return metadata
+							}
+						}),
+						priority: PRIORITY[EntryKind.ERROR],
+					})
+				}
+			}
+
+			return Promise.allSettled(tasks)
+		}
+
+		Router.#enh.set(__id, enhanced)
+
+		return enhanced
+	}
+
+	/**
+	 * Find the closest ancestor entry for a given path and property
+	 * @param path - the path to start searching from
+	 * @param property - the property to match against
+	 * @returns the closest ancestor entry or null
+	 */
+	closest(path: string, property: string, value?: Omit<Primitive, 'undefined'>) {
 		const parts = path.split('/').filter(Boolean)
+		const segments = property.split('.')
 
 		for (let i = parts.length; i >= 0; i--) {
 			const testPath = i === 0 ? '/' : `/${parts.slice(0, i).join('/')}`
 			const entry = this.#manifest[testPath]
-
 			if (!entry) continue
 
 			const pageEntry = Router.narrow(entry)
+			if (!pageEntry) continue
 
-			if (pageEntry?.Err) return pageEntry
+			let curr: unknown = pageEntry
+
+			for (const seg of segments) {
+				if (
+					typeof curr !== 'object' ||
+					curr === null ||
+					!(seg in (curr as Record<string, unknown>))
+				) {
+					curr = undefined
+					break
+				}
+
+				curr = (curr as Record<string, unknown>)[seg]
+				if (curr === undefined) break
+			}
+
+			if (curr !== undefined) {
+				if (value !== undefined && curr !== value) return null
+
+				return pageEntry
+			}
 		}
 
 		return null
 	}
 
 	/**
-	 * Narrow down a route entry to a page entry if it exists
-	 * @param entry - the route entry to narrow
-	 * @returns the narrowed page entry or null
+	 * Preload a route's assets
+	 * @param path - the path to preload
+	 * @returns a promise that resolves when all assets are loaded
 	 */
-	static narrow(entry?: Route | Route[]) {
-		if (Array.isArray(entry)) {
-			return entry.find(e => e.type === EntryKind.PAGE) || null
+	async preload(path: string) {
+		const match = this.match(path)
+		if (!match) return
+
+		const imports = this.#map[match.__id]
+		if (!imports) return
+
+		const loads: Promise<unknown>[] = []
+
+		if (imports.layouts) {
+			for (const l of imports.layouts) loads.push(Router.#load(l).p)
 		}
 
-		return entry?.type === EntryKind.PAGE ? entry : null
-	}
+		if (imports.page) loads.push(Router.#load(imports.page).p)
+		if (imports.error) loads.push(Router.#load(imports.error).p)
 
-	/**
-	 * Get the status code for a matched route that may or may not have errored
-	 * @param match - the matched route
-	 * @returns the status code
-	 */
-	static getMatchStatusCode(match: Match | null) {
-		if (!match) return 404
-
-		if (match.error) {
-			return match.error instanceof HTTPException ? match.error.status : 500
-		}
-
-		return 200
+		return await Promise.allSettled(loads)
 	}
 
 	get manifest() {
 		return this.#manifest
+	}
+
+	get map() {
+		return this.#map
 	}
 }
 
@@ -187,12 +554,14 @@ const DEFAULT_GO_CONFIG = {
 } satisfies GoConfig
 
 export const RouterContext = createContext<{
-	match: Match | null
+	match: EnhancedMatch | null
 	go: (to: string, config?: GoConfig) => string
+	preload: (path: string) => ReturnType<typeof Router.prototype.preload>
 	isPending: boolean
 }>({
 	match: null,
 	go: () => '',
+	preload: () => Promise.resolve([]),
 	isPending: false,
 })
 
@@ -204,8 +573,8 @@ export function RouterProvider({
 }: {
 	router: Router
 	initial: {
-		match: Match | null
-		metadata?: Metadata
+		match: EnhancedMatch | null
+		metadata?: TMetadata
 	}
 	config: Readonly<Partial<PluginConfig>>
 	children:
@@ -218,21 +587,30 @@ export function RouterProvider({
 				metadata: React.ReactNode
 		  }) => React.ReactNode)
 }) {
-	const [match, setMatch] = useState<Match | null>(initial?.match ?? null)
-	const [metadata, setMetadata] = useState<Metadata>(initial?.metadata ?? {})
+	const [match, setMatch] = useState<EnhancedMatch | null>(initial?.match ?? null)
+	const [metadata, setMetadata] = useState<TMetadata>(initial?.metadata ?? {})
 
 	const [isPending, startTransition] = useTransition()
 
 	const update = useCallback(
-		(match: Match | null) => {
+		(match: EnhancedMatch | null) => {
 			setMatch(match)
 
+			const collection = new MetadataCollection(config.metadata)
+
 			if (!match) {
-				setMetadata(mergeMetadata(config.metadata ?? {}, {}))
+				setMetadata(collection.base)
 			} else {
 				match
-					.metadata?.({ params: match.params })
-					.then(([m]) => setMetadata(mergeMetadata(config?.metadata ?? {}, m)))
+					.metadata?.({ params: match.params, error: match.error })
+					.then(async m => {
+						setMetadata(
+							await collection
+								.add(...m.filter(r => r.status === 'fulfilled').map(r => r.value))
+								.run()
+								.catch(() => ({})),
+						)
+					})
 					.catch(() => setMetadata({}))
 			}
 		},
@@ -254,7 +632,7 @@ export function RouterProvider({
 			const path = url.pathname + url.search + url.hash
 
 			startTransition(() => {
-				update(router.match(path))
+				update(router.enhance(router.match(path)))
 
 				if (replace) {
 					window.history.replaceState(null, '', path)
@@ -265,13 +643,23 @@ export function RouterProvider({
 
 			return path
 		},
-		[router.match, update],
+		[router.match, router.enhance, update],
+	)
+
+	/**
+	 * Preload a route's assets
+	 * @param path - the path to preload
+	 * @returns a promise that resolves when all assets are loaded
+	 */
+	const preload = useCallback(
+		(path: string) => router.preload(new URL(path, window.location.origin).pathname),
+		[router.preload],
 	)
 
 	useEffect(() => {
 		const onPopState = () => {
 			startTransition(() => {
-				update(router.match(window.location.pathname))
+				update(router.enhance(router.match(window.location.pathname)))
 			})
 		}
 
@@ -280,7 +668,7 @@ export function RouterProvider({
 		return () => {
 			window.removeEventListener('popstate', onPopState)
 		}
-	}, [router.match, update])
+	}, [router.match, router.enhance, update])
 
 	const el = useMemo(() => (match ? <Tree match={match} /> : null), [match])
 
@@ -335,9 +723,10 @@ export function RouterProvider({
 		() => ({
 			match,
 			go,
+			preload,
 			isPending,
 		}),
-		[match, go, isPending],
+		[match, go, preload, isPending],
 	)
 
 	return (

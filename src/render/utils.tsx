@@ -1,9 +1,4 @@
-import type { Metadata, PluginConfig } from '../types'
-
-import { ASSETS_DIR, DRIFT_PAYLOAD_ID, GENERATED_DIR, INJECT_RUNTIME } from '../config'
-
-import { mergeMetadata } from '../shared/metadata'
-import type { Match } from '../shared/router'
+import { ASSETS_DIR, DRIFT_PAYLOAD_ID, GENERATED_DIR } from '../config'
 
 /**
  * Create the asset JSX to render
@@ -39,7 +34,7 @@ export function createAssets(relativeBase: string, payload?: string) {
 				type="module"
 				src={
 					import.meta.env.PROD
-						? `${relativeBase}${ASSETS_DIR}/${INJECT_RUNTIME}`
+						? `${relativeBase}${ASSETS_DIR}/client.js`
 						: `${relativeBase}${GENERATED_DIR}/entry.client.tsx`
 				}
 			/>
@@ -56,23 +51,4 @@ export function createAssets(relativeBase: string, payload?: string) {
 			)}
 		</>
 	)
-}
-
-/**
- * Create the metadata for the given route
- * @param match - the route match object
- * @param config - the plugin configuration
- * @param fallback - a promise that resolves to the fallback metadata
- * @returns a promise resolving to the merged metadata
- */
-export async function createMetadata(
-	match: Match,
-	config: PluginConfig,
-	fallback: Promise<Metadata>,
-) {
-	const routeMetadata = match
-		? await match.metadata?.({ params: match.params, error: match.error })
-		: [await fallback]
-
-	return mergeMetadata(config.metadata ?? {}, ...(routeMetadata ?? []))
 }

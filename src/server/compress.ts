@@ -51,7 +51,7 @@ export async function* compress(
 			}
 		}
 	} catch (err) {
-		ctx.logger.error(`compress:compress* ${input}`, err)
+		ctx.logger.error(`[compress*:${input}]`, err)
 		throw err
 	}
 }

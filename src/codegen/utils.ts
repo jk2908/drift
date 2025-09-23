@@ -1,0 +1,1 @@
+export const AUTO_GEN_MSG = '// auto-generated'

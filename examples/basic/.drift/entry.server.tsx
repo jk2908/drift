@@ -1,13 +1,13 @@
-import { handle } from '.drift/server'
+// auto-generated
 
-        import Shell from '../app/+layout'
+import { handle } from './server'
 
-        const app = handle(({ children, assets, metadata }) =>
-          
-    <Shell assets={assets} metadata={metadata}>
-      {children}
-    </Shell>
-  
-        )
+import Shell from '../app/+layout'
 
-        export default app
+const app = handle(({ children, assets, metadata }) => (
+	<Shell assets={assets} metadata={metadata}>
+		{children}
+	</Shell>
+))
+
+export default app

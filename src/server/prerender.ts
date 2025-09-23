@@ -2,8 +2,6 @@ import type { Hono } from 'hono'
 
 import type { BuildContext } from '../types'
 
-import { maybeAsync } from '../utils'
-
 /**
  * Check if a route is prerenderable
  * @param path - the path to the route
@@ -33,10 +31,15 @@ export async function getPrerenderParamsList(path: string, ctx: BuildContext) {
 		const mod = await import(path)
 
 		if (!mod || !mod?.prerender || typeof mod.prerender !== 'function') {
-			throw new Error(`${path} does not export a prerender function`)
+			ctx.logger.warn(
+				'[prerender:getPrerenderParamsList]',
+				`No exported prerender function found in ${path}`,
+			)
+
+			return []
 		}
 
-		return await maybeAsync(mod.prerender)
+		return await Promise.resolve(mod.prerender())
 	} catch (err) {
 		ctx.logger.error(`prerender:getPrerenderParamsList ${path}`, err)
 		return []
@@ -65,29 +68,51 @@ export function createPrerenderRoutesFromParamsList(
 
 /**
  * Prerender a route
- * @param route - the route to prerender
- * @param app - the app instance to use
+ * @param renderer - the renderer function to use
+ * @param urls - the URLs to prerender
+ * @param urls.route - the route to prerender
+ * @param urls.app - the app URL to use as the base for relative routes
  * @param ctx - the build context
  * @returns an async generator that yields the prerendered route
  * @throws if an error occurs during prerendering
  */
-export async function* prerender(route: string, app: Hono, ctx: BuildContext) {
+export async function* prerender(
+	renderer: (req: Request) => Promise<Response>,
+	urls: {
+		target: string
+		base: string
+	},
+	ctx?: BuildContext,
+) {
 	try {
-		const url = new URL(route, 'http://localhost')
-		const req = new Request(url.toString())
-		const res = await app.fetch(req)
+		const url =
+			urls.target.startsWith('http://') || urls.target.startsWith('https://')
+				? new URL(urls.target)
+				: new URL(urls.target, urls.base)
 
-		if (!res.ok) throw new Error(`${route} returned ${res.status}`)
+		const req = new Request(url.toString(), {
+			method: 'GET',
+			headers: {
+				Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+				'X-Drift-Renderer': 'prerender',
+				Host: url.host,
+				Origin: url.origin,
+			},
+		})
+
+		const res = await renderer(req)
+
+		if (!res.ok) throw new Error(`${urls.target} returned ${res.status}`)
 
 		yield {
-			route,
+			route: urls.target,
 			status: res.status,
 			headers: res.headers,
 			body: await res.text(),
 			res,
 		}
 	} catch (err) {
-		ctx.logger.error(`prerender:prerender* ${route}`, err)
+		ctx?.logger.error(`[prerender*] ${urls.target}`, err)
 		throw err
 	}
 }

@@ -1,11 +1,11 @@
-import { mount } from '.drift/client'
+// auto-generated
 
-        import Shell from '../app/+layout'
+import { mount } from './client'
 
-        mount(({ children, assets, metadata }) =>
-          
-    <Shell assets={assets} metadata={metadata}>
-      {children}
-    </Shell>
-  
-        )
+import Shell from '../app/+layout'
+
+mount(({ children, assets, metadata }) => (
+	<Shell assets={assets} metadata={metadata}>
+		{children}
+	</Shell>
+))

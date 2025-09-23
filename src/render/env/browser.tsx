@@ -5,11 +5,13 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 import * as devalue from 'devalue'
 
-import type { Manifest, PluginConfig } from '../../types'
+import type { ImportMap, Manifest, PluginConfig } from '../../types'
+
+import { EntryKind } from '../../config'
 
 import { HTTPException, NOT_FOUND, type Payload } from '../../shared/error'
 import { Logger } from '../../shared/logger'
-import { mergeMetadata } from '../../shared/metadata'
+import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router, RouterProvider } from '../../shared/router'
 import { getRelativeBasePath } from '../../shared/utils'
 
@@ -17,7 +19,7 @@ import { readDriftPayload } from '../../client/hydration'
 
 import * as fallback from '../../ui/+error'
 
-import { createAssets, createMetadata } from '../utils'
+import { createAssets } from '../utils'
 
 /**
  * Hydration and routing handler for the browser env
@@ -33,10 +35,11 @@ export async function browser(
 		metadata: React.ReactNode
 	}) => React.ReactNode,
 	manifest: Manifest,
+	map: ImportMap,
 	config: PluginConfig,
 ) {
-	const router = new Router(manifest)
 	const logger = new Logger(config.logger?.level)
+	const router = new Router(manifest, map, logger)
 
 	const relativeBase = getRelativeBasePath(window.location.pathname)
 
@@ -51,14 +54,18 @@ export async function browser(
 		// don't see why that would be worth it. This makes
 		// fallback error handling marginally quicker
 		const lookup = Router.narrow(manifest[entry?.__path])
-		const match = lookup ? { ...lookup, params: entry.params, error: entry.error } : null
+
+		const match = lookup
+			? router.enhance({ ...lookup, params: entry.params, error: entry.error })
+			: null
 
 		const assets = createAssets(relativeBase, payload)
+		const initial = { match, metadata }
 
 		hydrateRoot(
 			document,
 			<StrictMode>
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
+				<RouterProvider router={router} initial={initial} config={config}>
 					{({ el, metadata }) => (
 						<Shell assets={assets} metadata={metadata}>
 							{el ?? <fallback.default error={NOT_FOUND} />}
@@ -73,14 +80,24 @@ export async function browser(
 
 		logger.error(Logger.print(err), err)
 
-		const match = router.match(window.location.pathname)
+		const match = router.enhance(router.match(window.location.pathname))
+		const collection = new MetadataCollection(config.metadata)
 
-		const metadata = await createMetadata(
-			match,
-			config,
-			fallback.metadata({ error: NOT_FOUND }),
-		)
-		
+		const metadata = match
+			? await match
+					.metadata?.({ params: match.params, error: match.error })
+					.then(m =>
+						collection
+							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
+							.run(),
+					)
+			: await collection
+					.add({
+						task: fallback.metadata({ error: NOT_FOUND }),
+						priority: METADATA_PRIORITY[EntryKind.ERROR],
+					})
+					.run()
+
 		const assets = createAssets(relativeBase)
 
 		createRoot(document).render(

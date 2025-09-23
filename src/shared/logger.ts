@@ -74,24 +74,24 @@ export class Logger {
 	 * Log a debug message
 	 * @param message - the debug message
 	 */
-	debug(message: string) {
-		this.log('debug', message)
+	debug(...messages: string[]) {
+		this.log('debug', messages.join(' '))
 	}
 
 	/**
 	 * Log an info message
 	 * @param message - the info message
 	 */
-	info(message: string) {
-		this.log('info', message)
+	info(...messages: string[]) {
+		this.log('info', messages.join(' '))
 	}
 
 	/**
 	 * Log a warning message
 	 * @param message - the warning message
 	 */
-	warn(message: string) {
-		this.log('warn', message)
+	warn(...messages: string[]) {
+		this.log('warn', messages.join(' '))
 	}
 
 	/**
@@ -99,8 +99,8 @@ export class Logger {
 	 * @param message - the error message
 	 * @param error - the error object
 	 */
-	error(message: string, error?: unknown) {
-		this.log('error', message, Logger.toError(error))
+	error(messages: string, error?: unknown) {
+		this.log('error', messages, Logger.toError(error))
 	}
 
 	/**

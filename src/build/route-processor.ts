@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildContext, HTTPMethod, PluginConfig } from '../types'
+import type { BuildContext, Endpoint, HTTPMethod, Page, PluginConfig } from '../types'
 
 import { APP_DIR, EntryKind, GENERATED_DIR } from '../config'
-
-import { id } from '../shared/utils'
 
 import {
 	createPrerenderRoutesFromParamsList,
@@ -13,37 +11,32 @@ import {
 	isPrerenderable,
 } from '../server/prerender'
 
-export type ComposeResult = {
+export type ScanResult = {
 	pages: { page: string; layouts: string[]; shell: string; error?: string }[]
-	apis: string[]
+	endpoints: string[]
 }
 
 export type Imports = {
-	apis: { static: Map<string, string> }
-	pages: { static: Map<string, string>; dynamic: Map<string, string> }
+	endpoints: { static: Map<string, string> }
+	components: { static: Map<string, string>; dynamic: Map<string, string> }
 }
 
-export type Handlers = Map<
+export type Modules = Record<
 	string,
-	{ handler: string; id: string; type: typeof EntryKind.PAGE | typeof EntryKind.API }
+	{
+		shellId?: string
+		layoutIds?: string[]
+		pageId?: string
+		errorId?: string
+		endpointId?: string
+	}
 >
 
-export type prerenders = BuildContext['prerenders']
-
-type UnifiedEntries = {
-	[route: string]: string | string[]
-}
+const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
 
 export class RouteProcessor {
 	ctx: BuildContext | null = null
 	config: PluginConfig | null = null
-
-	#prerenders: BuildContext['prerenders'] = new Set()
-	#imports: Imports = {
-		apis: { static: new Map() },
-		pages: { static: new Map(), dynamic: new Map() },
-	}
-	#handlers: Handlers = new Map()
 
 	constructor(ctx: BuildContext, config: PluginConfig) {
 		this.ctx = ctx
@@ -62,36 +55,23 @@ export class RouteProcessor {
 	 */
 	async run() {
 		try {
-			const routes = await this.compose(APP_DIR)
-			const entries = this.createUnifiedEntries(
-				...(await Promise.all([
-					this.createPageEntries(routes.pages),
-					this.createAPIEntries(routes.apis),
-				])),
-			)
-
-			return {
-				entries,
-				imports: this.#imports,
-				handlers: this.#handlers,
-				prerenders: this.#prerenders,
-			}
+			return await this.process(await this.#scan(APP_DIR))
 		} catch (err) {
-			this.ctx?.logger.error('RouteProcessor:run: failed to build manifest', err)
+			this.ctx?.logger.error('[run]: failed to build manifest', err)
 			throw err
 		}
 	}
 
 	/**
-	 * Compose the route manifest from the file system
-	 * @param dir - the directory to compose the tree from
+	 * Scan the filesystem to get all routes for processing
+	 * @param dir - the directory to scan
 	 * @param res - the result object to populate
 	 * @param prev - the previous layout and error results
-	 * @returns the composed route manifest
+	 * @returns a result object containing page and API routes
 	 */
-	async compose(
+	async #scan(
 		dir: string,
-		res: ComposeResult = { pages: [], apis: [] },
+		res: ScanResult = { pages: [], endpoints: [] },
 		prev: { layouts: string[]; errors: string[] } = { layouts: [], errors: [] },
 	) {
 		try {
@@ -128,7 +108,7 @@ export class RouteProcessor {
 						errors: currError ? [...prev.errors, currError] : prev.errors,
 					}
 
-					await this.compose(route, res, next)
+					await this.#scan(route, res, next)
 				} else {
 					const base = path.basename(file.name)
 					const relative = path.relative(process.cwd(), route).replace(/\\/g, '/')
@@ -138,13 +118,13 @@ export class RouteProcessor {
 					} else if (validFiles[TYPES.error].has(base)) {
 						currError = relative
 					} else if (validFiles[TYPES.api].has(base)) {
-						res.apis.push(relative)
+						res.endpoints.push(relative)
 					} else if (validFiles[TYPES.page].has(base)) {
 						const layouts = currLayout ? [...prev.layouts, currLayout] : prev.layouts
 						const errors = currError ? [...prev.errors, currError] : prev.errors
 						const shell = layouts?.[0]
 
-						if (!shell) throw new Error('Must provide app shell')
+						if (!shell) throw new Error('!Shell')
 
 						res.pages.push({
 							page: relative,
@@ -156,341 +136,215 @@ export class RouteProcessor {
 				}
 			}
 
-			return res satisfies ComposeResult
+			return res satisfies ScanResult
 		} catch (err) {
-			this.ctx?.logger.error(
-				`RouteProcessor:compose: Failed to compose manifest from ${dir}`,
-				err,
-			)
+			this.ctx?.logger.error(`[#scan]: Failed to compose manifest from ${dir}`, err)
 
 			return {
 				pages: [],
-				apis: [],
-			} satisfies ComposeResult
+				endpoints: [],
+			} satisfies ScanResult
 		}
 	}
 
 	/**
-	 * Create the page entries for the manifest
-	 * @param routes - the routes to create entries for
-	 * @returns the created entries
+	 * Process the scanned route data
+	 * @param res the scanned route data
+	 * @returns an object containing finalised manifest, imports, and prerenders
 	 */
-	async createPageEntries(routes: ComposeResult['pages']) {
-		if (!routes.length) return []
+	async process(res: ScanResult) {
+		const processed = new Set<string>()
+		const prerenders = new Set<string>()
 
-		try {
-			const layoutCache = new Map<string, { id: string; prerender: boolean }>()
+		const manifest: Record<string, Page | Endpoint | (Page | Endpoint)[]> = {}
 
-			let shellId: string | undefined
-			let errorId: string | undefined
-
-			const entries = await Promise.all(
-				routes.map(async ({ page, layouts, shell, error }) => {
-					if (!this.ctx) throw new Error('Build context is not set')
-
-					const layoutIds: string[] = []
-
-					const pageImportPath = RouteProcessor.getImportPath(page)
-					const route = RouteProcessor.toCanonicalRoute(page)
-					const params = RouteProcessor.#getParams(page)
-
-					const pageId = `${EntryKind.PAGE}${id()}`
-
-					const isDynamicRoute = route.includes(':')
-					const isCatchAllRoute = route.includes('*')
-
-					let hasInheritedPrerender = false
-					let cachedShell = layoutCache.get(shell)
-
-					if (!cachedShell) {
-						shellId = `${EntryKind.SHELL}${id()}`
-
-						cachedShell = {
-							id: shellId,
-							prerender: await isPrerenderable(shell, this.ctx),
-						}
-
-						layoutCache.set(shell, cachedShell)
-						this.#imports.pages.static?.set(
-							`* as ${shellId}`,
-							RouteProcessor.getImportPath(shell),
-						)
-					}
-
-					hasInheritedPrerender = cachedShell.prerender
-
-					for (const layout of layouts) {
-						let cachedLayout = layoutCache.get(layout)
-
-						if (!cachedLayout) {
-							const layoutId = `${EntryKind.LAYOUT}${id()}`
-
-							cachedLayout = {
-								id: layoutId,
-								prerender: await isPrerenderable(layout, this.ctx),
-							}
-
-							layoutCache.set(layout, cachedLayout)
-							this.#imports.pages.dynamic?.set(
-								layoutId,
-								`import('${RouteProcessor.getImportPath(layout)}')`,
-							)
-						}
-
-						layoutIds.push(cachedLayout.id)
-						hasInheritedPrerender ||= cachedLayout.prerender
-					}
-
-					const shouldPrerender =
-						hasInheritedPrerender ||
-						(this.config?.prerender === 'full' && !isDynamicRoute) ||
-						(await isPrerenderable(page, this.ctx))
-
-					if (shouldPrerender) {
-						if (!isDynamicRoute) {
-							this.#prerenders.add(page)
-						} else {
-							const list = await getPrerenderParamsList(
-								path.resolve(process.cwd(), page),
-								this.ctx,
-							)
-
-							if (!list?.length) {
-								this.ctx?.logger.warn(
-									`No prerenderable params found for ${page}, skipping prerendering`,
-								)
-							}
-
-							const routesToPrerender = createPrerenderRoutesFromParamsList(page, list)
-
-							if (!routesToPrerender?.length) {
-								this.ctx?.logger.warn(
-									`No prerenderable routes found for ${page}, skipping prerendering`,
-								)
-							} else {
-								for (const route of routesToPrerender) this.#prerenders.add(route)
-							}
-						}
-					}
-
-					this.#imports.pages.dynamic?.set(pageId, `import('${pageImportPath}')`)
-					this.#handlers.set(`get/${route}`, {
-						handler: this.#createHandlerEntry('get', route, pageId, EntryKind.PAGE),
-						id: pageId,
-						type: EntryKind.PAGE,
-					})
-
-					if (error) {
-						errorId = `${EntryKind.ERROR}${id()}`
-
-						this.#imports.pages.dynamic?.set(
-							errorId,
-							`import('${RouteProcessor.getImportPath(error)}')`,
-						)
-					}
-
-					return {
-						route,
-						entry: `
-          	{
-              __id: '${pageId}',
-							__path: '${route}',
-							__params: [${params.map(p => `'${p}'`).join(', ')}],
-              Shell: ${shellId}.default,
-              layouts: [${layoutIds
-								.map(id => `lazy(() => ${id}.then(m => ({ default: m.default })))`)
-								.reverse()
-								.join(', ')}],
-              Cmp: lazy(() => ${pageId}.then(m => ({ default: m.default }))),
-              Err: ${error ? `lazy(() => ${errorId}.then(m => ({ default: m.default })))` : 'null'},
-							metadata({ params, error }: { params?: Params; error?: Error }) {
-								const modules = [
-									Promise.resolve(${shellId}),
-									${layoutIds.length ? `${layoutIds.join(', ')},` : ''}
-									error ? ${errorId ? `${errorId}` : 'Promise.resolve()'} : ${pageId}
-								].filter(Boolean)
-
-								return resolveMetadata(modules, { params, error })
-							},
-              prerender: ${shouldPrerender},
-              dynamic: ${isDynamicRoute},
-              catchAll: ${isCatchAllRoute},
-              type: '${EntryKind.PAGE}',
-            }
-          `.trim(),
-					}
-				}),
-			)
-
-			return entries.filter(Boolean)
-		} catch (err) {
-			this.ctx?.logger.error(
-				'RouteProcessor:createPageEntries: Failed to create page entries',
-				err,
-			)
-
-			return []
+		const imports: Imports = {
+			endpoints: { static: new Map() },
+			components: { static: new Map(), dynamic: new Map() },
 		}
-	}
 
-	/**
-	 * Create the API entries for the manifest
-	 * @param routes - the routes to create entries for
-	 * @returns the created entries
-	 */
-	async createAPIEntries(routes: ComposeResult['apis']) {
-		try {
-			if (!routes.length) return []
+		const modules: Modules = {}
 
-			const entries = await Promise.all(
-				routes.map(async file => {
-					if (!this.ctx) throw new Error('Build context is not set')
+		for (const file of res.pages) {
+			try {
+				if (!this.ctx || !this.config) continue
 
-					const importPath = RouteProcessor.getImportPath(file)
-					const route = RouteProcessor.toCanonicalRoute(file)
-					const params = RouteProcessor.#getParams(file)
+				const { shell, layouts, page, error } = file
 
-					const mod = await import(path.resolve(process.cwd(), file))
+				const route = RouteProcessor.toCanonicalRoute(page)
+				const params = RouteProcessor.getParams(page)
 
-					const group: string[] = []
+				const isDynamic = route.includes(':')
+				const isCatchAll = route.includes('*')
 
-					for (const key in mod) {
-						if (
-							!['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'].includes(key)
-						) {
-							this.ctx?.logger.warn(`Ignoring unsupported HTTP verb: ${key} in ${file}`)
-							continue
-						}
+				let hasInheritedPrerender = false
 
-						const method = key.toLowerCase() as Lowercase<HTTPMethod>
-						const apiId = `${EntryKind.API}${id()}`
+				const shellImport = RouteProcessor.getImportPath(shell)
 
-						this.#imports.apis.static?.set(`${key} as ${apiId}`, importPath)
+				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
+				const layoutIds: string[] = []
+				let errorId: string | undefined
 
-						group.push(`{
-              __id: '${apiId}',
-							__path: '${route}',
-							__params: [${params.map(p => `'${p}'`).join(', ')}],
-              method: '${method.toUpperCase()}',
-              handler: ${apiId},
-              type: '${EntryKind.API}',
-            }`)
+				if (!processed.has(shell)) {
+					hasInheritedPrerender = await isPrerenderable(shell, this.ctx)
 
-						this.#handlers.set(`${method}/${route}`, {
-							handler: this.#createHandlerEntry(method, route, apiId, EntryKind.API),
-							id: apiId,
-							type: EntryKind.API,
-						})
+					imports.components.static.set(shellId, shellImport)
+					processed.add(shell)
+				}
+
+				for (const layout of layouts) {
+					if (!processed.has(layout)) {
+						const layoutImport = RouteProcessor.getImportPath(layout)
+						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
+						hasInheritedPrerender ||= await isPrerenderable(layout, this.ctx)
+
+						layoutIds.push(layoutId)
+						imports.components.dynamic.set(layoutId, layoutImport)
+						processed.add(layout)
 					}
+				}
 
-					if (group.length) {
-						if (group.length > 1) {
-							return { route, entry: group }
-						}
+				if (error && !processed.has(error)) {
+					const errorImport = RouteProcessor.getImportPath(error)
+					errorId = `${EntryKind.ERROR}${Bun.hash(errorImport)}`
 
-						return { route, entry: group[0] }
-					}
+					imports.components.dynamic.set(errorId, errorImport)
+					processed.add(error)
+				}
 
-					return null
-				}),
-			)
+				const pageImport = RouteProcessor.getImportPath(page)
+				const pageId = `${EntryKind.PAGE}${Bun.hash(pageImport)}`
+				const shouldPrerender =
+					hasInheritedPrerender ||
+					this.config?.prerender === 'full' ||
+					(await isPrerenderable(page, this.ctx))
 
-			return entries.filter(Boolean)
-		} catch (err) {
-			this.ctx?.logger.error(
-				`RouteProcessor:createAPIEntries: Failed to create API entries`,
-				err,
-			)
-
-			return []
-		}
-	}
-
-	/**
-	 * @param pageEntries - the page entries
-	 * @param apiEntries - the API entries
-	 * @returns the unified entries
-	 */
-	createUnifiedEntries(
-		pageEntries: Awaited<ReturnType<typeof this.createPageEntries>>,
-		apiEntries: Awaited<ReturnType<typeof this.createAPIEntries>>,
-	) {
-		const entries = [...pageEntries, ...apiEntries]
-			.filter(n => n !== null)
-			.reduce<UnifiedEntries>((acc, { route, entry }) => {
-				if (acc[route]) {
-					if (!Array.isArray(acc[route])) {
-						acc[route] = [acc[route]]
-					}
-
-					if (Array.isArray(entry)) {
-						acc[route].push(...entry)
+				if (shouldPrerender) {
+					if (!isDynamic && !isCatchAll) {
+						prerenders.add(route)
 					} else {
-						acc[route].push(entry)
+						const paramsList = await getPrerenderParamsList(
+							path.resolve(process.cwd(), page),
+							this.ctx,
+						)
+
+						if (!paramsList?.length) {
+							this.ctx?.logger.warn(
+								'[process]',
+								`No prerenderable params found for ${page}, skipping prerendering`,
+							)
+						}
+
+						const dynamicPrerenders = createPrerenderRoutesFromParamsList(
+							route,
+							paramsList,
+						)
+
+						if (!dynamicPrerenders?.length) {
+							this.ctx?.logger.warn(
+								'[process]',
+								`No prerenderable routes found for ${page}, skipping prerendering`,
+							)
+						} else {
+							for (const r of dynamicPrerenders) prerenders.add(r)
+						}
+					}
+				}
+
+				const entry = {
+					__id: pageId,
+					__path: route,
+					__params: params,
+					__kind: EntryKind.PAGE,
+					method: 'get' as const,
+					paths: {
+						shell,
+						layouts,
+						error: error ?? null,
+					},
+					shouldPrerender,
+					isDynamic,
+					isCatchAll,
+				}
+
+				if (manifest[route]) {
+					if (Array.isArray(manifest[route])) {
+						manifest[route].push(entry)
+					} else {
+						manifest[route] = [manifest[route], entry]
 					}
 				} else {
-					acc[route] = entry
+					manifest[route] = entry
 				}
-				return acc
-			}, {})
 
-		return Object.entries(entries).map(([route, entry]) => {
-			if (Array.isArray(entry)) {
-				return `'${route}': [${entry.join(',\n')}]`
-			}
-
-			return `'${route}': ${entry}`
-		})
-	}
-
-	/**
-	 * Create a handler entry for a route
-	 * @param method - the HTTP method
-	 * @param route - the route path
-	 * @param id - the entry id
-	 * @param type - the entry type
-	 * @returns the handler entry
-	 */
-	#createHandlerEntry(
-		method: Lowercase<HTTPMethod>,
-		route: string,
-		id: string,
-		type: typeof EntryKind.PAGE | typeof EntryKind.API,
-	) {
-		const key = `${method}/${route}`
-
-		if (!this.#handlers.has(key)) {
-			switch (type) {
-				case EntryKind.PAGE: {
-					return `.${method}('${route}', c => ssr(c, Shell, manifest, config))`
-				}
-				case EntryKind.API: {
-					return `.${method}('${route}', ${id})`
-				}
-				default: {
-					throw new Error(`createHandlerEntry: Unknown entry type: ${type}`)
-				}
+				imports.components.dynamic.set(pageId, pageImport)
+				modules[pageId] = { shellId, layoutIds, pageId, errorId }
+				processed.add(page)
+			} catch (err) {
+				this.ctx?.logger.error('[process]: failed to process page', err)
 			}
 		}
 
-		// @note: if we reach here, there is a page route and an API route
-		// with the same method (GET) and path
+		for (const file of res.endpoints) {
+			try {
+				if (!this.ctx || processed.has(file)) continue
 
-		const existing = this.#handlers.get(key)
-		const handler = (existing?.type === EntryKind.API && existing?.id) || id
+				const route = RouteProcessor.toCanonicalRoute(file)
+				const params = RouteProcessor.getParams(file)
 
-		return `.${method}('${route}', async c => {
-			const accept = c.req.header('Accept') ?? ''
+				const code = await Bun.file(file).text()
+				const exports = this.ctx.transpiler.scan(code).exports
 
-			if (accept.includes('text/html')) {
-				return ssr(c, Shell, manifest, config)
+				const group: Endpoint[] = []
+
+				for (const method of exports) {
+					if (!HTTP_VERBS.includes(method as HTTPMethod)) {
+						this.ctx?.logger.warn(
+							'[process]',
+							`Ignoring unsupported HTTP verb: ${method} in ${file}`,
+						)
+						continue
+					}
+
+					const m = method.toLowerCase() as Lowercase<HTTPMethod>
+					const endpointId = `${EntryKind.ENDPOINT}${Bun.hash(RouteProcessor.getImportPath(file))}_${m}`
+
+					group.push({
+						__id: endpointId,
+						__path: route,
+						__params: params,
+						__kind: EntryKind.ENDPOINT,
+						method: m,
+					})
+
+					imports.endpoints.static.set(endpointId, RouteProcessor.getImportPath(file))
+					modules[endpointId] = { endpointId }
+					processed.add(file)
+				}
+
+				const entry = group.length === 1 ? group[0] : group
+
+				if (manifest[route]) {
+					if (Array.isArray(manifest[route])) {
+						manifest[route] = [
+							...manifest[route],
+							...(Array.isArray(entry) ? entry : [entry]),
+						]
+					} else {
+						manifest[route] = [
+							manifest[route],
+							...(Array.isArray(entry) ? entry : [entry]),
+						]
+					}
+				} else {
+					manifest[route] = entry
+				}
+			} catch (err) {
+				this.ctx?.logger.error('[process]: failed to process route', err)
 			}
+		}
 
-			// handler might be called with no args so 
-			// ignore to prevent red squigglies
-			// @ts-ignore
-			return ${handler}(c)
-		})`
+		return { manifest, imports, prerenders, modules }
 	}
 
 	/**
@@ -498,7 +352,7 @@ export class RouteProcessor {
 	 * @param file - the file path to extract parameters from
 	 * @returns an array of parameter names
 	 */
-	static #getParams(file: string) {
+	static getParams(file: string) {
 		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
 	}
 
