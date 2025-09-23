@@ -13,6 +13,9 @@ import type { RouteProcessor } from './build/route-processor'
 
 export type PluginConfig = {
 	ctx: ConfigEnv
+	app?: {
+		url?: `http://${string}` | `https://${string}`
+	}
 	precompress?: boolean
 	prerender?: 'full' | 'declarative'
 	outDir?: string

@@ -4,7 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bunx --bun vite",
-    "build": "bunx --bun vite build --mode client && bunx --bun vite build --ssr"
+    "build": "bunx --bun vite build --mode client && bunx --bun vite build --ssr",
+		"preview": "bun --env-file=.env.preview --port=8787 --inspect --no-cache \"dist/index.js\""
 	},
 	"dependencies": {
 		"@jk2908/drift": "link:@jk2908/drift",

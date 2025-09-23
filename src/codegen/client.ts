@@ -15,14 +15,14 @@ export function writeClient() {
 
     import { hc } from 'hono/client'
 
-    import type { App } from '${GENERATED_DIR}/server'
-    import { manifest } from '${GENERATED_DIR}/manifest'
-    import { map } from '${GENERATED_DIR}/map'
-    import { config } from '${GENERATED_DIR}/config'
-
     import { browser } from '${PKG_NAME}/render/env/browser'
+
+    import type { App } from './server'
+    import { manifest } from './manifest'
+    import { map } from './map'
+    import { config } from './config'
     
-    export const client = hc<App>(import.meta.env.VITE_APP_URL)
+    export const client = hc<App>(config.app?.url ?? import.meta.env.VITE_APP_URL)
 
     export async function mount(
       Shell: ({

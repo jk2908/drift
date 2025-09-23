@@ -129,6 +129,7 @@ export async function ssr(
 			headers: {
 				'Content-Type': 'text/html',
 				'Transfer-Encoding': 'chunked',
+				'X-Drift-Renderer': 'ssr',
 			},
 		})
 	} catch (err) {
@@ -204,6 +205,7 @@ export async function ssr(
 				headers: {
 					'Content-Type': 'text/html',
 					'Transfer-Encoding': 'chunked',
+					'X-Drift-Renderer': 'ssr',
 				},
 			})
 		}

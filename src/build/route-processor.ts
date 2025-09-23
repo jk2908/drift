@@ -236,7 +236,7 @@ export class RouteProcessor {
 						}
 
 						const dynamicPrerenders = createPrerenderRoutesFromParamsList(
-							page,
+							route,
 							paramsList,
 						)
 

@@ -18,7 +18,6 @@ import { Logger } from './shared/logger'
 import { writeServer } from './codegen/server'
 import { compress } from './server/compress'
 import { prerender } from './server/prerender'
-import { injectRuntime } from './server/runtime'
 import { format } from './server/utils'
 
 import { writeClient } from './codegen/client'
@@ -36,15 +35,33 @@ const DEFAULT_CONFIG = {
 	prerender: 'declarative',
 	outDir: 'dist',
 	trailingSlash: false,
-	logger: {
-		level: Bun.env.PROD ? 'error' : 'debug',
-	},
 } as const satisfies Partial<PluginConfig>
 
 function drift(c: PluginConfig): PluginOption[] {
 	const config = { ...DEFAULT_CONFIG, ...c }
 
 	if (!config.ctx) throw new Error('Vite context is required to be passed to the plugin')
+
+	config.app = {
+		...(config.app ?? {}),
+		// @todo: runtime validation
+		// @ts-expect-error
+		url:
+			config.app?.url ??
+			process.env.VITE_APP_URL?.toString() ??
+			process.env.APP_URL?.toString(),
+	}
+
+	config.logger = {
+		...(config.logger ?? {}),
+		level:
+			config.logger?.level ??
+			(config.ctx?.mode === 'production' ||
+			import.meta.env.PROD ||
+			process.env.NODE_ENV === 'production'
+				? 'error'
+				: 'debug'),
+	}
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger(config.logger.level)
@@ -123,7 +140,7 @@ function drift(c: PluginConfig): PluginOption[] {
 								},
 								output: {
 									...(viteConfig.build?.rollupOptions?.output || {}),
-									entryFileNames: `${ASSETS_DIR}/[name]-[hash].js`,
+									entryFileNames: `${ASSETS_DIR}/[name].js`,
 								},
 							},
 						},
@@ -216,73 +233,74 @@ function drift(c: PluginConfig): PluginOption[] {
 				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
 				try {
-					try {
-						if (!buildCtx.bundle.server.entryPath) {
-							throw new Error('No server entry path found')
-						}
-
-						await Bun.write(
-							buildCtx.bundle.server.entryPath,
-							await injectRuntime(buildCtx.bundle, buildCtx),
-						)
-					} catch (err) {
-						logger.error('[closeBundle:injectRuntime]', err)
-					}
-
 					if (buildCtx.prerenders.size > 0) {
-						Bun.env.PRERENDER = 'true'
-						let server: ReturnType<typeof Bun.serve> | null = null
+						const appUrl = config.app?.url
 
-						try {
-							if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
-								throw new Error('No server outDir or entryPath found')
-							}
+						if (!appUrl) {
+							logger.warn(
+								'[closeBundle]',
+								'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
+							)
+						} else {
+							Bun.env.PRERENDER = 'true'
 
-							const app = (
-								await import(`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`)
-							).default
-
-							const PORT = Bun.env.PRERENDER_PORT || 8787
-							logger.info('[closeBundle]', `starting server on ${PORT}`)
-
-							server = Bun.serve({
-								port: PORT,
-								fetch: app.fetch,
-							})
-
-							for (const route of buildCtx.prerenders) {
-								const { value, done } = await prerender(route, app, buildCtx).next()
-
-								if (done || !value) {
-									logger.warn('[closeBundle]', `skipped prerendering ${route}: no output`)
-									continue
+							try {
+								if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
+									throw new Error('No server outDir or entryPath found')
 								}
 
-								const { status, body } = value
+								const app = (
+									await import(
+										`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`
+									)
+								).default
 
-								if (status !== 200) {
-									logger.warn('[closeBundle]', `skipped prerendering ${route}: ${status}`)
-									continue
+								for (const route of buildCtx.prerenders) {
+									const urls = {
+										target: route,
+										base: appUrl,
+									}
+
+									const { value, done } = await prerender(
+										(req: Request) => app.fetch(req),
+										urls,
+										buildCtx,
+									).next()
+
+									if (done || !value) {
+										logger.warn(
+											'[closeBundle]',
+											`skipped prerendering ${route}: no output`,
+										)
+										continue
+									}
+
+									const { status, body } = value
+
+									if (status !== 200) {
+										logger.warn(
+											'[closeBundle]',
+											`skipped prerendering ${route}: ${status}`,
+										)
+										continue
+									}
+
+									const outPath =
+										route === '/'
+											? path.join(buildCtx.bundle.server.outDir, 'index.html')
+											: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
+
+									await fs.mkdir(path.dirname(outPath), { recursive: true })
+									await Bun.write(outPath, body)
+
+									logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
 								}
-
-								const outPath =
-									route === '/'
-										? path.join(buildCtx.bundle.server.outDir, 'index.html')
-										: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
-
-								await fs.mkdir(path.dirname(outPath), { recursive: true })
-								await Bun.write(outPath, body)
-
-								logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
+							} catch (err) {
+								logger.error('[closeBundle:prerender]', err)
+							} finally {
+								logger.info('[closeBundle]', 'stopping server')
+								Bun.env.PRERENDER = 'false'
 							}
-						} catch (err) {
-							logger.error('[closeBundle:prerender]', err)
-						} finally {
-							logger.info('[closeBundle]', 'stopping server')
-
-							Bun.env.PRERENDER = 'false'
-							server?.stop()
-							server = null
 						}
 					}
 
@@ -332,7 +350,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			],
 			injectClientScript: false,
 		}),
-		bunBuild({ entry: `./${APP_DIR}/${ENTRY_SERVER}` }),
+		bunBuild({ entry: `./${GENERATED_DIR}/${ENTRY_SERVER}` }),
 	]
 }
 

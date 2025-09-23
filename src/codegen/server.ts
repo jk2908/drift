@@ -1,6 +1,6 @@
 import type { Endpoint, Manifest, Page } from '../types'
 
-import { EntryKind, GENERATED_DIR, PKG_NAME } from '../config'
+import { EntryKind, PKG_NAME } from '../config'
 
 import type { Imports } from '../build/route-processor'
 
@@ -25,11 +25,11 @@ export function writeServer(manifest: Manifest, imports: Imports) {
     import { serveStatic } from 'hono/bun'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-    import { manifest } from '${GENERATED_DIR}/manifest'
-    import { map } from '${GENERATED_DIR}/map'
-    import { config } from '${GENERATED_DIR}/config'
-
     import { ssr } from '${PKG_NAME}/render/env/ssr'
+
+    import { manifest } from './manifest'
+    import { map } from './map'
+    import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
 			.map(([key, value]) => {

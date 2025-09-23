@@ -1,6 +1,6 @@
 // auto-generated
 
-import { mount } from '.drift/client'
+import { mount } from './client'
 
 import Shell from '../app/+layout'
 

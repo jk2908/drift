@@ -1,6 +1,6 @@
 // auto-generated
 
-import { handle } from '.drift/server'
+import { handle } from './server'
 
 import Shell from '../app/+layout'
 

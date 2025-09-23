@@ -28,7 +28,7 @@ export async function createScaffold() {
 			`
         ${AUTO_GEN_MSG}
 
-        import { handle } from '${GENERATED_DIR}/server'
+        import { handle } from './server'
 
         import Shell from '${shellImport}'
 
@@ -47,7 +47,7 @@ export async function createScaffold() {
 			`
         ${AUTO_GEN_MSG}
 
-        import { mount } from '${GENERATED_DIR}/client'
+        import { mount } from './client'
 
         import Shell from '${shellImport}'
 

@@ -4,12 +4,12 @@
 
 import { hc } from 'hono/client'
 
-import type { App } from '.drift/server'
-import { manifest } from '.drift/manifest'
-import { map } from '.drift/map'
-import { config } from '.drift/config'
-
 import { browser } from '@jk2908/drift/render/env/browser'
+
+import type { App } from './server'
+import { manifest } from './manifest'
+import { map } from './map'
+import { config } from './config'
 
 export const client = hc<App>(import.meta.env.VITE_APP_URL)
 
