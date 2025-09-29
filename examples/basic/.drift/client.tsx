@@ -11,7 +11,7 @@ import { manifest } from './manifest'
 import { map } from './map'
 import { config } from './config'
 
-export const client = hc<App>(import.meta.env.VITE_APP_URL)
+export const client = hc<App>(config.app?.url ?? import.meta.env.VITE_APP_URL)
 
 export async function mount(
 	Shell: ({

@@ -6,6 +6,8 @@ export const metadata = {
 	title: 'Home',
 }
 
+export const prerender = true
+
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export default function HomePage({ params }: { params?: Record<string, string> }) {

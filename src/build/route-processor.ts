@@ -164,6 +164,7 @@ export class RouteProcessor {
 		}
 
 		const modules: Modules = {}
+		const prerenderableCache = new Map<string, boolean>()
 
 		for (const file of res.pages) {
 			try {
@@ -186,21 +187,41 @@ export class RouteProcessor {
 				let errorId: string | undefined
 
 				if (!processed.has(shell)) {
-					hasInheritedPrerender = await isPrerenderable(shell, this.ctx)
+					let cached = prerenderableCache.get(shell)
+
+					if (cached === undefined) {
+						cached = await isPrerenderable(shell, this.ctx)
+						prerenderableCache.set(shell, cached)
+					}
+
+					hasInheritedPrerender = cached
 
 					imports.components.static.set(shellId, shellImport)
 					processed.add(shell)
+				} else {
+					hasInheritedPrerender =
+						hasInheritedPrerender || (prerenderableCache.get(shell) ?? false)
 				}
 
 				for (const layout of layouts) {
 					if (!processed.has(layout)) {
 						const layoutImport = RouteProcessor.getImportPath(layout)
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
-						hasInheritedPrerender ||= await isPrerenderable(layout, this.ctx)
+				
+						let cached = prerenderableCache.get(layout)
+
+						if (cached === undefined) {
+							cached = await isPrerenderable(layout, this.ctx)
+							prerenderableCache.set(layout, cached)
+						}
+
+						hasInheritedPrerender ||= cached
 
 						layoutIds.push(layoutId)
 						imports.components.dynamic.set(layoutId, layoutImport)
 						processed.add(layout)
+					} else {
+						hasInheritedPrerender ||= prerenderableCache.get(layout) ?? false
 					}
 				}
 

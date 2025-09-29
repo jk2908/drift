@@ -12,8 +12,11 @@ export default defineConfig((ctx: ConfigEnv) => {
 	return {
 		plugins: [
 			drift({
+				app: {
+					url: 'http://localhost:8787'
+				},
 				ctx,
-				prerender: 'full',
+				prerender: 'declarative',
 				metadata: {
 					title: '%s - jk2908',
 					meta: [

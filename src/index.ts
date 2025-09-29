@@ -96,9 +96,9 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		const processor = new RouteProcessor(buildCtx, config)
-
 		const { manifest, prerenders, imports, modules } = await processor.run()
 
+		// set prerender in context for use in closeBundle
 		buildCtx.prerenders = prerenders
 
 		await Promise.all([
@@ -110,9 +110,11 @@ function drift(c: PluginConfig): PluginOption[] {
 			...(await createScaffold()),
 		])
 
-		await format(GENERATED_DIR, buildCtx)
+		// format generated files, avoid stopping build on errors
+		await format(GENERATED_DIR, buildCtx).catch(() => {})
 	}
 
+	// debounced build to avoid multiple builds on file changes
 	const rebuild = debounce(build, 1000)
 
 	return [
@@ -164,6 +166,7 @@ function drift(c: PluginConfig): PluginOption[] {
 					define: {
 						...viteConfig.define,
 						'import.meta.env.APP_URL': JSON.stringify(process.env.APP_URL),
+						'import.meta.env.VITE_APP_URL': JSON.stringify(process.env.VITE_APP_URL),
 					},
 					resolve: {
 						alias: {
@@ -234,10 +237,8 @@ function drift(c: PluginConfig): PluginOption[] {
 
 				try {
 					if (buildCtx.prerenders.size > 0) {
-						const appUrl = config.app?.url
-
-						if (!appUrl) {
-							logger.warn(
+						if (!config.app?.url) {
+							logger.error(
 								'[closeBundle]',
 								'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
 							)
@@ -256,14 +257,10 @@ function drift(c: PluginConfig): PluginOption[] {
 								).default
 
 								for (const route of buildCtx.prerenders) {
-									const urls = {
-										target: route,
-										base: appUrl,
-									}
-
 									const { value, done } = await prerender(
 										(req: Request) => app.fetch(req),
-										urls,
+										route,
+										config.app.url,
 										buildCtx,
 									).next()
 
@@ -330,8 +327,8 @@ function drift(c: PluginConfig): PluginOption[] {
 						outDir: null,
 					}
 
-					// @todo: check why the build hangs without forcing exit
-					process.exit(0)
+					// fini
+					logger.info('[closeBundle]', 'build complete')
 				}
 			},
 		},

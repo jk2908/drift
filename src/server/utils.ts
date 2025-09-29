@@ -8,11 +8,11 @@ import type { BuildContext } from '../types'
  * @returns void
  */
 export async function format(dir: string, ctx: BuildContext) {
-  try {
-    const pattern = `${dir}/`
-    await $`bunx @biomejs/biome format --write ${pattern}`.quiet()
-  } catch (err) {
-    ctx.logger.error(`[format:${dir}]`, err)
-    return
-  }
+	try {
+		const pattern = `${dir}/`
+		await $`bunx @biomejs/biome format --write ${pattern}`.quiet()
+	} catch (err) {
+		ctx.logger.error(`[format:${dir}]`, err)
+    throw err
+	}
 }

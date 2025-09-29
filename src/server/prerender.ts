@@ -78,23 +78,20 @@ export function createPrerenderRoutesFromParamsList(
  */
 export async function* prerender(
 	renderer: (req: Request) => Promise<Response>,
-	urls: {
-		target: string
-		base: string
-	},
+	target: string,
+	base: string,
 	ctx?: BuildContext,
 ) {
 	try {
 		const url =
-			urls.target.startsWith('http://') || urls.target.startsWith('https://')
-				? new URL(urls.target)
-				: new URL(urls.target, urls.base)
+			target.startsWith('http://') || target.startsWith('https://')
+				? new URL(target)
+				: new URL(target, base)
 
 		const req = new Request(url.toString(), {
 			method: 'GET',
 			headers: {
 				Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-				'X-Drift-Renderer': 'prerender',
 				Host: url.host,
 				Origin: url.origin,
 			},
@@ -102,17 +99,27 @@ export async function* prerender(
 
 		const res = await renderer(req)
 
-		if (!res.ok) throw new Error(`${urls.target} returned ${res.status}`)
+		if (!res.ok) throw new Error(`${target} returned ${res.status}`)
+
+		let body = await res.text()
+		const MARKER = '<!-- X-Drift-Renderer: prerender -->\n'
+
+		if (
+			String(res.headers.get('content-type') ?? '').includes('text/html') &&
+			!body.startsWith(MARKER)
+		) {
+			body = MARKER + body
+		}
 
 		yield {
-			route: urls.target,
+			route: target,
 			status: res.status,
 			headers: res.headers,
-			body: await res.text(),
+			body,
 			res,
 		}
 	} catch (err) {
-		ctx?.logger.error(`[prerender*] ${urls.target}`, err)
+		ctx?.logger.error(`[prerender*] ${target}`, err)
 		throw err
 	}
 }

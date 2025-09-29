@@ -62,12 +62,31 @@ export async function ssr(
 
 		// early return of static html if route is prerendered
 		if (match?.shouldPrerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
-			const outPath =
-				c.req.path === '/'
-					? path.join(import.meta.dir, 'index.html')
-					: path.join(import.meta.dir, c.req.path, 'index.html')
+			const canonical = match?.__path ?? c.req?.path ?? '/'
+			const rel = canonical.startsWith('/') ? canonical.slice(1) : canonical
 
-			return c.html(await Bun.file(outPath).text())
+			let outPath: string
+
+			if (!rel) {
+				outPath = path.join(import.meta.dir, 'index.html')
+			} else {
+				outPath = /[^/]+\.[^/]+$/.test(rel)
+					? path.join(import.meta.dir, rel)
+					: path.join(import.meta.dir, rel, 'index.html')
+			}
+
+			// read if exists, else continue to ssr
+			try {
+				const f = Bun.file(outPath)
+
+				if (await f.exists()) {
+					return c.html(await f.text(), {
+						headers: { 
+							'X-Drift-Renderer': 'prerender' 
+						},
+					})
+				}
+			} catch {}
 		}
 
 		const collection = new MetadataCollection(config.metadata)

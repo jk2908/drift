@@ -28,7 +28,7 @@ export function Runtime({ relativeBase }: { relativeBase: string }) {
 				type="module"
 				src={
 					import.meta.env.PROD
-						? `${relativeBase}${ASSETS_DIR}/${INJECT_RUNTIME}`
+						? `${relativeBase}${ASSETS_DIR}/client.tsx`
 						: `${relativeBase}${GENERATED_DIR}/entry.client.tsx`
 				}
 			/>
