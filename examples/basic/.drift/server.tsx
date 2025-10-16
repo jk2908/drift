@@ -4,18 +4,16 @@
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
-import { appendTrailingSlash, trimTrailingSlash } from 'hono/trailing-slash'
+import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
 import { ssr } from '@jk2908/drift/render/env/ssr'
 
-import { config } from './config'
-
-import {
-	GET as $E36045888637312226_get,
-	POST as $E36045888637312226_post,
-} from '../app/posts/+api'
 import { manifest } from './manifest'
 import { map } from './map'
+import { config } from './config'
+
+import { GET as $E36045888637312226_get } from '../app/posts/+api'
+import { POST as $E36045888637312226_post } from '../app/posts/+api'
 
 export function handle(
 	Shell: ({

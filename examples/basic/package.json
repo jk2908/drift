@@ -19,8 +19,5 @@
 		"@types/react": "latest",
 		"@types/react-dom": "latest",
 		"typescript": "^5.0.0"
-	},
-	"overrides": {
-		"vite": "npm:rolldown-vite@latest"
 	}
 }

@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { APP_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from '../config'
+import { APP_DIR, ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR, PKG_NAME } from '../config'
 
 import { AUTO_GEN_MSG } from './utils'
 
@@ -22,9 +22,50 @@ export async function createScaffold() {
     </Shell>
   `
 
+  scaffold.push(
+    Bun.write(  
+      path.join(generatedDir, ENTRY_RSC),
+      `
+        ${AUTO_GEN_MSG}
+
+        import { rsc } from '${PKG_NAME}/render/env/rsc'
+
+        import { manifest } from './manifest'
+        import { map } from './map'
+        import { config } from './config'
+
+        import Shell from '${shellImport}'
+
+        export default async function(req: Request) {
+          const url = new URL(req.url)
+
+          if (url.pathname.endsWith('.rsc')) {
+            return rsc(
+              req, 
+              ({ children, assets, metadata }: {
+                children: React.ReactNode
+                assets: React.ReactNode
+                metadata: React.ReactNode
+              }) => ${Shell},
+              manifest, 
+              map, 
+              config
+            )
+          }
+
+          const ssr = await import.meta.viteRsc.loadModule<typeof import('./entry.ssr.tsx')>('ssr', 'index')
+          return ssr.default.fetch(req)
+        }
+
+        
+        if (import.meta.hot) import.meta.hot.accept()
+      `.trim(),
+    ),
+  )
+
 	scaffold.push(
 		Bun.write(
-			path.join(generatedDir, ENTRY_SERVER),
+			path.join(generatedDir, ENTRY_SSR),
 			`
         ${AUTO_GEN_MSG}
 
@@ -43,7 +84,7 @@ export async function createScaffold() {
 
 	scaffold.push(
 		Bun.write(
-			path.join(generatedDir, ENTRY_CLIENT),
+			path.join(generatedDir, ENTRY_BROWSER),
 			`
         ${AUTO_GEN_MSG}
 

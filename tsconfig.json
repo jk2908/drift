@@ -9,7 +9,7 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "react",
 		"allowSyntheticDefaultImports": true,
-		"types": ["vite/client", "bun"]
+		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]
 	},
 	"include": ["src"],
 }

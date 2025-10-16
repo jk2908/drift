@@ -3,15 +3,20 @@ import path from 'node:path'
 
 import { loadEnv, type PluginOption } from 'vite'
 
-import bunBuild from '@hono/vite-build/bun'
-import devServer from '@hono/vite-dev-server'
-import adapter from '@hono/vite-dev-server/bun'
 import react from '@vitejs/plugin-react'
+import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
 
 import { writeConfig } from './codegen/config'
-import { APP_DIR, ASSETS_DIR, ENTRY_CLIENT, ENTRY_SERVER, GENERATED_DIR } from './config'
+import {
+	APP_DIR,
+	ASSETS_DIR,
+	ENTRY_BROWSER,
+	ENTRY_RSC,
+	ENTRY_SSR,
+	GENERATED_DIR,
+} from './config'
 
 import { Logger } from './shared/logger'
 
@@ -138,7 +143,7 @@ function drift(c: PluginConfig): PluginOption[] {
 							rollupOptions: {
 								...(viteConfig.build?.rollupOptions || {}),
 								input: {
-									client: `/${GENERATED_DIR}/${ENTRY_CLIENT}`,
+									client: `/${GENERATED_DIR}/${ENTRY_BROWSER}`,
 								},
 								output: {
 									...(viteConfig.build?.rollupOptions?.output || {}),
@@ -174,6 +179,38 @@ function drift(c: PluginConfig): PluginOption[] {
 							'.drift': path.resolve(process.cwd(), GENERATED_DIR),
 						},
 					},
+					environments: {
+						...viteConfig.environments,
+						rsc: {
+							build: {
+								rollupOptions: {
+									input: {
+										index: `./${GENERATED_DIR}/${ENTRY_RSC}`,
+									},
+									external: ['hono', 'hono/*', 'react', 'react-dom'],
+								},
+							},
+						},
+						ssr: {
+							build: {
+								rollupOptions: {
+									input: {
+										index: `./${GENERATED_DIR}/${ENTRY_SSR}`,
+									},
+									external: ['hono', 'hono/*', 'react', 'react-dom'],
+								},
+							},
+						},
+						client: {
+							build: {
+								rollupOptions: {
+									input: {
+										index: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
+									},
+								},
+							},
+						},
+					},
 				}
 			},
 			configureServer(server) {
@@ -207,7 +244,7 @@ function drift(c: PluginConfig): PluginOption[] {
 					}
 
 					const json = await viteManifest.json()
-					const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_CLIENT}`].file
+					const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_BROWSER}`].file
 
 					buildCtx.bundle.client.entryPath = path.join(
 						options.dir ?? config.outDir,
@@ -332,22 +369,8 @@ function drift(c: PluginConfig): PluginOption[] {
 				}
 			},
 		},
+		rsc(),
 		react(),
-		devServer({
-			adapter,
-			entry: `./${GENERATED_DIR}/${ENTRY_SERVER}`,
-			exclude: [
-				/.*\.(j|t)sx?($|\?)/,
-				/.*\.(s?css|less)($|\?)/,
-				/.*\.(svg|png)($|\?)/,
-				/^\/@.+$/,
-				/^\/favicon\.ico$/,
-				/^\/(public|assets|static)\/.+/,
-				/^\/node_modules\/.*/,
-			],
-			injectClientScript: false,
-		}),
-		bunBuild({ entry: `./${GENERATED_DIR}/${ENTRY_SERVER}` }),
 	]
 }
 

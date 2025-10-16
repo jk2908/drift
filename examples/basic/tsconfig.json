@@ -12,7 +12,7 @@
 		"paths": {
 			"#/*": ["./*"]
 		},
-		"types": ["vite/client", "bun"]
+		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]
 	},
 	"include": [
 		"app",
