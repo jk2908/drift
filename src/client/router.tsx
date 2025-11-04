@@ -10,12 +10,11 @@ import {
 	useTransition,
 } from 'react'
 
-import type { EnhancedMatch, PluginConfig, Metadata as TMetadata } from '../../types'
+import type { EnhancedMatch, PluginConfig, Metadata as TMetadata } from '../types'
 
-import { MetadataCollection } from '../metadata'
-import { Tree } from '../tree'
-
-import type { Router } from '.'
+import { MetadataCollection } from '../shared/metadata'
+import type { Router } from '../shared/router'
+import { Tree } from '../shared/tree'
 
 type GoConfig = {
 	replace?: boolean

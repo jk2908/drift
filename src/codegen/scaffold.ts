@@ -87,13 +87,9 @@ export async function createScaffold() {
 			`
         ${AUTO_GEN_MSG}
 
-        import { mount } from './client'
+        import { browser } from '${PKG_NAME}/render/env/browser'
 
-        import Shell from '${shellImport}'
-
-        mount(({ children, assets, metadata }) =>
-          ${Shell}
-        )
+        browser()
       `.trim(),
 		),
 	)

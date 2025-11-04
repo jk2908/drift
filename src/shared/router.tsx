@@ -16,13 +16,13 @@ import type {
 	Primitive,
 	Metadata as TMetadata,
 	View,
-} from '../../types'
+} from '../types'
 
-import { EntryKind } from '../../config'
+import { EntryKind } from '../config'
 
-import { HTTPException } from '../error'
-import type { Logger } from '../logger'
-import { PRIORITY } from '../metadata'
+import { HTTPException } from './error'
+import type { Logger } from './logger'
+import { PRIORITY } from './metadata'
 
 /**
  * Handle routing and matching of within the application

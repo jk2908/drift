@@ -1,13 +1,21 @@
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
+import * as devalue from 'devalue'
 
 import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
-import { NOT_FOUND } from '../../shared/error'
+import { EntryKind } from '../../config'
+
+import { HTTPException, NOT_FOUND } from '../../shared/error'
 import { Logger } from '../../shared/logger'
+import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
-import { RouterProvider } from '../../shared/router/provider'
+import { getRelativeBasePath } from '../../shared/utils'
+
+import { RouterProvider } from '../../client/router'
 
 import * as fallback from '../../ui/+error'
+
+import { createAssets } from '../utils'
 
 /**
  * RSC rendering handler - generates RSC stream from React tree
@@ -38,12 +46,44 @@ export async function rsc(
 	try {
 		const url = new URL(request.url)
 		const match = router.enhance(router.match(url.pathname))
-		const initial = { match, metadata: {} }
+		const relativeBase = getRelativeBasePath(url.pathname)
+
+		const collection = new MetadataCollection(config.metadata)
+
+		const metadata = match
+			? await match
+					.metadata?.({ params: match.params, error: match.error })
+					.then(m =>
+						collection
+							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
+							.run(),
+					)
+			: await collection
+					.add({
+						task: fallback.metadata({ error: NOT_FOUND }),
+						priority: METADATA_PRIORITY[EntryKind.ERROR],
+					})
+					.run()
+
+		const payload = devalue.stringify(
+			{
+				entry: {
+					__path: match?.__path,
+					params: match?.params,
+					error: match?.error,
+				},
+				metadata,
+			},
+			payloadReducer,
+		)
+
+		const assets = createAssets(relativeBase, payload)
+		const initial = { match, metadata }
 
 		const stream = renderToReadableStream(
 			<RouterProvider router={router} initial={initial} config={config}>
-				{({ el }) => (
-					<Shell assets={null} metadata={null}>
+				{({ el, metadata }) => (
+					<Shell assets={assets} metadata={metadata}>
 						{el ?? <fallback.default error={NOT_FOUND} />}
 					</Shell>
 				)}
@@ -59,4 +99,19 @@ export async function rsc(
 		logger.error('[rsc]', err)
 		return new Response(null, { status: 500 })
 	}
+}
+
+const payloadReducer = {
+	Error: (v: unknown) => {
+		if (!(v instanceof Error)) return false
+
+		return [
+			v.constructor.name,
+			v.message,
+			v.cause,
+			v.stack,
+			v instanceof HTTPException ? v.status : undefined,
+			v instanceof HTTPException ? v.payload : undefined,
+		]
+	},
 }

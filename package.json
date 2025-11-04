@@ -51,10 +51,6 @@
 			"types": "./dist/shared/router.d.ts",
 			"default": "./dist/shared/router.js"
 		},
-		"./shared/router/provider": {
-			"types": "./dist/shared/router/provider.d.ts",
-			"default": "./dist/shared/router/provider.js"
-		},
 		"./shared/redirect": {
 			"types": "./dist/shared/redirect.d.ts",
 			"default": "./dist/shared/redirect.js"
@@ -82,6 +78,10 @@
 		"./client/runtime": {
 			"types": "./dist/client/runtime.d.ts",
 			"default": "./dist/client/runtime.js"
+		},
+		"./client/router": {
+			"types": "./dist/client/router.d.ts",
+			"default": "./dist/client/router.js"
 		},
 		"./config": {
 			"types": "./dist/config.d.ts",

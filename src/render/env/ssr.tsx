@@ -16,8 +16,9 @@ import { Logger } from '../../shared/logger'
 import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Redirect } from '../../shared/redirect'
 import { Router } from '../../shared/router'
-import { RouterProvider } from '../../shared/router/provider'
 import { getRelativeBasePath } from '../../shared/utils'
+
+import { RouterProvider } from '../../client/router'
 
 import * as fallback from '../../ui/+error'
 
@@ -31,6 +32,7 @@ import { createAssets } from '../utils'
  * @param config - the plugin configuration
  * @returns a Hono streaming response
  */
+/*
 export async function ssr(
 	c: HonoContext,
 	Shell: ({
@@ -82,8 +84,8 @@ export async function ssr(
 
 				if (await f.exists()) {
 					return c.html(await f.text(), {
-						headers: { 
-							'X-Drift-Renderer': 'prerender' 
+						headers: {
+							'X-Drift-Renderer': 'prerender',
 						},
 					})
 				}
@@ -238,7 +240,7 @@ export async function ssr(
 
 		return c.text(`${NAME}: internal server error`, 500)
 	}
-}
+}*/
 
 const payloadReducer = {
 	Error: (v: unknown) => {
