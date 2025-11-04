@@ -1,4 +1,14 @@
-import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
+import type { ReactFormState } from 'react-dom/client'
+
+import {
+	createTemporaryReferenceSet,
+	decodeAction,
+	decodeFormState,
+	decodeReply,
+	loadServerAction,
+	renderToReadableStream,
+} from '@vitejs/plugin-rsc/rsc'
+import type { RscPayload } from '@vitejs/plugin-rsc/rsc-c22DF1A7'
 import * as devalue from 'devalue'
 
 import type { ImportMap, Manifest, PluginConfig } from '../../types'
@@ -18,15 +28,18 @@ import * as fallback from '../../ui/+error'
 import { createAssets } from '../utils'
 
 /**
- * RSC rendering handler - generates RSC stream from React tree
- * @param request - incoming request
- * @param Shell - shell component
- * @param manifest - route manifest
- * @param map - import map
- * @param config - plugin config
+ * RSC rendering handler - returns a ReadableStream response for RSC requests
+ * @param req - the incoming request
+ * @param Shell - the app root (shell) component to render
+ * @param opts - the options including manifest, map, config and RSC-specific data
+ * @param opts.manifest - the application manifest containing routes and metadata
+ * @param opts.map - the import map for route components and endpoints
+ * @param opts.config - the plugin configuration
+ * @param opts.rsc - RSC-specific data including returnValue, formState and temporaryReferences
+ * @returns a ReadableStream response for RSC requests
  */
 export async function rsc(
-	request: Request,
+	req: Request,
 	Shell: ({
 		children,
 		assets,
@@ -36,19 +49,26 @@ export async function rsc(
 		assets: React.ReactNode
 		metadata: React.ReactNode
 	}) => React.ReactNode,
-	manifest: Manifest,
-	map: ImportMap,
-	config: PluginConfig,
+	opts: {
+		manifest: Manifest
+		map: ImportMap
+		config: PluginConfig
+		rsc?: {
+			returnValue?: unknown
+			formState?: ReactFormState
+			temporaryReferences?: unknown
+		}
+	},
 ) {
-	const logger = new Logger(config.logger?.level)
-	const router = new Router(manifest, map, logger)
+	const logger = new Logger(opts.config.logger?.level)
+	const router = new Router(opts.manifest, opts.map, logger)
 
 	try {
-		const url = new URL(request.url)
+		const url = new URL(req.url)
 		const match = router.enhance(router.match(url.pathname))
 		const relativeBase = getRelativeBasePath(url.pathname)
 
-		const collection = new MetadataCollection(config.metadata)
+		const collection = new MetadataCollection(opts.config.metadata)
 
 		const metadata = match
 			? await match
@@ -65,7 +85,7 @@ export async function rsc(
 					})
 					.run()
 
-		const payload = devalue.stringify(
+		const driftPayload = devalue.stringify(
 			{
 				entry: {
 					__path: match?.__path,
@@ -74,34 +94,78 @@ export async function rsc(
 				},
 				metadata,
 			},
-			payloadReducer,
+			driftPayloadReducer,
 		)
 
-		const assets = createAssets(relativeBase, payload)
+		const assets = createAssets(relativeBase, driftPayload)
 		const initial = { match, metadata }
+		const { returnValue, formState, temporaryReferences } = opts.rsc ?? {}
 
-		const stream = renderToReadableStream(
-			<RouterProvider router={router} initial={initial} config={config}>
-				{({ el, metadata }) => (
-					<Shell assets={assets} metadata={metadata}>
-						{el ?? <fallback.default error={NOT_FOUND} />}
-					</Shell>
-				)}
-			</RouterProvider>,
-		)
+		const rscPayload: RscPayload = {
+			root: (
+				<RouterProvider router={router} initial={initial} config={opts.config}>
+					{({ el, metadata }) => (
+						<Shell assets={assets} metadata={metadata}>
+							{el ?? <fallback.default error={NOT_FOUND} />}
+						</Shell>
+					)}
+				</RouterProvider>
+			),
+			returnValue,
+			formState,
+		}
 
-		return new Response(stream, {
-			headers: {
-				'Content-Type': 'text/x-component;charset=utf-8',
-			},
-		})
+		return renderToReadableStream(rscPayload, { temporaryReferences })
 	} catch (err) {
 		logger.error('[rsc]', err)
 		return new Response(null, { status: 500 })
 	}
 }
 
-const payloadReducer = {
+export async function action(req: Request, opts: { config: PluginConfig }) {
+	const logger = new Logger(opts.config.logger?.level)
+
+	try {
+		let returnValue: unknown
+		let formState: ReactFormState | undefined
+		let temporaryReferences: unknown
+
+		const id = req.headers.get('x-rsc-action-id')
+
+		if (id) {
+			// x-rsc-action header exists when action is
+			// called via ReactClient.setServerCallback
+
+			const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
+				? await req.formData()
+				: await req.text()
+
+			temporaryReferences = createTemporaryReferenceSet()
+
+			const args = await decodeReply(body, {
+				temporaryReferences,
+			})
+			const action = await loadServerAction(id)
+
+			returnValue = await action.apply(null, args)
+		} else {
+			// otherwise server function is called via
+			// <form action={...}> aka without js
+			const formData = await req.formData()
+			const decodedAction = await decodeAction(formData)
+			const result = await decodedAction()
+
+			formState = await decodeFormState(result, formData)
+		}
+
+		return { returnValue, formState, temporaryReferences }
+	} catch (err) {
+		logger.error('[rsc][action]', err)
+		throw err
+	}
+}
+
+const driftPayloadReducer = {
 	Error: (v: unknown) => {
 		if (!(v instanceof Error)) return false
 

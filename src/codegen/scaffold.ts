@@ -28,7 +28,9 @@ export async function createScaffold() {
       `
         ${AUTO_GEN_MSG}
 
-        import { rsc } from '${PKG_NAME}/render/env/rsc'
+        import type { ReactFormState } from 'react-dom/client'
+
+        import { rsc, action } from '${PKG_NAME}/render/env/rsc'
 
         import { manifest } from './manifest'
         import { map } from './map'
@@ -37,27 +39,51 @@ export async function createScaffold() {
         import Shell from '${shellImport}'
 
         export default async function(req: Request) {
-          const url = new URL(req.url)
-
-          if (url.pathname.endsWith('.rsc')) {
-            return rsc(
-              req, 
-              ({ children, assets, metadata }: {
-                children: React.ReactNode
-                assets: React.ReactNode
-                metadata: React.ReactNode
-              }) => ${Shell},
-              manifest, 
-              map, 
-              config
-            )
+          const opts: {
+            rsc: {
+              formState: ReactFormState | undefined
+              temporaryReferences: unknown
+              returnValue: unknown
+            }
+          } = {
+            rsc: {
+              formState: undefined,
+              temporaryReferences: undefined,
+              returnValue: undefined,
+            }
           }
 
-          const ssr = await import.meta.viteRsc.loadModule<typeof import('./entry.ssr.tsx')>('ssr', 'index')
-          return ssr.default.fetch(req)
+          if (req.method === 'POST') {
+            opts.rsc = await action(req, { config })
+          }
+
+          const rscStream = await rsc(req, Shell, {
+            manifest,
+            map,
+            config,
+            ...opts,
+          })
+
+         	if (!req.headers.get('accept')?.includes('text/html')) {
+            return new Response(rscStream, {
+              headers: {
+                'Content-Type': 'text/x-component;charset=utf-8',
+                vary: 'accept',
+              },
+            })
+          }
+
+          const htmlStream = (await import.meta.viteRsc.loadModule<
+            typeof import('./entry.ssr.tsx')
+          >('ssr', 'index')).ssr(rscStream, { formState })
+
+          return new Response(htmlStream, {
+            headers: {
+              'Content-Type': 'text/html',
+              vary: 'accept',
+            },
+          })
         }
-        
-        if (import.meta.hot) import.meta.hot.accept()
       `.trim(),
     ),
   )
