@@ -4,7 +4,8 @@ import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
 import { NOT_FOUND } from '../../shared/error'
 import { Logger } from '../../shared/logger'
-import { Router, RouterProvider } from '../../shared/router'
+import { Router } from '../../shared/router'
+import { RouterProvider } from '../../shared/router/provider'
 
 import * as fallback from '../../ui/+error'
 

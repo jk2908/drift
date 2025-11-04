@@ -130,6 +130,16 @@ function drift(c: PluginConfig): PluginOption[] {
 				await build()
 			},
 		},
+		rsc(
+			{
+				entries: {
+					rsc: `./${GENERATED_DIR}/${ENTRY_RSC}`,
+					ssr: `./${GENERATED_DIR}/${ENTRY_SSR}`,
+					client: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
+				}
+			}	
+		),
+		react(),
 		{
 			name: 'drift',
 			config(viteConfig) {
@@ -177,38 +187,6 @@ function drift(c: PluginConfig): PluginOption[] {
 						alias: {
 							...(viteConfig.resolve?.alias ?? {}),
 							'.drift': path.resolve(process.cwd(), GENERATED_DIR),
-						},
-					},
-					environments: {
-						...viteConfig.environments,
-						rsc: {
-							build: {
-								rollupOptions: {
-									input: {
-										index: `./${GENERATED_DIR}/${ENTRY_RSC}`,
-									},
-									external: ['hono', 'hono/*', 'react', 'react-dom'],
-								},
-							},
-						},
-						ssr: {
-							build: {
-								rollupOptions: {
-									input: {
-										index: `./${GENERATED_DIR}/${ENTRY_SSR}`,
-									},
-									external: ['hono', 'hono/*', 'react', 'react-dom'],
-								},
-							},
-						},
-						client: {
-							build: {
-								rollupOptions: {
-									input: {
-										index: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
-									},
-								},
-							},
 						},
 					},
 				}
@@ -369,8 +347,6 @@ function drift(c: PluginConfig): PluginOption[] {
 				}
 			},
 		},
-		rsc(),
-		react(),
 	]
 }
 

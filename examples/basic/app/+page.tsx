@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 
 import { Link } from '@jk2908/drift/ui/link'

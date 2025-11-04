@@ -1,4 +1,4 @@
-import { GENERATED_DIR, PKG_NAME } from '../config'
+import { PKG_NAME } from '../config'
 
 import { AUTO_GEN_MSG } from './utils'
 

@@ -1,3 +1,13 @@
+'use client'
+
+import { useState } from 'react'
+
 export function Blue() {
-	return <div style={{ backgroundColor: 'blue', width: '100px', height: '100px' }} />
+	const [count, setCount] = useState(0)
+
+	return (
+		<div style={{ backgroundColor: 'blue', width: '100px', height: '100px' }}>
+			<button onClick={() => setCount(count + 1)}>Count: {count}</button>
+		</div>
+	)
 }

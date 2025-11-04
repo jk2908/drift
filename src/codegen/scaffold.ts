@@ -56,7 +56,6 @@ export async function createScaffold() {
           const ssr = await import.meta.viteRsc.loadModule<typeof import('./entry.ssr.tsx')>('ssr', 'index')
           return ssr.default.fetch(req)
         }
-
         
         if (import.meta.hot) import.meta.hot.accept()
       `.trim(),
