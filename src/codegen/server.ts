@@ -1,6 +1,6 @@
 import type { Endpoint, Manifest, Page } from '../types'
 
-import { EntryKind, PKG_NAME } from '../config'
+import { EntryKind } from '../config'
 
 import type { Imports } from '../build/route-processor'
 
@@ -25,10 +25,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
     import { serveStatic } from 'hono/bun'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-    import { ssr } from '${PKG_NAME}/render/env/ssr'
-
-    import { manifest } from './manifest'
-    import { map } from './map'
+    import rsc from './entry.rsc'
     import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
@@ -39,18 +36,9 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 			})
 			.join('\n')}
 
-    export function handle(
-      Shell: ({
-        children,
-        assets,
-        metadata,
-      }: {
-        children: React.ReactNode
-        assets?: React.ReactNode
-        metadata?: React.ReactNode
-      }) => React.ReactNode,
-    ) {
+    export function handle() {
       return new Hono()
+        .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         .use(
           '/assets/*', 
           serveStatic({ 
@@ -60,12 +48,11 @@ export function writeServer(manifest: Manifest, imports: Imports) {
             },
             precompressed: config.precompress,
           }))
-        .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         ${[...handlers.entries()]
 					.map(([route, group]) => {
 						if (!Array.isArray(group)) {
 							return group.__kind === EntryKind.PAGE
-								? `.${group.method}('${group.__path}', async c => ssr(c, Shell, manifest, map, config))`
+								? `.${group.method}('${group.__path}', async c => rsc(c.req.raw))`
 								: `.${group.method}('${group.__path}', ${group.__id})`
 						}
 
@@ -77,7 +64,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
             const accept = c.req.header('Accept') ?? ''
 
             if (accept.includes('text/html')) {
-              return ssr(c, Shell, manifest, map, config)
+              return rsc(c.req.raw)
             }
 
             if (!${id}) {
@@ -91,7 +78,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
           })`
 					})
 					.join('\n')}
-        .notFound(c => ssr(c, Shell, manifest, map, config))
+        .notFound(c => rsc(c.req.raw))
     }
 
     export type App = ReturnType<typeof handle>

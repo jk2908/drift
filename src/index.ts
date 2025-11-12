@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { loadEnv, type PluginOption } from 'vite'
 
+import devServer from '@hono/vite-dev-server'
+import bunAdapter from '@hono/vite-dev-server/bun'
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
 
@@ -29,8 +31,8 @@ import { writeClient } from './codegen/client'
 
 import { RouteProcessor } from './build/route-processor'
 
+import { writeImportMap } from './codegen/import-map'
 import { writeManifest } from './codegen/manifest'
-import { writeMap } from './codegen/map'
 import { createScaffold } from './codegen/scaffold'
 
 import { debounce } from './utils'
@@ -109,7 +111,10 @@ function drift(c: PluginConfig): PluginOption[] {
 		await Promise.all([
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
-			Bun.write(path.join(generatedDir, 'map.ts'), writeMap(imports, modules)),
+			Bun.write(
+				path.join(generatedDir, 'import-map.ts'),
+				writeImportMap(imports, modules),
+			),
 			Bun.write(path.join(generatedDir, 'server.tsx'), writeServer(manifest, imports)),
 			Bun.write(path.join(generatedDir, 'client.tsx'), writeClient()),
 			...(await createScaffold()),
@@ -122,231 +127,194 @@ function drift(c: PluginConfig): PluginOption[] {
 	// debounced build to avoid multiple builds on file changes
 	const rebuild = debounce(build, 1000)
 
-	return [
-		{
-			name: 'prebuild',
-			enforce: 'pre',
-			async buildStart() {
-				await build()
-			},
+	const plugin: PluginOption = {
+		name: 'drift',
+		enforce: 'pre',
+		async config(viteConfig) {
+			await build()
+
+			viteConfig.build ??= {}
+			viteConfig.build.outDir = config.outDir
+
+			viteConfig.server ??= {}
+			viteConfig.server.port = 8787
+
+			viteConfig.define ??= {}
+			viteConfig.define['import.meta.env.APP_URL'] = JSON.stringify(process.env.APP_URL)
+			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
+				process.env.VITE_APP_URL,
+			)
+
+			viteConfig.resolve ??= {}
+			viteConfig.resolve.alias = {
+				...(viteConfig.resolve.alias ?? {}),
+				'.drift': path.resolve(process.cwd(), GENERATED_DIR),
+			}
 		},
-		rsc(
-			{
-				entries: {
-					rsc: `./${GENERATED_DIR}/${ENTRY_RSC}`,
-					ssr: `./${GENERATED_DIR}/${ENTRY_SSR}`,
-					client: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
-				}
-			}	
-		),
-		react(),
-		{
-			name: 'drift',
-			config(viteConfig) {
-				if (config.ctx.mode === 'client') {
-					return {
-						...viteConfig,
-						build: {
-							...viteConfig.build,
-							outDir: config.outDir,
-							manifest: true,
-							rollupOptions: {
-								...(viteConfig.build?.rollupOptions || {}),
-								input: {
-									client: `/${GENERATED_DIR}/${ENTRY_BROWSER}`,
-								},
-								output: {
-									...(viteConfig.build?.rollupOptions?.output || {}),
-									entryFileNames: `${ASSETS_DIR}/[name].js`,
-								},
-							},
-						},
-					}
-				}
+		configureServer(server) {
+			logger.info('[configureServer]', `Watching for changes in ./${APP_DIR}...`)
 
-				return {
-					...viteConfig,
-					build: {
-						...viteConfig.build,
-						outDir: config.outDir,
-					},
-					server: {
-						...viteConfig.server,
-						port: 8787,
-					},
-					ssr: {
-						...viteConfig.ssr,
-						external: ['react', 'react-dom'],
-					},
-					define: {
-						...viteConfig.define,
-						'import.meta.env.APP_URL': JSON.stringify(process.env.APP_URL),
-						'import.meta.env.VITE_APP_URL': JSON.stringify(process.env.VITE_APP_URL),
-					},
-					resolve: {
-						alias: {
-							...(viteConfig.resolve?.alias ?? {}),
-							'.drift': path.resolve(process.cwd(), GENERATED_DIR),
-						},
-					},
-				}
-			},
-			configureServer(server) {
-				logger.info('[configureServer]', `Watching for changes in ./${APP_DIR}...`)
+			server.watcher
+				.on('add', path => {
+					if (path.includes(APP_DIR)) rebuild()
+				})
+				.on('change', path => {
+					if (path.includes(APP_DIR)) rebuild()
+				})
+				.on('unlink', path => {
+					if (path.includes(APP_DIR)) rebuild()
+				})
+		},
+		async writeBundle(options, output) {
+			if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
-				server.watcher
-					.on('add', path => {
-						if (path.includes(APP_DIR)) rebuild()
-					})
-					.on('change', path => {
-						if (path.includes(APP_DIR)) rebuild()
-					})
-					.on('unlink', path => {
-						if (path.includes(APP_DIR)) rebuild()
-					})
-			},
-			async writeBundle(options, output) {
-				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
-
-				try {
-					const viteManifest = Bun.file(
-						path.resolve(
-							process.cwd(),
-							options.dir ?? config.outDir,
-							'.vite/manifest.json',
-						),
-					)
-
-					if (!(await viteManifest.exists())) {
-						throw new Error('No manifest found, cannot get client hash')
-					}
-
-					const json = await viteManifest.json()
-					const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_BROWSER}`].file
-
-					buildCtx.bundle.client.entryPath = path.join(
+			try {
+				const viteManifest = Bun.file(
+					path.resolve(
+						process.cwd(),
 						options.dir ?? config.outDir,
-						clientEntryPath,
-					)
-					buildCtx.bundle.client.outDir = `${options.dir ?? config.outDir}/${ASSETS_DIR}`
+						'.vite/manifest.json',
+					),
+				)
 
-					const serverEntryChunk = Object.entries(output).find(
-						([_, chunk]) => chunk.type === 'chunk' && chunk.isEntry,
-					)
-
-					if (!serverEntryChunk) throw new Error('No server entry chunk found')
-
-					const [serverEntryPath] = serverEntryChunk
-
-					buildCtx.bundle.server.entryPath = path.join(
-						options.dir ?? config.outDir,
-						serverEntryPath,
-					)
-					buildCtx.bundle.server.outDir = options.dir ?? config.outDir
-				} catch (err) {
-					logger.error('[writeBundle]', err)
+				if (!(await viteManifest.exists())) {
+					throw new Error('No manifest found, cannot get client hash')
 				}
-			},
-			async closeBundle() {
-				if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
-				try {
-					if (buildCtx.prerenders.size > 0) {
-						if (!config.app?.url) {
-							logger.error(
-								'[closeBundle]',
-								'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
-							)
-						} else {
-							Bun.env.PRERENDER = 'true'
+				const json = await viteManifest.json()
+				const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_BROWSER}`].file
 
-							try {
-								if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
-									throw new Error('No server outDir or entryPath found')
-								}
+				buildCtx.bundle.client.entryPath = path.join(
+					options.dir ?? config.outDir,
+					clientEntryPath,
+				)
+				buildCtx.bundle.client.outDir = `${options.dir ?? config.outDir}/${ASSETS_DIR}`
 
-								const app = (
-									await import(
-										`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`
-									)
-								).default
+				const serverEntryChunk = Object.entries(output).find(
+					([_, chunk]) => chunk.type === 'chunk' && chunk.isEntry,
+				)
 
-								for (const route of buildCtx.prerenders) {
-									const { value, done } = await prerender(
-										(req: Request) => app.fetch(req),
-										route,
-										config.app.url,
-										buildCtx,
-									).next()
+				if (!serverEntryChunk) throw new Error('No server entry chunk found')
 
-									if (done || !value) {
-										logger.warn(
-											'[closeBundle]',
-											`skipped prerendering ${route}: no output`,
-										)
-										continue
-									}
+				const [serverEntryPath] = serverEntryChunk
 
-									const { status, body } = value
+				buildCtx.bundle.server.entryPath = path.join(
+					options.dir ?? config.outDir,
+					serverEntryPath,
+				)
+				buildCtx.bundle.server.outDir = options.dir ?? config.outDir
+			} catch (err) {
+				logger.error('[writeBundle]', err)
+			}
+		},
+		async closeBundle() {
+			if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
 
-									if (status !== 200) {
-										logger.warn(
-											'[closeBundle]',
-											`skipped prerendering ${route}: ${status}`,
-										)
-										continue
-									}
+			try {
+				if (buildCtx.prerenders.size > 0) {
+					if (!config.app?.url) {
+						logger.error(
+							'[closeBundle]',
+							'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
+						)
+					} else {
+						Bun.env.PRERENDER = 'true'
 
-									const outPath =
-										route === '/'
-											? path.join(buildCtx.bundle.server.outDir, 'index.html')
-											: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
-
-									await fs.mkdir(path.dirname(outPath), { recursive: true })
-									await Bun.write(outPath, body)
-
-									logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
-								}
-							} catch (err) {
-								logger.error('[closeBundle:prerender]', err)
-							} finally {
-								logger.info('[closeBundle]', 'stopping server')
-								Bun.env.PRERENDER = 'false'
-							}
-						}
-					}
-
-					if (config.precompress) {
 						try {
-							const dir = path.resolve(process.cwd(), config.outDir)
+							if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
+								throw new Error('No server outDir or entryPath found')
+							}
 
-							for await (const { input, compressed } of compress(dir, buildCtx, {
-								filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
-							})) {
-								await Bun.write(`${input}.br`, compressed)
-								logger.info(
-									'[closeBundle:precompress]',
-									`compressed ${input} to ${input}.br`,
-								)
+							const app = (
+								await import(`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`)
+							).default
+
+							for (const route of buildCtx.prerenders) {
+								const { value, done } = await prerender(
+									(req: Request) => app.fetch(req),
+									route,
+									config.app.url,
+									buildCtx,
+								).next()
+
+								if (done || !value) {
+									logger.warn('[closeBundle]', `skipped prerendering ${route}: no output`)
+									continue
+								}
+
+								const { status, body } = value
+
+								if (status !== 200) {
+									logger.warn('[closeBundle]', `skipped prerendering ${route}: ${status}`)
+									continue
+								}
+
+								const outPath =
+									route === '/'
+										? path.join(buildCtx.bundle.server.outDir, 'index.html')
+										: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
+
+								await fs.mkdir(path.dirname(outPath), { recursive: true })
+								await Bun.write(outPath, body)
+
+								logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
 							}
 						} catch (err) {
-							logger.error('[closeBundle:precompress]', err)
+							logger.error('[closeBundle:prerender]', err)
+						} finally {
+							logger.info('[closeBundle]', 'stopping server')
+							Bun.env.PRERENDER = 'false'
 						}
 					}
-				} catch (err) {
-					logger.error('[closeBundle]', err)
-					return
-				} finally {
-					buildCtx.bundle.server = {
-						entryPath: null,
-						outDir: null,
-					}
-
-					// fini
-					logger.info('[closeBundle]', 'build complete')
 				}
-			},
+
+				if (config.precompress) {
+					try {
+						const dir = path.resolve(process.cwd(), config.outDir)
+
+						for await (const { input, compressed } of compress(dir, buildCtx, {
+							filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
+						})) {
+							await Bun.write(`${input}.br`, compressed)
+							logger.info(
+								'[closeBundle:precompress]',
+								`compressed ${input} to ${input}.br`,
+							)
+						}
+					} catch (err) {
+						logger.error('[closeBundle:precompress]', err)
+					}
+				}
+			} catch (err) {
+				logger.error('[closeBundle]', err)
+				return
+			} finally {
+				buildCtx.bundle.server = {
+					entryPath: null,
+					outDir: null,
+				}
+
+				// fini
+				logger.info('[closeBundle]', 'build complete')
+			}
 		},
+	}
+
+	return [
+		plugin,
+		devServer({
+			adapter: bunAdapter(),
+			entry: `./${GENERATED_DIR}/${ENTRY_SSR}`,
+			injectClientScript: false,
+		}),
+		rsc({
+			entries: {
+				rsc: `./${GENERATED_DIR}/${ENTRY_RSC}`,
+				ssr: `./${GENERATED_DIR}/${ENTRY_SSR}`,
+				client: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
+			},
+		}),
+		react(),
 	]
 }
 

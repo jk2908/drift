@@ -77,6 +77,14 @@ export class RouteProcessor {
 		try {
 			const files = await fs.readdir(dir, { withFileTypes: true })
 
+			// process directories after files to ensure
+			// +layout is found first
+			files.sort((a, b) => {
+				if (a.isFile() && b.isDirectory()) return -1
+				if (a.isDirectory() && b.isFile()) return 1
+				return 0
+			})
+
 			const EXTENSIONS = {
 				page: ['tsx', 'jsx'],
 				api: ['ts', 'js'],
@@ -207,7 +215,7 @@ export class RouteProcessor {
 					if (!processed.has(layout)) {
 						const layoutImport = RouteProcessor.getImportPath(layout)
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
-				
+
 						let cached = prerenderableCache.get(layout)
 
 						if (cached === undefined) {

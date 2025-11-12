@@ -8,27 +8,27 @@
 		"build": "bunchee"
 	},
 	"dependencies": {
-		"@biomejs/biome": "^2.1.1",
-		"@hono/vite-build": "^1.6.2",
-		"@hono/vite-dev-server": "^0.19.1",
+		"@hono/vite-dev-server": "^0.23.0",
 		"@vitejs/plugin-react": "^4.6.0",
-		"@vitejs/plugin-rsc": "https://pkg.pr.new/vitejs/vite-plugin-react/@vitejs/plugin-rsc-experimental@80ce933",
 		"devalue": "^5.1.1",
 		"hono": "^4.8.5",
 		"isbot": "^5.1.28",
+		"react-server-dom-webpack": "^19.2.0",
 		"rsc-html-stream": "^0.0.7"
 	},
 	"devDependencies": {
-		"@types/react": "latest",
-		"@types/react-dom": "latest",
 		"@types/bun": "latest",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@biomejs/biome": "^2.1.1",
 		"bunchee": "^6.5.4"
 	},
 	"peerDependencies": {
-		"react": "experimental",
-		"react-dom": "experimental",
-		"vite": "^7.0.4",
-		"typescript": "^5.8.3"
+		"@vitejs/plugin-rsc": "^0.5.1",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"typescript": "^5.8.3",
+		"vite": "^7.0.4"
 	},
 	"exports": {
 		".": {

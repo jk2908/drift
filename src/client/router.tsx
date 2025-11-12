@@ -1,20 +1,12 @@
 'use client'
 
-import {
-	createContext,
-	use,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-	useTransition,
-} from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useTransition } from 'react'
 
-import type { EnhancedMatch, PluginConfig, Metadata as TMetadata } from '../types'
+import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
-import { MetadataCollection } from '../shared/metadata'
-import type { Router } from '../shared/router'
-import { Tree } from '../shared/tree'
+import { NAME } from '../config'
+
+import type { RscPayload } from '../render/env/rsc'
 
 type GoConfig = {
 	replace?: boolean
@@ -25,69 +17,20 @@ const DEFAULT_GO_CONFIG = {
 	replace: false,
 } satisfies GoConfig
 
+const preloadCache = new Map<string, Promise<Response>>()
+
 export const RouterContext = createContext<{
-	match: EnhancedMatch | null
 	go: (to: string, config?: GoConfig) => string
-	preload: (path: string) => ReturnType<typeof Router.prototype.preload>
+	preload: (path: string) => void
 	isPending: boolean
 }>({
-	match: null,
 	go: () => '',
-	preload: () => Promise.resolve([]),
+	preload: () => {},
 	isPending: false,
 })
 
-export function RouterProvider({
-	router,
-	initial,
-	config,
-	children,
-}: {
-	router: Router
-	initial: {
-		match: EnhancedMatch | null
-		metadata?: TMetadata
-	}
-	config: Readonly<Partial<PluginConfig>>
-	children:
-		| React.ReactNode
-		| (({
-				el,
-				metadata,
-		  }: {
-				el: React.ReactNode
-				metadata: React.ReactNode
-		  }) => React.ReactNode)
-}) {
-	const [match, setMatch] = useState<EnhancedMatch | null>(initial?.match ?? null)
-	const [metadata, setMetadata] = useState<TMetadata>(initial?.metadata ?? {})
-
+export function RouterProvider({ children }: { children: React.ReactNode }) {
 	const [isPending, startTransition] = useTransition()
-
-	const update = useCallback(
-		(match: EnhancedMatch | null) => {
-			setMatch(match)
-
-			const collection = new MetadataCollection(config.metadata)
-
-			if (!match) {
-				setMetadata(collection.base)
-			} else {
-				match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(async m => {
-						setMetadata(
-							await collection
-								.add(...m.filter(r => r.status === 'fulfilled').map(r => r.value))
-								.run()
-								.catch(() => ({})),
-						)
-					})
-					.catch(() => setMetadata({}))
-			}
-		},
-		[config],
-	)
 
 	/**
 	 * Navigate to a new route
@@ -96,42 +39,53 @@ export function RouterProvider({
 	 * @param goConfig.replace - whether to replace the current history entry (default: false)
 	 * @returns the new path
 	 */
-	const go = useCallback(
-		(to: string, goConfig?: GoConfig) => {
-			const url = new URL(to, window.location.origin)
-			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
+	const go = useCallback((to: string, goConfig?: GoConfig) => {
+		const url = new URL(to, window.location.origin)
+		const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
+		const path = url.pathname + url.search + url.hash
 
-			const path = url.pathname + url.search + url.hash
+		startTransition(async () => {
+			try {
+				const promise =
+					preloadCache.get(path) ??
+					fetch(path, { headers: { Accept: 'text/x-component' } })
 
-			startTransition(() => {
-				update(router.enhance(router.match(path)))
+				if (!preloadCache.has(path)) preloadCache.set(path, promise)
+
+				window[`__${NAME}__`]?.setPayload?.(await createFromFetch<RscPayload>(promise))
 
 				if (replace) {
 					window.history.replaceState(null, '', path)
 				} else {
 					window.history.pushState(null, '', path)
 				}
-			})
+			} catch {
+				// fail
+			} finally {
+				preloadCache.delete(path)
+			}
+		})
 
-			return path
-		},
-		[router.match, router.enhance, update],
-	)
+		return path
+	}, [])
 
 	/**
-	 * Preload a route's assets
+	 * Preload a route's assets by fetching the RSC payload
 	 * @param path - the path to preload
-	 * @returns a promise that resolves when all assets are loaded
+	 * @returns a promise that resolves when the fetch completes
 	 */
-	const preload = useCallback(
-		(path: string) => router.preload(new URL(path, window.location.origin).pathname),
-		[router.preload],
-	)
+	const preload = useCallback((path: string) => {
+		if (!preloadCache.has(path)) {
+			preloadCache.set(path, fetch(path, { headers: { Accept: 'text/x-component' } }))
+		}
+	}, [])
 
 	useEffect(() => {
 		const onPopState = () => {
-			startTransition(() => {
-				update(router.enhance(router.match(window.location.pathname)))
+			startTransition(async () => {
+				window[`__${NAME}__`]?.setPayload?.(
+					await createFromFetch<RscPayload>(fetch(window.location.href)),
+				)
 			})
 		}
 
@@ -140,10 +94,9 @@ export function RouterProvider({
 		return () => {
 			window.removeEventListener('popstate', onPopState)
 		}
-	}, [router.match, router.enhance, update])
+	}, [])
 
-	const el = useMemo(() => (match ? <Tree match={match} /> : null), [match])
-
+	/*
 	const tags = useMemo(
 		() => (
 			<>
@@ -189,23 +142,18 @@ export function RouterProvider({
 			</>
 		),
 		[metadata],
-	)
+	)*/
 
 	const value = useMemo(
 		() => ({
-			match,
 			go,
 			preload,
 			isPending,
 		}),
-		[match, go, preload, isPending],
+		[go, preload, isPending],
 	)
 
-	return (
-		<RouterContext value={value}>
-			{typeof children === 'function' ? children({ el, metadata: tags }) : children}
-		</RouterContext>
-	)
+	return <RouterContext value={value}>{children}</RouterContext>
 }
 
 export function useRouter() {
@@ -213,7 +161,7 @@ export function useRouter() {
 }
 
 export function useParams() {
-	return useRouter().match?.params ?? {}
+	// @todo
 }
 
 export function useSearchParams() {

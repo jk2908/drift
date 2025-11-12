@@ -1,28 +1,13 @@
-import path from 'node:path'
-
+import { use } from 'react'
+import type { ReactFormState } from 'react-dom/client'
 import { renderToReadableStream } from 'react-dom/server.browser'
 
-import type { Context as HonoContext } from 'hono'
+import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
+import { injectRSCPayload } from 'rsc-html-stream/server'
 
-import * as devalue from 'devalue'
-import { isbot } from 'isbot'
-
-import type { ImportMap, Manifest, PluginConfig } from '../../types'
-
-import { EntryKind, NAME } from '../../config'
-
-import { HTTPException, NOT_FOUND } from '../../shared/error'
 import { Logger } from '../../shared/logger'
-import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
-import { Redirect } from '../../shared/redirect'
-import { Router } from '../../shared/router'
-import { getRelativeBasePath } from '../../shared/utils'
 
-import { RouterProvider } from '../../client/router'
-
-import * as fallback from '../../ui/+error'
-
-import { createAssets } from '../utils'
+import type { RscPayload } from './rsc'
 
 /**
  * Server-side rendering handler to bridge incoming Hono requests with React
@@ -242,17 +227,48 @@ export async function ssr(
 	}
 }*/
 
-const payloadReducer = {
-	Error: (v: unknown) => {
-		if (!(v instanceof Error)) return false
-
-		return [
-			v.constructor.name,
-			v.message,
-			v.cause,
-			v.stack,
-			v instanceof HTTPException ? v.status : undefined,
-			v instanceof HTTPException ? v.payload : undefined,
-		]
+export async function ssr(
+	rscStream: ReadableStream<Uint8Array>,
+	opts?: {
+		returnValue?: unknown
+		formState?: ReactFormState
+		temporaryReferences?: unknown
+		nonce?: string
 	},
+) {
+	const logger = new Logger()
+
+	try {
+		const [s1, s2] = rscStream.tee()
+
+		let payload: Promise<RscPayload>
+
+		function A() {
+			payload ??= createFromReadableStream<RscPayload>(s1)
+
+			return <B>{use(payload).root}</B>
+		}
+
+		function B({ children }: { children: React.ReactNode }) {
+			return <>{children}</>
+		}
+
+		const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
+			'index',
+		)
+		const htmlStream = await renderToReadableStream(<A />, {
+			bootstrapScriptContent,
+			nonce: opts?.nonce,
+			formState: opts?.formState,
+		})
+
+		return htmlStream.pipeThrough(
+			injectRSCPayload(s2, {
+				nonce: opts?.nonce,
+			}),
+		)
+	} catch (err) {
+		logger.error('[ssr]', err)
+		throw err
+	}
 }

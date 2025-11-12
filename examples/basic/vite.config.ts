@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { type ConfigEnv, defineConfig } from 'vite'
+import { type ConfigEnv, defineConfig, type Plugin } from 'vite'
 
 import drift from '@jk2908/drift'
 import tsconfigPaths from 'vite-tsconfig-paths'
@@ -13,7 +13,7 @@ export default defineConfig((ctx: ConfigEnv) => {
 		plugins: [
 			drift({
 				app: {
-					url: 'http://localhost:8787'
+					url: 'http://localhost:8787',
 				},
 				ctx,
 				prerender: 'declarative',
@@ -28,7 +28,10 @@ export default defineConfig((ctx: ConfigEnv) => {
 				},
 			}),
 			tsconfigPaths(),
-		],
+		].flat() as Plugin[],
+		server: {
+			middlewareMode: true,
+		},
 		resolve: {
 			alias: {
 				'#': resolver('./'),

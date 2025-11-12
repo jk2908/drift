@@ -8,8 +8,8 @@ import {
 	loadServerAction,
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
-import type { RscPayload } from '@vitejs/plugin-rsc/rsc-c22DF1A7'
 import * as devalue from 'devalue'
+import { Tree } from 'src/shared/tree'
 
 import type { ImportMap, Manifest, PluginConfig } from '../../types'
 
@@ -27,6 +27,12 @@ import * as fallback from '../../ui/+error'
 
 import { createAssets } from '../utils'
 
+export type RscPayload = {
+	returnValue?: unknown
+	formState?: ReactFormState
+	root: React.ReactNode
+}
+
 /**
  * RSC rendering handler - returns a ReadableStream response for RSC requests
  * @param req - the incoming request
@@ -35,40 +41,30 @@ import { createAssets } from '../utils'
  * @param opts.manifest - the application manifest containing routes and metadata
  * @param opts.map - the import map for route components and endpoints
  * @param opts.config - the plugin configuration
- * @param opts.rsc - RSC-specific data including returnValue, formState and temporaryReferences
+ * @param opts.returnValue - the return value from a server action, if any
  * @returns a ReadableStream response for RSC requests
  */
 export async function rsc(
 	req: Request,
-	Shell: ({
-		children,
-		assets,
-		metadata,
-	}: {
-		children: React.ReactNode
-		assets: React.ReactNode
-		metadata: React.ReactNode
-	}) => React.ReactNode,
+	Shell: ({ children }: { children: React.ReactNode }) => React.ReactNode,
+	manifest: Manifest,
+	importMap: ImportMap,
+	config: PluginConfig,
 	opts: {
-		manifest: Manifest
-		map: ImportMap
-		config: PluginConfig
-		rsc?: {
-			returnValue?: unknown
-			formState?: ReactFormState
-			temporaryReferences?: unknown
-		}
+		returnValue?: unknown
+		formState?: ReactFormState
+		temporaryReferences?: unknown
 	},
 ) {
-	const logger = new Logger(opts.config.logger?.level)
-	const router = new Router(opts.manifest, opts.map, logger)
+	const logger = new Logger(config.logger?.level)
+	const router = new Router(manifest, importMap, logger)
 
 	try {
 		const url = new URL(req.url)
 		const match = router.enhance(router.match(url.pathname))
 		const relativeBase = getRelativeBasePath(url.pathname)
 
-		const collection = new MetadataCollection(opts.config.metadata)
+		const collection = new MetadataCollection(config.metadata)
 
 		const metadata = match
 			? await match
@@ -99,16 +95,14 @@ export async function rsc(
 
 		const assets = createAssets(relativeBase, driftPayload)
 		const initial = { match, metadata }
-		const { returnValue, formState, temporaryReferences } = opts.rsc ?? {}
+		const { returnValue, formState, temporaryReferences } = opts ?? {}
 
 		const rscPayload: RscPayload = {
 			root: (
-				<RouterProvider router={router} initial={initial} config={opts.config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
-						</Shell>
-					)}
+				<RouterProvider>
+					{assets}
+
+					<Shell>{match ? <Tree match={match} /> : null}</Shell>
 				</RouterProvider>
 			),
 			returnValue,

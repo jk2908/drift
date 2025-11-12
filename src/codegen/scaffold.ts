@@ -1,6 +1,13 @@
 import path from 'node:path'
 
-import { APP_DIR, ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR, PKG_NAME } from '../config'
+import {
+	APP_DIR,
+	ENTRY_BROWSER,
+	ENTRY_RSC,
+	ENTRY_SSR,
+	GENERATED_DIR,
+	PKG_NAME,
+} from '../config'
 
 import { AUTO_GEN_MSG } from './utils'
 
@@ -16,16 +23,10 @@ export async function createScaffold() {
 
 	const scaffold: Promise<number>[] = []
 
-	const Shell = `
-    <Shell assets={assets} metadata={metadata}>
-      {children}
-    </Shell>
-  `
-
-  scaffold.push(
-    Bun.write(  
-      path.join(generatedDir, ENTRY_RSC),
-      `
+	scaffold.push(
+		Bun.write(
+			path.join(generatedDir, ENTRY_RSC),
+			`
         ${AUTO_GEN_MSG}
 
         import type { ReactFormState } from 'react-dom/client'
@@ -33,34 +34,27 @@ export async function createScaffold() {
         import { rsc, action } from '${PKG_NAME}/render/env/rsc'
 
         import { manifest } from './manifest'
-        import { map } from './map'
+        import { importMap } from './import-map'
         import { config } from './config'
 
         import Shell from '${shellImport}'
 
         export default async function(req: Request) {
-          const opts: {
-            rsc: {
-              formState: ReactFormState | undefined
-              temporaryReferences: unknown
-              returnValue: unknown
-            }
+          let opts: {
+            formState: ReactFormState | undefined
+            temporaryReferences: unknown
+            returnValue: unknown
           } = {
-            rsc: {
-              formState: undefined,
-              temporaryReferences: undefined,
-              returnValue: undefined,
-            }
+            formState: undefined,
+            temporaryReferences: undefined,
+            returnValue: undefined,
           }
 
           if (req.method === 'POST') {
-            opts.rsc = await action(req, { config })
+            opts = await action(req, { config })
           }
 
-          const rscStream = await rsc(req, Shell, {
-            manifest,
-            map,
-            config,
+          const rscStream = await rsc(req, Shell, manifest, importMap, config, {
             ...opts,
           })
 
@@ -75,7 +69,7 @@ export async function createScaffold() {
 
           const htmlStream = (await import.meta.viteRsc.loadModule<
             typeof import('./entry.ssr.tsx')
-          >('ssr', 'index')).ssr(rscStream, { formState })
+          >('ssr', 'index')).ssr(rscStream, { formState: opts?.formState })
 
           return new Response(htmlStream, {
             headers: {
@@ -85,8 +79,8 @@ export async function createScaffold() {
           })
         }
       `.trim(),
-    ),
-  )
+		),
+	)
 
 	scaffold.push(
 		Bun.write(
@@ -95,13 +89,10 @@ export async function createScaffold() {
         ${AUTO_GEN_MSG}
 
         import { handle } from './server'
+        
+        export { ssr } from '${PKG_NAME}/render/env/ssr'
 
-        import Shell from '${shellImport}'
-
-        const app = handle(({ children, assets, metadata }) =>
-          ${Shell}
-        )
-
+        const app = handle()
         export default app
       `.trim(),
 		),

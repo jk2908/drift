@@ -1,4 +1,4 @@
-import { ASSETS_DIR, DRIFT_PAYLOAD_ID, GENERATED_DIR } from '../config'
+import { DRIFT_PAYLOAD_ID } from '../config'
 
 /**
  * Create the asset JSX to render
@@ -29,15 +29,6 @@ export function createAssets(relativeBase: string, payload?: string) {
 					<script type="module" src={`${relativeBase}@vite/client`} />
 				</>
 			)}
-
-			<script
-				type="module"
-				src={
-					import.meta.env.PROD
-						? `${relativeBase}${ASSETS_DIR}/client.js`
-						: `${relativeBase}${GENERATED_DIR}/entry.client.tsx`
-				}
-			/>
 
 			{payload && (
 				<script

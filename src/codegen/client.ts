@@ -1,9 +1,7 @@
-import { PKG_NAME } from '../config'
-
 import { AUTO_GEN_MSG } from './utils'
 
 /**
- * Generates the exported client-side code for mounting the 
+ * Generates the exported client-side code for mounting the
  * application shell and initialising the RPC client
  * @returns the stringified code
  */

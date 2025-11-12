@@ -5,7 +5,7 @@ import { AUTO_GEN_MSG } from './utils'
 const q = (s: string) => `'${s.replace(/'/g, "\\'")}'`
 const key = (s: string) => JSON.stringify(s)
 
-export function writeMap(imports: Imports, modules: Modules) {
+export function writeImportMap(imports: Imports, modules: Modules) {
 	const statics = [
 		...imports.endpoints.static.entries().map(([k, v]) => {
 			const [, method] = k.split('_')
@@ -55,7 +55,7 @@ export function writeMap(imports: Imports, modules: Modules) {
 			}
 		} as const
 
-		export const map = {
+		export const importMap = {
 			${map.join(',\n')}
 		} as const
 	`

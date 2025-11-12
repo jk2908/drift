@@ -1,5 +1,5 @@
 import { StrictMode, startTransition, useEffect, useState } from 'react'
-import { createRoot, hydrateRoot } from 'react-dom/client'
+import { hydrateRoot } from 'react-dom/client'
 
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
@@ -9,27 +9,22 @@ import {
 	createTemporaryReferenceSet,
 	encodeReply,
 	setServerCallback,
-} from '@vitejs/plugin-rsc/browser-CQv7Z3J4'
-import type { RscPayload } from '@vitejs/plugin-rsc/rsc-c22DF1A7'
-import * as devalue from 'devalue'
+} from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
+import { NAME } from 'src/config'
 
-import type { ImportMap, Manifest, PluginConfig } from '../../types'
-
-import { EntryKind } from '../../config'
-
-import { HTTPException, NOT_FOUND, type Payload } from '../../shared/error'
+import { HTTPException, type Payload } from '../../shared/error'
 import { Logger } from '../../shared/logger'
-import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
-import { Router } from '../../shared/router'
-import { getRelativeBasePath } from '../../shared/utils'
 
-import { readDriftPayload } from '../../client/hydration'
-import { RouterProvider } from '../../client/router'
+import type { RscPayload } from './rsc'
 
-import * as fallback from '../../ui/+error'
-
-import { createAssets } from '../utils'
+declare global {
+	interface Window {
+		[key: `__${string}__`]: {
+			setPayload?: (payload: RscPayload) => void
+		}
+	}
+}
 
 /**
  * Hydration and routing handler for the browser env
@@ -126,52 +121,63 @@ export async function browser(
 }*/
 
 export async function browser() {
-	let setPayload: (payload: RscPayload) => void
+	const logger = new Logger()
 
-	const initial = await createFromReadableStream<RscPayload>(rscStream)
+	try {
+		let setPayload: (payload: RscPayload) => void = () => {}
 
-	function R() {
-		const [p, setP] = useState<RscPayload>(initial)
+		const initial = await createFromReadableStream<RscPayload>(rscStream)
 
-		useEffect(() => {
-			setPayload = v => startTransition(() => setP(v))
-		}, [setP])
+		function R() {
+			const [p, setP] = useState<RscPayload>(initial)
 
-		return p.root
-	}
+			useEffect(() => {
+				setPayload = v => startTransition(() => setP(v))
+			}, [])
 
-	setServerCallback(async (id, args) => {
-		const url = new URL(window.location.href)
-		const temporaryReferences = createTemporaryReferenceSet()
-		const payload = await createFromFetch<RscPayload>(
-			fetch(url, {
-				method: 'POST',
-				body: await encodeReply(args, { temporaryReferences }),
-				headers: {
-					'x-rsc-action': id,
-				},
-			}),
-			{ temporaryReferences },
+			return p.root
+		}
+
+		setServerCallback(async (id, args) => {
+			const url = new URL(window.location.href)
+			const temporaryReferences = createTemporaryReferenceSet()
+			const payload = await createFromFetch<RscPayload>(
+				fetch(url, {
+					method: 'POST',
+					body: await encodeReply(args, { temporaryReferences }),
+					headers: {
+						'x-rsc-action': id,
+					},
+				}),
+				{ temporaryReferences },
+			)
+
+			setPayload(payload)
+
+			return payload.returnValue
+		})
+
+		hydrateRoot(
+			document,
+			<StrictMode>
+				<R />
+			</StrictMode>,
+			{
+				formState: initial.formState,
+			},
 		)
 
-		setPayload(payload)
+		const name = NAME.toUpperCase()
 
-		return payload.returnValue
-	})
+		window[`__${name}__`] ??= {}
+		window[`__${name}__`].setPayload = setPayload
 
-	hydrateRoot(
-		document,
-		<StrictMode>
-			<R />
-		</StrictMode>,
-		{
-			formState: initial.formState,
-		},
-	)
-
-	import.meta.hot?.on?.('rsc:update', async () => {
-		setPayload(await createFromFetch<RscPayload>(fetch(window.location.href)))
-	})
+		import.meta.hot?.on?.('rsc:update', async () => {
+			setPayload(await createFromFetch<RscPayload>(fetch(window.location.href)))
+		})
+	} catch (err) {
+		logger.error('[browser]', err)
+	}
 }
 
 const payloadReviver = {

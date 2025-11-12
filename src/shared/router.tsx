@@ -46,18 +46,18 @@ export class Router {
 	static #logger: Logger | null = null
 
 	#manifest: Manifest = {}
-	#map: ImportMap = {}
+	#importMap: ImportMap = {}
 
 	// @see: https://hono.dev/docs/concepts/routers
 	#router: SmartRouter<Page> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
-	constructor(manifest: Manifest, map: ImportMap, logger: Logger) {
+	constructor(manifest: Manifest, importMap: ImportMap, logger: Logger) {
 		Router.#logger = logger
 
 		this.#manifest = manifest
-		this.#map = map
+		this.#importMap = importMap
 
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
@@ -246,7 +246,7 @@ export class Router {
 			// cached version doesn't have an error boundary, we
 			// need to load it up
 			if ('error' in match && match.error && !cached.ui.Err) {
-				const entry = this.#map[__id]
+				const entry = this.#importMap[__id]
 
 				if (entry.error) {
 					cached.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(
@@ -258,7 +258,7 @@ export class Router {
 			return cached
 		}
 
-		const entry = this.#map[__id]
+		const entry = this.#importMap[__id]
 		if (!entry) return null
 
 		const enhanced: EnhancedMatch = {
@@ -508,7 +508,7 @@ export class Router {
 		const match = this.match(path)
 		if (!match) return
 
-		const imports = this.#map[match.__id]
+		const imports = this.#importMap[match.__id]
 		if (!imports) return
 
 		const loads: Promise<unknown>[] = []
@@ -527,7 +527,7 @@ export class Router {
 		return this.#manifest
 	}
 
-	get map() {
-		return this.#map
+	get importMap() {
+		return this.#importMap
 	}
 }
