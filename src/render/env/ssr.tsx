@@ -1,6 +1,6 @@
 import { use } from 'react'
 import type { ReactFormState } from 'react-dom/client'
-import { renderToReadableStream } from 'react-dom/server.browser'
+import { renderToReadableStream } from 'react-dom/server.edge'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 import { injectRSCPayload } from 'rsc-html-stream/server'

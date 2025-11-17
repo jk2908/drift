@@ -21,14 +21,14 @@ import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/
 import { Router } from '../../shared/router'
 import { getRelativeBasePath } from '../../shared/utils'
 
-import { RouterProvider } from '../../client/router'
+//import { RouterProvider } from '../../client/router'
 
 import * as fallback from '../../ui/+error'
 
 import { createAssets } from '../utils'
 
 export type RscPayload = {
-	returnValue?: unknown
+	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
 }
@@ -51,7 +51,7 @@ export async function rsc(
 	importMap: ImportMap,
 	config: PluginConfig,
 	opts: {
-		returnValue?: unknown
+		returnValue?: { ok: boolean; data: unknown }
 		formState?: ReactFormState
 		temporaryReferences?: unknown
 	},
@@ -99,11 +99,11 @@ export async function rsc(
 
 		const rscPayload: RscPayload = {
 			root: (
-				<RouterProvider>
+				<>
 					{assets}
 
 					<Shell>{match ? <Tree match={match} /> : null}</Shell>
-				</RouterProvider>
+				</>
 			),
 			returnValue,
 			formState,

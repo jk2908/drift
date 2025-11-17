@@ -3,8 +3,6 @@ import path from 'node:path'
 
 import { loadEnv, type PluginOption } from 'vite'
 
-import devServer from '@hono/vite-dev-server'
-import bunAdapter from '@hono/vite-dev-server/bun'
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
 
@@ -302,11 +300,6 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	return [
 		plugin,
-		devServer({
-			adapter: bunAdapter(),
-			entry: `./${GENERATED_DIR}/${ENTRY_SSR}`,
-			injectClientScript: false,
-		}),
 		rsc({
 			entries: {
 				rsc: `./${GENERATED_DIR}/${ENTRY_RSC}`,
@@ -315,6 +308,12 @@ function drift(c: PluginConfig): PluginOption[] {
 			},
 		}),
 		react(),
+		/*
+		devServer({
+			adapter: bunAdapter(),
+			entry: `./${GENERATED_DIR}/${ENTRY_SSR}`,
+			injectClientScript: false,
+		}),*/
 	]
 }
 

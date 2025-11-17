@@ -39,7 +39,7 @@ export async function createScaffold() {
 
         import Shell from '${shellImport}'
 
-        export default async function(req: Request) {
+        async function handler(req: Request) {
           let opts: {
             formState: ReactFormState | undefined
             temporaryReferences: unknown
@@ -78,6 +78,8 @@ export async function createScaffold() {
             },
           })
         }
+
+        export default handler
       `.trim(),
 		),
 	)
@@ -88,12 +90,12 @@ export async function createScaffold() {
 			`
         ${AUTO_GEN_MSG}
 
-        import { handle } from './server'
+        //import { handle } from './server'
         
         export { ssr } from '${PKG_NAME}/render/env/ssr'
 
-        const app = handle()
-        export default app
+        //const app = handle()
+        //export default app
       `.trim(),
 		),
 	)

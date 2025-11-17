@@ -29,13 +29,18 @@ export default defineConfig((ctx: ConfigEnv) => {
 			}),
 			tsconfigPaths(),
 		].flat() as Plugin[],
-		server: {
-			middlewareMode: true,
-		},
+
+		// Force server export condition and avoid externalizing server React packages
 		resolve: {
 			alias: {
 				'#': resolver('./'),
 			},
+			conditions: ['react-server'],
 		},
+
+		ssr: {
+			noExternal: ['react', 'react-dom', 'react-server-dom-webpack'],
+		},
+
 	}
 })

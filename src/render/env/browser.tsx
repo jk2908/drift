@@ -154,7 +154,10 @@ export async function browser() {
 
 			setPayload(payload)
 
-			return payload.returnValue
+			const { ok, data } = payload.returnValue ?? {}
+
+			if (!ok) throw data
+			return data
 		})
 
 		hydrateRoot(
