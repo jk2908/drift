@@ -9,13 +9,11 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "react",
 		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
 		"paths": {
 			"#/*": ["./*"]
 		},
 		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]
 	},
-	"include": [
-		"app",
-		".drift/*"
-	]
+	"include": ["app", ".drift/*"]
 }

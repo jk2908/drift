@@ -14,7 +14,6 @@ import { rscStream } from 'rsc-html-stream/client'
 import { NAME } from 'src/config'
 
 import { HTTPException, type Payload } from '../../shared/error'
-import { Logger } from '../../shared/logger'
 
 import type { RscPayload } from './rsc'
 
@@ -121,66 +120,60 @@ export async function browser(
 }*/
 
 export async function browser() {
-	const logger = new Logger()
+	let setPayload: (payload: RscPayload) => void = () => {}
 
-	try {
-		let setPayload: (payload: RscPayload) => void = () => {}
+	const initial = await createFromReadableStream<RscPayload>(rscStream)
 
-		const initial = await createFromReadableStream<RscPayload>(rscStream)
+	function R() {
+		const [p, setP] = useState<RscPayload>(initial)
 
-		function R() {
-			const [p, setP] = useState<RscPayload>(initial)
+		useEffect(() => {
+			setPayload = v => startTransition(() => setP(v))
+		}, [])
 
-			useEffect(() => {
-				setPayload = v => startTransition(() => setP(v))
-			}, [])
+		return p.root
+	}
 
-			return p.root
-		}
-
-		setServerCallback(async (id, args) => {
-			const url = new URL(window.location.href)
-			const temporaryReferences = createTemporaryReferenceSet()
-			const payload = await createFromFetch<RscPayload>(
-				fetch(url, {
-					method: 'POST',
-					body: await encodeReply(args, { temporaryReferences }),
-					headers: {
-						'x-rsc-action': id,
-					},
-				}),
-				{ temporaryReferences },
-			)
-
-			setPayload(payload)
-
-			const { ok, data } = payload.returnValue ?? {}
-
-			if (!ok) throw data
-			return data
-		})
-
-		hydrateRoot(
-			document,
-			<StrictMode>
-				<R />
-			</StrictMode>,
-			{
-				formState: initial.formState,
-			},
+	setServerCallback(async (id, args) => {
+		const url = new URL(window.location.href)
+		const temporaryReferences = createTemporaryReferenceSet()
+		const payload = await createFromFetch<RscPayload>(
+			fetch(url, {
+				method: 'POST',
+				body: await encodeReply(args, { temporaryReferences }),
+				headers: {
+					'x-rsc-action': id,
+				},
+			}),
+			{ temporaryReferences },
 		)
 
-		const name = NAME.toUpperCase()
+		setPayload(payload)
 
-		window[`__${name}__`] ??= {}
-		window[`__${name}__`].setPayload = setPayload
+		const { ok, data } = payload.returnValue ?? {}
 
-		import.meta.hot?.on?.('rsc:update', async () => {
-			setPayload(await createFromFetch<RscPayload>(fetch(window.location.href)))
-		})
-	} catch (err) {
-		logger.error('[browser]', err)
-	}
+		if (!ok) throw data
+		return data
+	})
+
+	hydrateRoot(
+		document,
+		<StrictMode>
+			<R />
+		</StrictMode>,
+		{
+			formState: initial.formState,
+		},
+	)
+
+	const name = NAME.toUpperCase()
+
+	window[`__${name}__`] ??= {}
+	window[`__${name}__`].setPayload = setPayload
+
+	import.meta.hot?.on?.('rsc:update', async () => {
+		setPayload(await createFromFetch<RscPayload>(fetch(window.location.href)))
+	})
 }
 
 const payloadReviver = {

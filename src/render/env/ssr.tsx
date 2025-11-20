@@ -2,10 +2,8 @@ import { use } from 'react'
 import type { ReactFormState } from 'react-dom/client'
 import { renderToReadableStream } from 'react-dom/server.edge'
 
-import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
+import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
-
-import { Logger } from '../../shared/logger'
 
 import type { RscPayload } from './rsc'
 
@@ -236,39 +234,32 @@ export async function ssr(
 		nonce?: string
 	},
 ) {
-	const logger = new Logger()
+	const [s1, s2] = rscStream.tee()
 
-	try {
-		const [s1, s2] = rscStream.tee()
+	let payload: Promise<RscPayload>
 
-		let payload: Promise<RscPayload>
+	function A() {
+		payload ??= createFromReadableStream<RscPayload>(s1)
 
-		function A() {
-			payload ??= createFromReadableStream<RscPayload>(s1)
-
-			return <B>{use(payload).root}</B>
-		}
-
-		function B({ children }: { children: React.ReactNode }) {
-			return <>{children}</>
-		}
-
-		const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
-			'index',
-		)
-		const htmlStream = await renderToReadableStream(<A />, {
-			bootstrapScriptContent,
-			nonce: opts?.nonce,
-			formState: opts?.formState,
-		})
-
-		return htmlStream.pipeThrough(
-			injectRSCPayload(s2, {
-				nonce: opts?.nonce,
-			}),
-		)
-	} catch (err) {
-		logger.error('[ssr]', err)
-		throw err
+		return <B>{use(payload).root}</B>
 	}
+
+	function B({ children }: { children: React.ReactNode }) {
+		return <>{children}</>
+	}
+
+	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
+		'index',
+	)
+	const htmlStream = await renderToReadableStream(<A />, {
+		bootstrapScriptContent,
+		nonce: opts?.nonce,
+		formState: opts?.formState,
+	})
+
+	return htmlStream.pipeThrough(
+		injectRSCPayload(s2, {
+			nonce: opts?.nonce,
+		}),
+	)
 }

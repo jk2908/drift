@@ -1,13 +1,18 @@
-'use client'
+import { Blue } from './blue'
 
-import { useEffect, useState } from 'react'
-
-import { Link } from '@jk2908/drift/ui/link'
-
-export const prerender = true
+//export const prerender = true
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+export default async function Page() {
+	await wait(5000)
+	return (
+		<div>
+			Hi am a page <Blue />
+		</div>
+	)
+}
+/*
 export default function HomePage({ params }: { params?: Record<string, string> }) {
 	const [count, setCount] = useState(0)
 	const [posts, setPosts] = useState([])
@@ -36,4 +41,4 @@ export default function HomePage({ params }: { params?: Record<string, string> }
 				: posts.map(p => <div key={p.id}>{JSON.stringify(p)}</div>)}
 		</div>
 	)
-}
+}*/

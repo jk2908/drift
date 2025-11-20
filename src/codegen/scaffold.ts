@@ -36,14 +36,15 @@ export async function createScaffold() {
         import { manifest } from './manifest'
         import { importMap } from './import-map'
         import { config } from './config'
+        import { handle } from './server'
 
         import Shell from '${shellImport}'
 
-        async function handler(req: Request) {
+        export async function handler(req: Request) {
           let opts: {
-            formState: ReactFormState | undefined
-            temporaryReferences: unknown
-            returnValue: unknown
+            formState?: ReactFormState
+            temporaryReferences?: unknown
+            returnValue?: { ok: boolean; data: unknown }
           } = {
             formState: undefined,
             temporaryReferences: undefined,
@@ -67,10 +68,13 @@ export async function createScaffold() {
             })
           }
 
-          const htmlStream = (await import.meta.viteRsc.loadModule<
-            typeof import('./entry.ssr.tsx')
-          >('ssr', 'index')).ssr(rscStream, { formState: opts?.formState })
+          const mod = await import.meta.viteRsc.loadModule<typeof import('./entry.ssr.tsx')>(
+            'ssr',
+            'index',
+          )
 
+          const htmlStream = await mod.ssr(rscStream, { formState: opts?.formState })
+          
           return new Response(htmlStream, {
             headers: {
               'Content-Type': 'text/html',
@@ -79,7 +83,7 @@ export async function createScaffold() {
           })
         }
 
-        export default handler
+        export default handle()
       `.trim(),
 		),
 	)
@@ -89,13 +93,8 @@ export async function createScaffold() {
 			path.join(generatedDir, ENTRY_SSR),
 			`
         ${AUTO_GEN_MSG}
-
-        //import { handle } from './server'
         
         export { ssr } from '${PKG_NAME}/render/env/ssr'
-
-        //const app = handle()
-        //export default app
       `.trim(),
 		),
 	)

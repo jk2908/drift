@@ -52,111 +52,99 @@ export async function rsc(
 	config: PluginConfig,
 	opts: {
 		returnValue?: { ok: boolean; data: unknown }
-		formState?: ReactFormState
+		formState?: import('react-dom/client').ReactFormState
 		temporaryReferences?: unknown
 	},
 ) {
 	const logger = new Logger(config.logger?.level)
 	const router = new Router(manifest, importMap, logger)
 
-	try {
-		const url = new URL(req.url)
-		const match = router.enhance(router.match(url.pathname))
-		const relativeBase = getRelativeBasePath(url.pathname)
+	const url = new URL(req.url)
+	const match = router.enhance(router.match(url.pathname))
+	const relativeBase = getRelativeBasePath(url.pathname)
 
-		const collection = new MetadataCollection(config.metadata)
+	const collection = new MetadataCollection(config.metadata)
 
-		const metadata = match
-			? await match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(m =>
-						collection
-							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
-							.run(),
-					)
-			: await collection
-					.add({
-						task: fallback.metadata({ error: NOT_FOUND }),
-						priority: METADATA_PRIORITY[EntryKind.ERROR],
-					})
-					.run()
+	const metadata = match
+		? await match
+				.metadata?.({ params: match.params, error: match.error })
+				.then(m =>
+					collection
+						.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
+						.run(),
+				)
+		: await collection
+				.add({
+					task: fallback.metadata({ error: NOT_FOUND }),
+					priority: METADATA_PRIORITY[EntryKind.ERROR],
+				})
+				.run()
 
-		const driftPayload = devalue.stringify(
-			{
-				entry: {
-					__path: match?.__path,
-					params: match?.params,
-					error: match?.error,
-				},
-				metadata,
+	const driftPayload = devalue.stringify(
+		{
+			entry: {
+				__path: match?.__path,
+				params: match?.params,
+				error: match?.error,
 			},
-			driftPayloadReducer,
-		)
+			metadata,
+		},
+		driftPayloadReducer,
+	)
 
-		const assets = createAssets(relativeBase, driftPayload)
-		const initial = { match, metadata }
-		const { returnValue, formState, temporaryReferences } = opts ?? {}
+	const assets = createAssets(relativeBase, driftPayload)
+	const initial = { match, metadata }
+	const { returnValue, formState, temporaryReferences } = opts ?? {}
 
-		const rscPayload: RscPayload = {
-			root: (
-				<>
-					{assets}
+	const rscPayload: RscPayload = {
+		root: (
+			<>
+				{assets}
 
-					<Shell>{match ? <Tree match={match} /> : null}</Shell>
-				</>
-			),
-			returnValue,
-			formState,
-		}
-
-		return renderToReadableStream(rscPayload, { temporaryReferences })
-	} catch (err) {
-		logger.error('[rsc]', err)
-		return new Response(null, { status: 500 })
+				<Shell>{match ? <Tree match={match} /> : null}</Shell>
+			</>
+		),
+		returnValue,
+		formState,
 	}
+
+	return renderToReadableStream(rscPayload, { temporaryReferences })
 }
 
 export async function action(req: Request, opts: { config: PluginConfig }) {
-	const logger = new Logger(opts.config.logger?.level)
+	let returnValue: { ok: boolean; data: unknown } | undefined
+	let formState: ReactFormState | undefined
+	let temporaryReferences: unknown
 
-	try {
-		let returnValue: unknown
-		let formState: ReactFormState | undefined
-		let temporaryReferences: unknown
+	const id = req.headers.get('x-rsc-action-id')
 
-		const id = req.headers.get('x-rsc-action-id')
+	if (id) {
+		// x-rsc-action header exists when action is
+		// called via ReactClient.setServerCallback
 
-		if (id) {
-			// x-rsc-action header exists when action is
-			// called via ReactClient.setServerCallback
+		const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
+			? await req.formData()
+			: await req.text()
 
-			const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
-				? await req.formData()
-				: await req.text()
+		temporaryReferences = createTemporaryReferenceSet()
 
-			temporaryReferences = createTemporaryReferenceSet()
+		const args = await decodeReply(body, {
+			temporaryReferences,
+		})
+		const action = await loadServerAction(id)
 
-			const args = await decodeReply(body, {
-				temporaryReferences,
-			})
-			const action = await loadServerAction(id)
+		returnValue = await action.apply(null, args)
+	} else {
+		// otherwise server function is called via
+		// <form action={...}> aka without js
+		const formData = await req.formData()
+		const decodedAction = await decodeAction(formData)
+		const result = await decodedAction()
 
-			returnValue = await action.apply(null, args)
-		} else {
-			// otherwise server function is called via
-			// <form action={...}> aka without js
-			const formData = await req.formData()
-			const decodedAction = await decodeAction(formData)
-			const result = await decodedAction()
-
-			formState = await decodeFormState(result, formData)
-		}
-
-		return { returnValue, formState, temporaryReferences }
-	} catch (err) {
-		logger.error('[rsc][action]', err)
-		throw err
+		formState = await decodeFormState(result, formData)
 	}
+
+	return { returnValue, formState, temporaryReferences }
 }
 
 const driftPayloadReducer = {

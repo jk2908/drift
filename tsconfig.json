@@ -11,5 +11,5 @@
 		"allowSyntheticDefaultImports": true,
 		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]
 	},
-	"include": ["src", "src/shared/router.tsx"],
+	"include": ["src"]
 }

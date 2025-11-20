@@ -14,7 +14,7 @@ export const manifest = {
 			layouts: [],
 			error: null,
 		},
-		shouldPrerender: true,
+		shouldPrerender: false,
 		isDynamic: false,
 		isCatchAll: false,
 	},

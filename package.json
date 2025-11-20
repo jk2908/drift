@@ -8,8 +8,8 @@
 		"build": "bunchee"
 	},
 	"dependencies": {
-		"@hono/vite-dev-server": "^0.23.0",
-		"@vitejs/plugin-react": "^4.6.0",
+		"@vitejs/plugin-react": "latest",
+		"@vitejs/plugin-rsc": "latest",
 		"devalue": "^5.1.1",
 		"hono": "^4.8.5",
 		"isbot": "^5.1.28",
@@ -18,17 +18,16 @@
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
-		"@types/react": "^19.2.0",
-		"@types/react-dom": "^19.2.0",
 		"@biomejs/biome": "^2.1.1",
 		"bunchee": "^6.5.4"
 	},
 	"peerDependencies": {
-		"@vitejs/plugin-rsc": "^0.5.1",
-		"react": "^19.2.0",
-		"react-dom": "^19.2.0",
+		"@types/react": "latest",
+		"@types/react-dom": "latest",
+		"react": "latest",
+		"react-dom": "latest",
 		"typescript": "^5.8.3",
-		"vite": "^7.0.4"
+		"vite": "^7.2.4"
 	},
 	"exports": {
 		".": {

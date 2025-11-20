@@ -25,7 +25,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
     import { serveStatic } from 'hono/bun'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-    import rsc from './entry.rsc'
+    import { handler as rsc } from './entry.rsc'
     import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
@@ -61,21 +61,21 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
 
 						return `.get('/${route.split('/').pop()}', async c => {
-            const accept = c.req.header('Accept') ?? ''
+              const accept = c.req.header('Accept') ?? ''
 
-            if (accept.includes('text/html')) {
-              return rsc(c.req.raw)
-            }
+              if (accept.includes('text/html')) {
+                return rsc(c.req.raw)
+              }
 
-            if (!${id}) {
-              throw new Error('Unified handler missing implementation')
-            }
+              if (!${id}) {
+                throw new Error('Unified handler missing implementation')
+              }
 
-            // handler might be called with no args so 
-            // ignore to prevent red squigglies
-            // @ts-ignore
-            return ${id}(c)
-          })`
+              // handler might be called with no args so 
+              // ignore to prevent red squigglies
+              // @ts-ignore
+              return ${id}(c)
+            })`
 					})
 					.join('\n')}
         .notFound(c => rsc(c.req.raw))
