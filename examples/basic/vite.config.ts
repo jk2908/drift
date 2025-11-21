@@ -29,18 +29,13 @@ export default defineConfig((ctx: ConfigEnv) => {
 			}),
 			tsconfigPaths(),
 		].flat() as Plugin[],
-
-		// Force server export condition and avoid externalizing server React packages
 		resolve: {
 			alias: {
 				'#': resolver('./'),
 			},
-			conditions: ['react-server'],
 		},
-
-		ssr: {
-			noExternal: ['react', 'react-dom', 'react-server-dom-webpack'],
-		},
-
+		//optimizeDeps: {
+		//exclude: ['react-dom/client', 'react-server-dom-webpack/client'],
+		//},
 	}
 })

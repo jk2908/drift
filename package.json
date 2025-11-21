@@ -9,11 +9,9 @@
 	},
 	"dependencies": {
 		"@vitejs/plugin-react": "latest",
-		"@vitejs/plugin-rsc": "latest",
 		"devalue": "^5.1.1",
 		"hono": "^4.8.5",
 		"isbot": "^5.1.28",
-		"react-server-dom-webpack": "^19.2.0",
 		"rsc-html-stream": "^0.0.7"
 	},
 	"devDependencies": {
@@ -24,10 +22,17 @@
 	"peerDependencies": {
 		"@types/react": "latest",
 		"@types/react-dom": "latest",
+		"@vitejs/plugin-rsc": "latest",
 		"react": "latest",
 		"react-dom": "latest",
+		"react-server-dom-webpack": "^19.2.0",
 		"typescript": "^5.8.3",
 		"vite": "^7.2.4"
+	},
+	"peerDependenciesMeta": {
+		"react-server-dom-webpack": {
+			"optional": true
+		}
 	},
 	"exports": {
 		".": {

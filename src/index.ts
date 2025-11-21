@@ -148,6 +148,14 @@ function drift(c: PluginConfig): PluginOption[] {
 				...(viteConfig.resolve.alias ?? {}),
 				'.drift': path.resolve(process.cwd(), GENERATED_DIR),
 			}
+
+			viteConfig.optimizeDeps ??= {}
+			viteConfig.optimizeDeps.exclude = [
+				...(Array.isArray(viteConfig.optimizeDeps.exclude)
+					? viteConfig.optimizeDeps.exclude
+					: []),
+				'react-dom/client',
+			]
 		},
 		configureServer(server) {
 			logger.info('[configureServer]', `Watching for changes in ./${APP_DIR}...`)

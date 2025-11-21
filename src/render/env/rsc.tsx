@@ -25,12 +25,11 @@ import { getRelativeBasePath } from '../../shared/utils'
 
 import * as fallback from '../../ui/+error'
 
-import { createAssets } from '../utils'
-
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
+	driftPayload?: string
 }
 
 /**
@@ -92,26 +91,24 @@ export async function rsc(
 		driftPayloadReducer,
 	)
 
-	const assets = createAssets(relativeBase, driftPayload)
 	const initial = { match, metadata }
 	const { returnValue, formState, temporaryReferences } = opts ?? {}
 
 	const rscPayload: RscPayload = {
 		root: (
 			<>
-				{assets}
-
 				<Shell>{match ? <Tree match={match} /> : null}</Shell>
 			</>
 		),
 		returnValue,
 		formState,
+		driftPayload,
 	}
 
 	return renderToReadableStream(rscPayload, { temporaryReferences })
 }
 
-export async function action(req: Request, opts: { config: PluginConfig }) {
+export async function action(req: Request) {
 	let returnValue: { ok: boolean; data: unknown } | undefined
 	let formState: ReactFormState | undefined
 	let temporaryReferences: unknown
