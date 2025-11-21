@@ -11,36 +11,44 @@ import {
 import * as devalue from 'devalue'
 import { Tree } from 'src/shared/tree'
 
-import type { ImportMap, Manifest, PluginConfig } from '../../types'
+import type { ImportMap, Manifest, Metadata } from '../../types'
 
 import { EntryKind } from '../../config'
 
 import { HTTPException, NOT_FOUND } from '../../shared/error'
-import { Logger } from '../../shared/logger'
 import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
-import { getRelativeBasePath } from '../../shared/utils'
-
-//import { RouterProvider } from '../../client/router'
 
 import * as fallback from '../../ui/+error'
 
-export type RscPayload = {
+export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
-	driftPayload?: string
+	driftPayload: string
 }
 
+export type DriftPayload = {
+	entry: {
+		__path?: string
+		params?: Record<string, string>
+		error?: HTTPException | Error
+	}
+	metadata: Metadata
+}
+
+export type UnparsedDriftPayload = string
+
 /**
- * RSC rendering handler - returns a ReadableStream response for RSC requests
+ * RSC handler - returns a ReadableStream response for RSC requests
  * @param req - the incoming request
  * @param Shell - the app root (shell) component to render
- * @param opts - the options including manifest, map, config and RSC-specific data
- * @param opts.manifest - the application manifest containing routes and metadata
- * @param opts.map - the import map for route components and endpoints
- * @param opts.config - the plugin configuration
- * @param opts.returnValue - the return value from a server action, if any
+ * @param manifest - the application manifest containing routes and metadata
+ * @param importMap - the import map for route components and endpoints
+ * @param baseMetadata - optional global metadata from config
+ * @param returnValue - optional return value from an action
+ * @param formState - optional React form state for hydration
+ * @param temporaryReferences - optional temporary references for RSC
  * @returns a ReadableStream response for RSC requests
  */
 export async function rsc(
@@ -48,21 +56,17 @@ export async function rsc(
 	Shell: ({ children }: { children: React.ReactNode }) => React.ReactNode,
 	manifest: Manifest,
 	importMap: ImportMap,
-	config: PluginConfig,
-	opts: {
-		returnValue?: { ok: boolean; data: unknown }
-		formState?: import('react-dom/client').ReactFormState
-		temporaryReferences?: unknown
-	},
+	baseMetadata?: Metadata,
+	returnValue?: { ok: boolean; data: unknown },
+	formState?: ReactFormState,
+	temporaryReferences?: unknown,
 ) {
-	const logger = new Logger(config.logger?.level)
-	const router = new Router(manifest, importMap, logger)
+	const router = new Router(manifest, importMap)
 
 	const url = new URL(req.url)
 	const match = router.enhance(router.match(url.pathname))
-	const relativeBase = getRelativeBasePath(url.pathname)
 
-	const collection = new MetadataCollection(config.metadata)
+	const collection = new MetadataCollection(baseMetadata)
 
 	const metadata = match
 		? await match
@@ -91,14 +95,11 @@ export async function rsc(
 		driftPayloadReducer,
 	)
 
-	const initial = { match, metadata }
-	const { returnValue, formState, temporaryReferences } = opts ?? {}
-
-	const rscPayload: RscPayload = {
+	const rscPayload: RSCPayload = {
 		root: (
-			<>
-				<Shell>{match ? <Tree match={match} /> : null}</Shell>
-			</>
+			<Shell>
+				{match ? <Tree params={match.params} error={match.error} ui={match.ui} /> : null}
+			</Shell>
 		),
 		returnValue,
 		formState,

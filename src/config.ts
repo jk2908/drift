@@ -7,12 +7,12 @@ export const ENTRY_SSR = 'entry.ssr.tsx'
 export const ENTRY_BROWSER = 'entry.browser.tsx'
 export const INJECT_RUNTIME = `$$$RUNTIME$$$`
 export const ASSETS_DIR = 'assets'
-export const DRIFT_PAYLOAD_ID = `__${NAME.toUpperCase()}__`
+export const DRIFT_PAYLOAD_ID = `__${NAME.toUpperCase()}_DATA__`
 
 export const EntryKind = {
-  SHELL: '$S',
-  LAYOUT: '$L',
-  PAGE: '$P',
-  ERROR: '$ERR',
-  ENDPOINT: '$E'
+	SHELL: '$S',
+	LAYOUT: '$L',
+	PAGE: '$P',
+	ERROR: '$ERR',
+	ENDPOINT: '$E',
 } as const

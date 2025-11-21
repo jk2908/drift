@@ -1,16 +1,32 @@
+import { Suspense } from 'react'
+
+import { Link } from '@jk2908/drift/ui/link'
+
 import { Blue } from './blue'
 
 //export const prerender = true
 
+export const metadata = {
+	title: 'Home',
+}
+
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export default async function Page() {
-	await wait(5000)
 	return (
 		<div>
 			Hi am a page <Blue />
+			<Suspense fallback={<div>Loading suspended component...</div>}>
+				<SuspendedComponent />
+			</Suspense>
+			<Link href="/profile">Go to Profile</Link>
 		</div>
 	)
+}
+
+async function SuspendedComponent() {
+	await wait(5000)
+	return <div>I am suspended!</div>
 }
 /*
 export default function HomePage({ params }: { params?: Record<string, string> }) {

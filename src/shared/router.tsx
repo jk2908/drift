@@ -21,17 +21,15 @@ import type {
 import { EntryKind } from '../config'
 
 import { HTTPException } from './error'
-import type { Logger } from './logger'
+import { Logger } from './logger'
 import { PRIORITY } from './metadata'
 
 /**
  * Handle routing and matching of within the application
  * @param manifest - contains all the routes (pages and api) and their metadata
  * @param map - contains the static and dynamic imports for each route
- * @param logger - logger instance for logging
  * @see {@link Manifest} for the structure of the manifest
  * @see {@link ImportMap} for the structure of the import map
- * @see {@link Logger} for the logger instance
  */
 export class Router {
 	static #enh = new Map<string, EnhancedMatch>()
@@ -43,7 +41,7 @@ export class Router {
 			L?: View<React.ComponentProps<any>>
 		}
 	>()
-	static #logger: Logger | null = null
+	static #logger: Logger = new Logger()
 
 	#manifest: Manifest = {}
 	#importMap: ImportMap = {}
@@ -53,9 +51,7 @@ export class Router {
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
-	constructor(manifest: Manifest, importMap: ImportMap, logger: Logger) {
-		Router.#logger = logger
-
+	constructor(manifest: Manifest, importMap: ImportMap) {
 		this.#manifest = manifest
 		this.#importMap = importMap
 

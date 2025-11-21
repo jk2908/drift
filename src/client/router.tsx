@@ -6,7 +6,7 @@ import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
 import { NAME } from '../config'
 
-import type { RscPayload } from '../render/env/rsc'
+import type { RSCPayload } from '../render/env/rsc'
 
 type GoConfig = {
 	replace?: boolean
@@ -48,11 +48,12 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 			try {
 				const promise =
 					preloadCache.get(path) ??
-					fetch(path, { headers: { Accept: 'text/x-component' } })
+					fetch(path, { headers: { accept: 'text/x-component' } })
 
 				if (!preloadCache.has(path)) preloadCache.set(path, promise)
 
-				window[`__${NAME}__`]?.setPayload?.(await createFromFetch<RscPayload>(promise))
+				const res = await createFromFetch<RSCPayload>(promise)
+				window[`__${NAME.toUpperCase()}__`]?.setPayload?.(res)
 
 				if (replace) {
 					window.history.replaceState(null, '', path)
@@ -75,16 +76,16 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 	 * @returns a promise that resolves when the fetch completes
 	 */
 	const preload = useCallback((path: string) => {
-		if (!preloadCache.has(path)) {
-			preloadCache.set(path, fetch(path, { headers: { Accept: 'text/x-component' } }))
-		}
+		if (preloadCache.has(path)) return
+
+		preloadCache.set(path, fetch(path, { headers: { Accept: 'text/x-component' } }))
 	}, [])
 
 	useEffect(() => {
 		const onPopState = () => {
 			startTransition(async () => {
 				window[`__${NAME}__`]?.setPayload?.(
-					await createFromFetch<RscPayload>(fetch(window.location.href)),
+					await createFromFetch<RSCPayload>(fetch(window.location.href)),
 				)
 			})
 		}
@@ -95,54 +96,6 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 			window.removeEventListener('popstate', onPopState)
 		}
 	}, [])
-
-	/*
-	const tags = useMemo(
-		() => (
-			<>
-				{metadata.title && <title>{metadata.title.toString()}</title>}
-
-				{metadata.meta?.map(meta => {
-					if ('charSet' in meta) {
-						return <meta key={meta.charSet} charSet={meta.charSet} />
-					}
-
-					if ('name' in meta) {
-						return (
-							<meta key={meta.name} name={meta.name} content={meta.content?.toString()} />
-						)
-					}
-
-					if ('httpEquiv' in meta) {
-						return (
-							<meta
-								key={meta.httpEquiv}
-								httpEquiv={meta.httpEquiv}
-								content={meta.content?.toString()}
-							/>
-						)
-					}
-
-					if ('property' in meta) {
-						return (
-							<meta
-								key={meta.property}
-								property={meta.property}
-								content={meta.content?.toString()}
-							/>
-						)
-					}
-
-					return null
-				})}
-
-				{metadata.link?.map(link => (
-					<link key={`${link.rel}${link.href ?? ''}`} {...link} />
-				))}
-			</>
-		),
-		[metadata],
-	)*/
 
 	const value = useMemo(
 		() => ({

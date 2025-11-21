@@ -52,12 +52,19 @@ export async function createScaffold() {
           }
 
           if (req.method === 'POST') {
-            opts = await action(req, { config })
+            opts = await action(req)
           }
 
-          const rscStream = await rsc(req, Shell, manifest, importMap, config, {
-            ...opts,
-          })
+          const rscStream = await rsc(
+            req, 
+            Shell, 
+            manifest, 
+            importMap, 
+            config.metadata, 
+            opts?.returnValue, 
+            opts?.formState, 
+            opts?.temporaryReferences,
+          )
 
          	if (!req.headers.get('accept')?.includes('text/html')) {
             return new Response(rscStream, {
@@ -73,7 +80,7 @@ export async function createScaffold() {
             'index',
           )
 
-          const htmlStream = await mod.ssr(rscStream, { formState: opts?.formState })
+          const htmlStream = await mod.ssr(rscStream, opts?.formState)
           
           return new Response(htmlStream, {
             headers: {

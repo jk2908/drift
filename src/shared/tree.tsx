@@ -4,12 +4,18 @@ import type { EnhancedMatch } from '../types'
 
 import Fallback from '../ui/+error'
 
-export function Tree({ match }: { match: NonNullable<EnhancedMatch> }) {
-	const {
-		params,
-		error,
-		ui: { layouts, Page, Err },
-	} = match
+type Match = NonNullable<EnhancedMatch>
+
+export function Tree({
+	params,
+	error,
+	ui,
+}: {
+	params: Match['params']
+	error: Match['error']
+	ui: Match['ui']
+}) {
+	const { layouts, Page, Err } = ui
 
 	const initial = error ? (
 		Err ? (

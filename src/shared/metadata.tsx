@@ -1,6 +1,13 @@
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+
+import * as devalue from 'devalue'
+
 import type { LinkTag, MetaTag, Metadata as TMetadata } from '../types'
 
 import { EntryKind } from '../config'
+
+import type { DriftPayload, UnparsedDriftPayload } from '../render/env/rsc'
+import { HTTPException, type Payload } from './error'
 
 type TEntryKind = typeof EntryKind
 type MetadataSource = Exclude<TEntryKind[keyof TEntryKind], typeof EntryKind.ENDPOINT>
@@ -160,7 +167,7 @@ export class MetadataCollection {
 			.map(r => r.item)
 
 		if (ok.length) merged = MetadataCollection.#merge(merged, ...ok)
-		
+
 		return merged
 	}
 
@@ -170,4 +177,80 @@ export class MetadataCollection {
 	get base() {
 		return MetadataCollection.#clone(this.#base)
 	}
+}
+
+export function Metadata({ driftPayload }: { driftPayload?: UnparsedDriftPayload }) {
+	if (!driftPayload) return null
+
+	const parsed = devalue.parse(driftPayload, payloadReviver)
+	if (!parsed) return null
+
+	const { metadata } = parsed as DriftPayload
+
+	return (
+		<>
+			{metadata.title && <title>{metadata.title.toString()}</title>}
+
+			{metadata.meta?.map(meta => {
+				if ('charSet' in meta) {
+					return <meta key={meta.charSet} charSet={meta.charSet} />
+				}
+
+				if ('name' in meta) {
+					return (
+						<meta key={meta.name} name={meta.name} content={meta.content?.toString()} />
+					)
+				}
+
+				if ('httpEquiv' in meta) {
+					return (
+						<meta
+							key={meta.httpEquiv}
+							httpEquiv={meta.httpEquiv}
+							content={meta.content?.toString()}
+						/>
+					)
+				}
+
+				if ('property' in meta) {
+					return (
+						<meta
+							key={meta.property}
+							property={meta.property}
+							content={meta.content?.toString()}
+						/>
+					)
+				}
+
+				return null
+			})}
+
+			{metadata.link?.map(link => (
+				<link key={`${link.rel}${link.href ?? ''}`} {...link} />
+			))}
+		</>
+	)
+}
+
+const payloadReviver = {
+	Error: ([name, message, cause, stack, status, payload]: [
+		string,
+		string | undefined,
+		unknown,
+		string | undefined,
+		ContentfulStatusCode | undefined,
+		Payload | undefined,
+	]) => {
+		if (name === 'HTTPException' && status !== undefined) {
+			const error = new HTTPException(status, message, { payload, cause })
+			if (stack) error.stack = stack
+
+			return error
+		} else {
+			const error = new Error(message, { cause })
+			if (stack) error.stack = stack
+
+			return error
+		}
+	},
 }

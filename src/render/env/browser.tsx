@@ -1,8 +1,6 @@
 import { StrictMode, startTransition, useEffect, useState } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
-
 import {
 	createFromFetch,
 	createFromReadableStream,
@@ -13,122 +11,42 @@ import {
 import { rscStream } from 'rsc-html-stream/client'
 import { NAME } from 'src/config'
 
-import { HTTPException, type Payload } from '../../shared/error'
+import { Metadata } from '../../shared/metadata'
 
-import type { RscPayload } from './rsc'
+import { RouterProvider } from '../../client/router'
+
+import type { RSCPayload } from './rsc'
 
 declare global {
 	interface Window {
 		[key: `__${string}__`]: {
-			setPayload?: (payload: RscPayload) => void
+			setPayload?: (payload: RSCPayload) => void
 		}
 	}
 }
 
 /**
- * Hydration and routing handler for the browser env
+ * Browser RSC hydration entry point
  */
-/*
-export async function browser(
-	Shell: ({
-		children,
-		assets,
-		metadata,
-	}: {
-		children: React.ReactNode
-		assets: React.ReactNode
-		metadata: React.ReactNode
-	}) => React.ReactNode,
-	manifest: Manifest,
-	map: ImportMap,
-	config: PluginConfig,
-) {
-	const logger = new Logger(config.logger?.level)
-	const router = new Router(manifest, map, logger)
-
-	const relativeBase = getRelativeBasePath(window.location.pathname)
-
-	try {
-		const payload = readDriftPayload()
-		const { entry, metadata } = payload ? devalue.parse(payload, payloadReviver) : {}
-
-		// reconstruct the match object from ssr'd payload data to avoid
-		// redundant router.match call during hydration. Set match to
-		// null to trigger fallback if lookup has failed. Could try
-		// match w/ router.match(window.location.pathname) but
-		// don't see why that would be worth it. This makes
-		// fallback error handling marginally quicker
-		const lookup = Router.narrow(manifest[entry?.__path])
-
-		const match = lookup
-			? router.enhance({ ...lookup, params: entry.params, error: entry.error })
-			: null
-
-		const assets = createAssets(relativeBase, payload)
-		const initial = { match, metadata }
-
-		hydrateRoot(
-			document,
-			<StrictMode>
-				<RouterProvider router={router} initial={initial} config={config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
-						</Shell>
-					)}
-				</RouterProvider>
-			</StrictMode>,
-		)
-	} catch (err) {
-		// if we've errored and made it to here, something bad
-		// has happened - let's try build from scratch
-
-		logger.error(Logger.print(err), err)
-
-		const match = router.enhance(router.match(window.location.pathname))
-		const collection = new MetadataCollection(config.metadata)
-
-		const metadata = match
-			? await match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(m =>
-						collection
-							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
-							.run(),
-					)
-			: await collection
-					.add({
-						task: fallback.metadata({ error: NOT_FOUND }),
-						priority: METADATA_PRIORITY[EntryKind.ERROR],
-					})
-					.run()
-
-		const assets = createAssets(relativeBase)
-
-		createRoot(document).render(
-			<StrictMode>
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
-						</Shell>
-					)}
-				</RouterProvider>
-			</StrictMode>,
-		)
-	}
-}*/
-
 export async function browser() {
-	let setPayload: (payload: RscPayload) => void = () => {}
+	let setPayload: (payload: RSCPayload) => void = () => {}
 
-	const initial = await createFromReadableStream<RscPayload>(rscStream)
+	const payload = await createFromReadableStream<RSCPayload>(rscStream)
 
 	function R() {
-		const [p, setP] = useState<RscPayload>(initial)
+		const [p, setP] = useState<RSCPayload>(payload)
 
 		useEffect(() => {
 			setPayload = v => startTransition(() => setP(v))
+
+			const name = NAME.toUpperCase()
+
+			window[`__${name}__`] ??= {}
+			window[`__${name}__`].setPayload = setPayload
+
+			return () => {
+				delete window[`__${name}__`].setPayload
+			}
 		}, [])
 
 		return p.root
@@ -137,7 +55,7 @@ export async function browser() {
 	setServerCallback(async (id, args) => {
 		const url = new URL(window.location.href)
 		const temporaryReferences = createTemporaryReferenceSet()
-		const payload = await createFromFetch<RscPayload>(
+		const payload = await createFromFetch<RSCPayload>(
 			fetch(url, {
 				method: 'POST',
 				body: await encodeReply(args, { temporaryReferences }),
@@ -159,42 +77,18 @@ export async function browser() {
 	hydrateRoot(
 		document,
 		<StrictMode>
-			<R />
+			<RouterProvider>
+				<Metadata driftPayload={payload.driftPayload} />
+
+				<R />
+			</RouterProvider>
 		</StrictMode>,
 		{
-			formState: initial.formState,
+			formState: payload.formState,
 		},
 	)
 
-	const name = NAME.toUpperCase()
-
-	window[`__${name}__`] ??= {}
-	window[`__${name}__`].setPayload = setPayload
-
 	import.meta.hot?.on?.('rsc:update', async () => {
-		setPayload(await createFromFetch<RscPayload>(fetch(window.location.href)))
+		setPayload(await createFromFetch<RSCPayload>(fetch(window.location.href)))
 	})
-}
-
-const payloadReviver = {
-	Error: ([name, message, cause, stack, status, payload]: [
-		string,
-		string | undefined,
-		unknown,
-		string | undefined,
-		ContentfulStatusCode | undefined,
-		Payload | undefined,
-	]) => {
-		if (name === 'HTTPException' && status !== undefined) {
-			const error = new HTTPException(status, message, { payload, cause })
-			if (stack) error.stack = stack
-
-			return error
-		} else {
-			const error = new Error(message, { cause })
-			if (stack) error.stack = stack
-
-			return error
-		}
-	},
 }

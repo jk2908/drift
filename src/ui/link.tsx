@@ -1,3 +1,5 @@
+'use client'
+
 import { useRouter } from '../client/router'
 
 type Props = {
