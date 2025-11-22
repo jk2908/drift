@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState, useTransition } from 'react'
+import { StrictMode, useCallback, useEffect, useState, useTransition } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -27,15 +27,21 @@ export async function browser() {
 		const [p, setP] = useState<RSCPayload>(payload)
 		const [isPending, startTransition] = useTransition()
 
+		const setPayloadInTransition = useCallback((payload: RSCPayload) => {
+			startTransition(() => {
+				setP(payload)
+			})
+		}, [])
+
 		useEffect(() => {
 			// expose external setPayload - used inside
 			// server callback to update payload after
 			// action execution
-			setPayload = v => startTransition(() => setP(v))
+			setPayload = setPayloadInTransition
 		}, [])
 
 		return (
-			<RouterProvider setPayload={setP} isNavigating={isPending}>
+			<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
 				<Metadata driftPayload={p.driftPayload} />
 
 				{p.root}
