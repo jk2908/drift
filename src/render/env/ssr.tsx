@@ -4,7 +4,8 @@ import { renderToReadableStream } from 'react-dom/server.edge'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
-import { DRIFT_PAYLOAD_ID } from 'src/config'
+
+import { DRIFT_PAYLOAD_ID } from '../../config'
 
 import { Metadata } from '../../shared/metadata'
 

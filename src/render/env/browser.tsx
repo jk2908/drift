@@ -1,4 +1,4 @@
-import { StrictMode, startTransition, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useState, useTransition } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -9,21 +9,11 @@ import {
 	setServerCallback,
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
-import { NAME } from 'src/config'
+import { RouterProvider } from 'src/client/router'
 
 import { Metadata } from '../../shared/metadata'
 
-import { RouterProvider } from '../../client/router'
-
 import type { RSCPayload } from './rsc'
-
-declare global {
-	interface Window {
-		[key: `__${string}__`]: {
-			setPayload?: (payload: RSCPayload) => void
-		}
-	}
-}
 
 /**
  * Browser RSC hydration entry point
@@ -33,23 +23,24 @@ export async function browser() {
 
 	const payload = await createFromReadableStream<RSCPayload>(rscStream)
 
-	function R() {
+	function A() {
 		const [p, setP] = useState<RSCPayload>(payload)
+		const [isPending, startTransition] = useTransition()
 
 		useEffect(() => {
+			// expose external setPayload - used inside
+			// server callback to update payload after
+			// action execution
 			setPayload = v => startTransition(() => setP(v))
-
-			const name = NAME.toUpperCase()
-
-			window[`__${name}__`] ??= {}
-			window[`__${name}__`].setPayload = setPayload
-
-			return () => {
-				delete window[`__${name}__`].setPayload
-			}
 		}, [])
 
-		return p.root
+		return (
+			<RouterProvider setPayload={setP} isNavigating={isPending}>
+				<Metadata driftPayload={p.driftPayload} />
+
+				{p.root}
+			</RouterProvider>
+		)
 	}
 
 	setServerCallback(async (id, args) => {
@@ -77,11 +68,7 @@ export async function browser() {
 	hydrateRoot(
 		document,
 		<StrictMode>
-			<RouterProvider>
-				<Metadata driftPayload={payload.driftPayload} />
-
-				<R />
-			</RouterProvider>
+			<A />
 		</StrictMode>,
 		{
 			formState: payload.formState,

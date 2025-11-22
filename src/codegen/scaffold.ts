@@ -90,6 +90,8 @@ export async function createScaffold() {
           })
         }
 
+        import.meta.hot?.accept()
+
         export default handle()
       `.trim(),
 		),

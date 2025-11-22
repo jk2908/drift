@@ -1,10 +1,8 @@
 'use client'
 
-import { createContext, use, useCallback, useEffect, useMemo, useTransition } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
-
-import { NAME } from '../config'
 
 import type { RSCPayload } from '../render/env/rsc'
 
@@ -20,18 +18,24 @@ const DEFAULT_GO_CONFIG = {
 const preloadCache = new Map<string, Promise<Response>>()
 
 export const RouterContext = createContext<{
-	go: (to: string, config?: GoConfig) => string
+	go: (to: string, config?: GoConfig) => Promise<string>
 	preload: (path: string) => void
 	isPending: boolean
 }>({
-	go: () => '',
+	go: () => Promise.resolve(''),
 	preload: () => {},
 	isPending: false,
 })
 
-export function RouterProvider({ children }: { children: React.ReactNode }) {
-	const [isPending, startTransition] = useTransition()
-
+export function RouterProvider({
+	children,
+	setPayload,
+	isNavigating = false,
+}: {
+	children: React.ReactNode
+	setPayload?: (payload: RSCPayload) => void
+	isNavigating?: boolean
+}) {
 	/**
 	 * Navigate to a new route
 	 * @param to - the path to navigate to
@@ -39,33 +43,33 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 	 * @param goConfig.replace - whether to replace the current history entry (default: false)
 	 * @returns the new path
 	 */
-	const go = useCallback((to: string, goConfig?: GoConfig) => {
+	const go = useCallback(async (to: string, goConfig?: GoConfig) => {
 		const url = new URL(to, window.location.origin)
 		const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
 		const path = url.pathname + url.search + url.hash
 
-		startTransition(async () => {
-			try {
-				const promise =
-					preloadCache.get(path) ??
-					fetch(path, { headers: { accept: 'text/x-component' } })
+		try {
+			const promise =
+				preloadCache.get(path) ?? fetch(path, { headers: { accept: 'text/x-component' } })
 
-				if (!preloadCache.has(path)) preloadCache.set(path, promise)
+			if (!preloadCache.has(path)) preloadCache.set(path, promise)
 
-				const res = await createFromFetch<RSCPayload>(promise)
-				window[`__${NAME.toUpperCase()}__`]?.setPayload?.(res)
+			const res = await createFromFetch<RSCPayload>(promise)
 
-				if (replace) {
-					window.history.replaceState(null, '', path)
-				} else {
-					window.history.pushState(null, '', path)
-				}
-			} catch {
-				// fail
-			} finally {
-				preloadCache.delete(path)
+			// this state update is already wrapped in a
+			// transition before being passed as props
+			setPayload?.(res)
+
+			if (replace) {
+				window.history.replaceState(null, '', path)
+			} else {
+				window.history.pushState(null, '', path)
 			}
-		})
+		} catch {
+			// fail
+		} finally {
+			preloadCache.delete(path)
+		}
 
 		return path
 	}, [])
@@ -82,18 +86,11 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 	}, [])
 
 	useEffect(() => {
-		const onPopState = () => {
-			startTransition(async () => {
-				window[`__${NAME}__`]?.setPayload?.(
-					await createFromFetch<RSCPayload>(fetch(window.location.href)),
-				)
-			})
-		}
-
-		window.addEventListener('popstate', onPopState)
+		const handler = () => go(window.location.href, { replace: true })
+		window.addEventListener('popstate', handler)
 
 		return () => {
-			window.removeEventListener('popstate', onPopState)
+			window.removeEventListener('popstate', handler)
 		}
 	}, [])
 
@@ -101,9 +98,9 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
 		() => ({
 			go,
 			preload,
-			isPending,
+			isPending: isNavigating,
 		}),
-		[go, preload, isPending],
+		[go, preload, isNavigating],
 	)
 
 	return <RouterContext value={value}>{children}</RouterContext>

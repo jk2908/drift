@@ -8,7 +8,13 @@ import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
 
+import { writeClient } from './codegen/client'
 import { writeConfig } from './codegen/config'
+import { writeImportMap } from './codegen/import-map'
+import { writeManifest } from './codegen/manifest'
+import { createScaffold } from './codegen/scaffold'
+import { writeServer } from './codegen/server'
+
 import {
 	APP_DIR,
 	ASSETS_DIR,
@@ -20,18 +26,11 @@ import {
 
 import { Logger } from './shared/logger'
 
-import { writeServer } from './codegen/server'
 import { compress } from './server/compress'
 import { prerender } from './server/prerender'
 import { format } from './server/utils'
 
-import { writeClient } from './codegen/client'
-
 import { RouteProcessor } from './build/route-processor'
-
-import { writeImportMap } from './codegen/import-map'
-import { writeManifest } from './codegen/manifest'
-import { createScaffold } from './codegen/scaffold'
 
 import { debounce } from './utils'
 
