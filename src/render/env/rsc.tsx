@@ -26,6 +26,7 @@ export type RSCPayload = {
 	formState?: ReactFormState
 	root: React.ReactNode
 	driftPayload: string
+	metadata: Promise<Metadata> | undefined
 }
 
 export type DriftPayload = {
@@ -34,7 +35,6 @@ export type DriftPayload = {
 		params?: Record<string, string>
 		error?: HTTPException | Error
 	}
-	metadata: Metadata
 }
 
 export type UnparsedDriftPayload = string
@@ -69,14 +69,14 @@ export async function rsc(
 	const collection = new MetadataCollection(baseMetadata)
 
 	const metadata = match
-		? await match
+		? match
 				.metadata?.({ params: match.params, error: match.error })
 				.then(m =>
 					collection
 						.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
 						.run(),
 				)
-		: await collection
+		: collection
 				.add({
 					task: fallback.metadata({ error: NOT_FOUND }),
 					priority: METADATA_PRIORITY[EntryKind.ERROR],
@@ -90,7 +90,6 @@ export async function rsc(
 				params: match?.params,
 				error: match?.error,
 			},
-			metadata,
 		},
 		driftPayloadReducer,
 	)
@@ -104,6 +103,7 @@ export async function rsc(
 		returnValue,
 		formState,
 		driftPayload,
+		metadata,
 	}
 
 	return renderToReadableStream(rscPayload, { temporaryReferences })

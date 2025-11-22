@@ -1,12 +1,11 @@
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { use } from 'react'
 
-import * as devalue from 'devalue'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 import type { LinkTag, MetaTag, Metadata as TMetadata } from '../types'
 
 import { EntryKind } from '../config'
 
-import type { DriftPayload, UnparsedDriftPayload } from '../render/env/rsc'
 import { HTTPException, type Payload } from './error'
 
 type TEntryKind = typeof EntryKind
@@ -179,13 +178,9 @@ export class MetadataCollection {
 	}
 }
 
-export function Metadata({ driftPayload }: { driftPayload?: UnparsedDriftPayload }) {
-	if (!driftPayload) return null
-
-	const parsed = devalue.parse(driftPayload, payloadReviver)
-	if (!parsed) return null
-
-	const { metadata } = parsed as DriftPayload
+export function Metadata({ metadata: m }: { metadata?: Promise<TMetadata> }) {
+	if (!m) return null
+	const metadata = use(m)
 
 	return (
 		<>

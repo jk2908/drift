@@ -1,4 +1,4 @@
-import { use } from 'react'
+import { Suspense, use } from 'react'
 import type { ReactFormState } from 'react-dom/client'
 import { renderToReadableStream } from 'react-dom/server.edge'
 
@@ -34,7 +34,9 @@ export async function ssr(
 
 		return (
 			<RouterProvider>
-				<Metadata driftPayload={payload.driftPayload} />
+				<Suspense fallback={null}>
+					<Metadata metadata={payload.metadata} />
+				</Suspense>
 
 				{payload.root}
 			</RouterProvider>

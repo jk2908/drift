@@ -1,4 +1,11 @@
-import { StrictMode, useCallback, useEffect, useState, useTransition } from 'react'
+import {
+	StrictMode,
+	Suspense,
+	useCallback,
+	useEffect,
+	useState,
+	useTransition,
+} from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -42,7 +49,9 @@ export async function browser() {
 
 		return (
 			<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
-				<Metadata driftPayload={p.driftPayload} />
+				<Suspense fallback={null}>
+					<Metadata metadata={p.metadata} />
+				</Suspense>
 
 				{p.root}
 			</RouterProvider>
