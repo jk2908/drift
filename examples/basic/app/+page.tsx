@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { Link } from '@jk2908/drift/ui/link'
 
 import { Blue } from './blue'
+import { Red } from './red'
 
 //export const prerender = true
 
@@ -20,6 +21,8 @@ export default async function Page() {
 				<SuspendedComponent />
 			</Suspense>
 			<Link href="/profile">Go to Profile</Link>
+			<Link href="/?foo=bar&baz=qux">Go to Home with Search Params</Link>
+			<Red />
 		</div>
 	)
 }

@@ -1,8 +1,17 @@
 'use client'
 
-import { createContext, use, useCallback, useEffect, useMemo } from 'react'
+import {
+	createContext,
+	use,
+	useCallback,
+	useEffect,
+	useMemo,
+	useSyncExternalStore,
+} from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
+
+import { DriftEvent } from '../shared/events'
 
 import type { RSCPayload } from '../render/env/rsc'
 
@@ -20,11 +29,11 @@ const preloadCache = new Map<string, Promise<Response>>()
 export const RouterContext = createContext<{
 	go: (to: string, config?: GoConfig) => Promise<string>
 	preload: (path: string) => void
-	isPending: boolean
+	isNavigating: boolean
 }>({
 	go: () => Promise.resolve(''),
 	preload: () => {},
-	isPending: false,
+	isNavigating: false,
 })
 
 export function RouterProvider({
@@ -65,6 +74,8 @@ export function RouterProvider({
 			} else {
 				window.history.pushState(null, '', path)
 			}
+
+			window.dispatchEvent(new DriftEvent('navigation', { path }))
 		} catch {
 			// fail
 		} finally {
@@ -98,7 +109,7 @@ export function RouterProvider({
 		() => ({
 			go,
 			preload,
-			isPending: isNavigating,
+			isNavigating,
 		}),
 		[go, preload, isNavigating],
 	)
@@ -110,10 +121,22 @@ export function useRouter() {
 	return use(RouterContext)
 }
 
-export function useParams() {
-	// @todo
+function onNavigationSubscription(cb: () => void) {
+	window.addEventListener('popstate', cb)
+	window.addEventListener('driftnavigation', cb)
+
+	return () => {
+		window.removeEventListener('popstate', cb)
+		window.removeEventListener('driftnavigation', cb)
+	}
 }
 
 export function useSearchParams() {
-	// @todo
+	const search = useSyncExternalStore(
+		onNavigationSubscription,
+		() => window.location.search,
+		() => '',
+	)
+
+	return useMemo(() => new URLSearchParams(search), [search])
 }

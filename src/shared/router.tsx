@@ -32,8 +32,8 @@ import { PRIORITY } from './metadata'
  * @see {@link ImportMap} for the structure of the import map
  */
 export class Router {
-	static #enh = new Map<string, EnhancedMatch>()
-	static #mods = new WeakMap<
+	static #enhancedMatchCache = new Map<string, EnhancedMatch>()
+	static #moduleCache = new WeakMap<
 		DynamicImport,
 		{
 			p: Promise<Record<string, unknown>>
@@ -108,23 +108,23 @@ export class Router {
 	 * @returns the module entry
 	 */
 	static #load(loader: DynamicImport) {
-		let entry = Router.#mods.get(loader)
+		let entry = Router.#moduleCache.get(loader)
 		if (entry) return entry
 
 		const p = loader()
 			.then(mod => {
-				const entry = Router.#mods.get(loader)
+				const entry = Router.#moduleCache.get(loader)
 				if (entry) entry.v = mod
 
 				return mod
 			})
 			.catch(err => {
-				Router.#mods.delete(loader)
+				Router.#moduleCache.delete(loader)
 				throw err
 			})
 
 		entry = { p }
-		Router.#mods.set(loader, entry)
+		Router.#moduleCache.set(loader, entry)
 
 		return entry
 	}
@@ -232,7 +232,7 @@ export class Router {
 		if (!match) return null
 
 		const { __id } = match
-		const cached = Router.#enh.get(__id)
+		const cached = Router.#enhancedMatchCache.get(__id)
 
 		if (cached) {
 			Router.#logger?.debug('[enhance]', __id, 'CACHED')
@@ -446,7 +446,7 @@ export class Router {
 			return Promise.allSettled(tasks)
 		}
 
-		Router.#enh.set(__id, enhanced)
+		Router.#enhancedMatchCache.set(__id, enhanced)
 
 		return enhanced
 	}

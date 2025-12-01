@@ -27,9 +27,9 @@ export function handle() {
 		)
 		.get('/', async c => rsc(c.req.raw))
 		.get('/posts', async c => {
-			const accept = c.req.header('Accept') ?? ''
+			const accept = c.req.header('accept') ?? ''
 
-			if (accept.includes('text/html')) {
+			if (accept.includes('text/html') || accept.includes('text/x-component')) {
 				return rsc(c.req.raw)
 			}
 

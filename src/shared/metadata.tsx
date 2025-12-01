@@ -180,6 +180,7 @@ export class MetadataCollection {
 
 export function Metadata({ metadata: m }: { metadata?: Promise<TMetadata> }) {
 	if (!m) return null
+	// @todo; handle errors
 	const metadata = use(m)
 
 	return (

@@ -1,23 +1,24 @@
 import { Suspense } from 'react'
 
-import { Yellow } from '../yellow'
-import { Blue } from '../blue'
+import { redirect } from '@jk2908/drift/shared/redirect'
 
+import { Blue } from '../blue'
+import { Yellow } from '../yellow'
 
 export const metadata = async () => ({
-  title: 'Profile Page',
+	title: 'Profile Page',
 })
 
 export default function Page() {
-  return (
-    <>
-      I am the profile page
+	redirect(300, '/')
 
-      <Suspense fallback={<div>Loading...</div>}>
-        <Yellow />
-      </Suspense>
-
-      <Blue />
-    </>
-  )
+	return (
+		<>
+			I am the profile page
+			<Suspense fallback={<div>Loading...</div>}>
+				<Yellow />
+			</Suspense>
+			<Blue />
+		</>
+	)
 }

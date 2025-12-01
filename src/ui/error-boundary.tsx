@@ -2,6 +2,7 @@ import { Component } from 'react'
 
 type Props = {
 	fallback: ((err: Error, reset: () => void) => React.ReactNode) | React.ReactNode
+	onError?: (error: Error) => void
 	onReset?: () => void
 	children: React.ReactNode
 }
@@ -31,14 +32,17 @@ export class ErrorBoundary extends Component<
 		return { error }
 	}
 
+	componentDidCatch(error: Error) {
+		this.props.onError?.(error)
+	}
+
 	reset() {
 		this.props.onReset?.()
-		this.state.error && this.setState({ error: null })
+		if (this.state.error) this.setState({ error: null })
 	}
 
 	render() {
 		const { error } = this.state
-
 		if (!error) return this.props.children
 
 		return typeof this.props.fallback === 'function'

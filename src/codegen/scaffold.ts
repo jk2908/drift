@@ -51,9 +51,7 @@ export async function createScaffold() {
             returnValue: undefined,
           }
 
-          if (req.method === 'POST') {
-            opts = await action(req)
-          }
+          if (req.method === 'POST') opts = await action(req)
 
           const rscStream = await rsc(
             req, 
@@ -81,7 +79,7 @@ export async function createScaffold() {
           )
 
           const htmlStream = await mod.ssr(rscStream, opts?.formState)
-          
+                    
           return new Response(htmlStream, {
             headers: {
               'Content-Type': 'text/html',

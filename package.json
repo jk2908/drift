@@ -15,8 +15,9 @@
 		"rsc-html-stream": "^0.0.7"
 	},
 	"devDependencies": {
-		"@types/bun": "latest",
 		"@biomejs/biome": "^2.1.1",
+		"@types/bun": "latest",
+		"@types/dom-navigation": "^1.0.6",
 		"bunchee": "^6.5.4"
 	},
 	"peerDependencies": {

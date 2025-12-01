@@ -61,9 +61,9 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
 
 						return `.get('/${route.split('/').pop()}', async c => {
-              const accept = c.req.header('Accept') ?? ''
+              const accept = c.req.header('accept') ?? ''
 
-              if (accept.includes('text/html')) {
+              if (accept.includes('text/html') || accept.includes('text/x-component')) {
                 return rsc(c.req.raw)
               }
 
