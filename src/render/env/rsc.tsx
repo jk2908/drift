@@ -53,7 +53,6 @@ export type UnparsedDriftPayload = string
  */
 export async function rsc(
 	req: Request,
-	Shell: ({ children }: { children: React.ReactNode }) => React.ReactNode,
 	manifest: Manifest,
 	importMap: ImportMap,
 	baseMetadata?: Metadata,
@@ -96,9 +95,9 @@ export async function rsc(
 
 	const rscPayload: RSCPayload = {
 		root: (
-			<Shell>
+			<>
 				{match ? <Tree params={match.params} error={match.error} ui={match.ui} /> : null}
-			</Shell>
+			</>
 		),
 		returnValue,
 		formState,

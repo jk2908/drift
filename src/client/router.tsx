@@ -52,38 +52,42 @@ export function RouterProvider({
 	 * @param goConfig.replace - whether to replace the current history entry (default: false)
 	 * @returns the new path
 	 */
-	const go = useCallback(async (to: string, goConfig?: GoConfig) => {
-		const url = new URL(to, window.location.origin)
-		const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
-		const path = url.pathname + url.search + url.hash
+	const go = useCallback(
+		async (to: string, goConfig?: GoConfig) => {
+			const url = new URL(to, window.location.origin)
+			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
+			const path = url.pathname + url.search + url.hash
 
-		try {
-			const promise =
-				preloadCache.get(path) ?? fetch(path, { headers: { accept: 'text/x-component' } })
+			try {
+				const promise =
+					preloadCache.get(path) ??
+					fetch(path, { headers: { accept: 'text/x-component' } })
 
-			if (!preloadCache.has(path)) preloadCache.set(path, promise)
+				if (!preloadCache.has(path)) preloadCache.set(path, promise)
 
-			const res = await createFromFetch<RSCPayload>(promise)
+				const res = await createFromFetch<RSCPayload>(promise)
 
-			// this state update is already wrapped in a
-			// transition before being passed as props
-			setPayload?.(res)
+				// this state update is already wrapped in a
+				// transition before being passed as props
+				setPayload?.(res)
 
-			if (replace) {
-				window.history.replaceState(null, '', path)
-			} else {
-				window.history.pushState(null, '', path)
+				if (replace) {
+					window.history.replaceState(null, '', path)
+				} else {
+					window.history.pushState(null, '', path)
+				}
+
+				window.dispatchEvent(new DriftEvent('navigation', { path }))
+			} catch {
+				// fail
+			} finally {
+				preloadCache.delete(path)
 			}
 
-			window.dispatchEvent(new DriftEvent('navigation', { path }))
-		} catch {
-			// fail
-		} finally {
-			preloadCache.delete(path)
-		}
-
-		return path
-	}, [])
+			return path
+		},
+		[setPayload],
+	)
 
 	/**
 	 * Preload a route's assets by fetching the RSC payload
@@ -103,7 +107,7 @@ export function RouterProvider({
 		return () => {
 			window.removeEventListener('popstate', handler)
 		}
-	}, [])
+	}, [go])
 
 	const value = useMemo(
 		() => ({

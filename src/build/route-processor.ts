@@ -12,7 +12,13 @@ import {
 } from '../server/prerender'
 
 export type ScanResult = {
-	pages: { page: string; layouts: string[]; shell: string; error?: string }[]
+	pages: {
+		page: string
+		layouts: string[]
+		shell: string
+		error?: string
+		loaders?: (string | null)[]
+	}[]
 	endpoints: string[]
 }
 
@@ -28,6 +34,7 @@ export type Modules = Record<
 		layoutIds?: string[]
 		pageId?: string
 		errorId?: string
+		loaderIds?: (string | null)[]
 		endpointId?: string
 	}
 >
@@ -66,13 +73,17 @@ export class RouteProcessor {
 	 * Scan the filesystem to get all routes for processing
 	 * @param dir - the directory to scan
 	 * @param res - the result object to populate
-	 * @param prev - the previous layout and error results
+	 * @param prev - the previous layout, error and loading results
 	 * @returns a result object containing page and API routes
 	 */
 	async #scan(
 		dir: string,
 		res: ScanResult = { pages: [], endpoints: [] },
-		prev: { layouts: string[]; errors: string[] } = { layouts: [], errors: [] },
+		prev: { layouts: string[]; errors: string[]; loaders: (string | null)[] } = {
+			layouts: [],
+			errors: [],
+			loaders: [],
+		},
 	) {
 		try {
 			const files = await fs.readdir(dir, { withFileTypes: true })
@@ -85,35 +96,46 @@ export class RouteProcessor {
 				return 0
 			})
 
+			// define valid route files
 			const EXTENSIONS = {
 				page: ['tsx', 'jsx'],
 				api: ['ts', 'js'],
 			} as const
 
+			// define route file types
 			const TYPES = {
 				page: '+page',
 				error: '+error',
 				layout: '+layout',
+				loading: '+loading',
 				api: '+api',
 			} as const
 
+			// map of valid files for each type
 			const validFiles = {
 				[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
 				[TYPES.error]: new Set(EXTENSIONS.page.map(ext => `${TYPES.error}.${ext}`)),
+				[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
 				[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
 				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)),
 			}
 
-			let currLayout: string | undefined
-			let currError: string | undefined
+			// current layout, error, and loader files
+			let currentLayout: string | undefined
+			let currentError: string | undefined
+			let currentLoader: string | undefined
 
 			for (const file of files) {
 				const route = path.join(dir, file.name)
 
 				if (file.isDirectory()) {
 					const next = {
-						layouts: currLayout ? [...prev.layouts, currLayout] : prev.layouts,
-						errors: currError ? [...prev.errors, currError] : prev.errors,
+						layouts: currentLayout ? [...prev.layouts, currentLayout] : prev.layouts,
+						errors: currentError ? [...prev.errors, currentError] : prev.errors,
+						// loaders align positionally with layouts (including shell); use null when absent
+						loaders: currentLayout
+							? [...prev.loaders, currentLoader ?? null]
+							: prev.loaders,
 					}
 
 					await this.#scan(route, res, next)
@@ -122,14 +144,21 @@ export class RouteProcessor {
 					const relative = path.relative(process.cwd(), route).replace(/\\/g, '/')
 
 					if (validFiles[TYPES.layout].has(base)) {
-						currLayout = relative
+						currentLayout = relative
 					} else if (validFiles[TYPES.error].has(base)) {
-						currError = relative
+						currentError = relative
+					} else if (validFiles[TYPES.loading].has(base)) {
+						currentLoader = relative
 					} else if (validFiles[TYPES.api].has(base)) {
 						res.endpoints.push(relative)
 					} else if (validFiles[TYPES.page].has(base)) {
-						const layouts = currLayout ? [...prev.layouts, currLayout] : prev.layouts
-						const errors = currError ? [...prev.errors, currError] : prev.errors
+						const layouts = currentLayout
+							? [...prev.layouts, currentLayout]
+							: prev.layouts
+						const errors = currentError ? [...prev.errors, currentError] : prev.errors
+						const loaders = currentLayout
+							? [...prev.loaders, currentLoader ?? null]
+							: prev.loaders
 						const shell = layouts?.[0]
 
 						if (!shell) throw new Error('!Shell')
@@ -137,6 +166,7 @@ export class RouteProcessor {
 						res.pages.push({
 							page: relative,
 							error: errors?.[errors?.length - 1],
+							loaders,
 							layouts: layouts.length > 1 ? layouts.slice(1) : [],
 							shell,
 						})
@@ -166,6 +196,7 @@ export class RouteProcessor {
 
 		const manifest: Record<string, Page | Endpoint | (Page | Endpoint)[]> = {}
 
+		// imports for endpoints and components
 		const imports: Imports = {
 			endpoints: { static: new Map() },
 			components: { static: new Map(), dynamic: new Map() },
@@ -178,7 +209,7 @@ export class RouteProcessor {
 			try {
 				if (!this.ctx || !this.config) continue
 
-				const { shell, layouts, page, error } = file
+				const { shell, layouts, page, error, loaders = [] } = file
 
 				const route = RouteProcessor.toCanonicalRoute(page)
 				const params = RouteProcessor.getParams(page)
@@ -186,6 +217,7 @@ export class RouteProcessor {
 				const isDynamic = route.includes(':')
 				const isCatchAll = route.includes('*')
 
+				// track if any parent is prerenderable
 				let hasInheritedPrerender = false
 
 				const shellImport = RouteProcessor.getImportPath(shell)
@@ -193,7 +225,9 @@ export class RouteProcessor {
 				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 				const layoutIds: string[] = []
 				let errorId: string | undefined
+				const loaderIds: (string | null)[] = []
 
+				// if shell not processed yet
 				if (!processed.has(shell)) {
 					let cached = prerenderableCache.get(shell)
 
@@ -233,12 +267,36 @@ export class RouteProcessor {
 					}
 				}
 
-				if (error && !processed.has(error)) {
+				if (error) {
 					const errorImport = RouteProcessor.getImportPath(error)
 					errorId = `${EntryKind.ERROR}${Bun.hash(errorImport)}`
 
-					imports.components.dynamic.set(errorId, errorImport)
-					processed.add(error)
+					// dedupe imports but keep the id for every
+					// route that declares this error boundary
+					if (!processed.has(error)) {
+						imports.components.dynamic.set(errorId, errorImport)
+						processed.add(error)
+					}
+				}
+
+				for (const loader of loaders) {
+					// hole if level does not declare a loader
+					if (!loader) {
+						loaderIds.push(null)
+						continue
+					}
+
+					const loaderImport = RouteProcessor.getImportPath(loader)
+					const loaderId = `${EntryKind.LOADING}${Bun.hash(loaderImport)}`
+
+					loaderIds.push(loaderId)
+
+					// dedupe imports but keep the id for every
+					// route that declares this loader
+					if (!processed.has(loader)) {
+						imports.components.dynamic.set(loaderId, loaderImport)
+						processed.add(loader)
+					}
 				}
 
 				const pageImport = RouteProcessor.getImportPath(page)
@@ -290,6 +348,7 @@ export class RouteProcessor {
 						shell,
 						layouts,
 						error: error ?? null,
+						loaders,
 					},
 					shouldPrerender,
 					isDynamic,
@@ -307,7 +366,7 @@ export class RouteProcessor {
 				}
 
 				imports.components.dynamic.set(pageId, pageImport)
-				modules[pageId] = { shellId, layoutIds, pageId, errorId }
+				modules[pageId] = { shellId, layoutIds, pageId, errorId, loaderIds }
 				processed.add(page)
 			} catch (err) {
 				this.ctx?.logger.error('[process]: failed to process page', err)

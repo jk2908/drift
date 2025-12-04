@@ -15,31 +15,39 @@ export function Tree({
 	error: Match['error']
 	ui: Match['ui']
 }) {
-	const { layouts, Page, Err } = ui
+	const { Shell, layouts, Page, Err, loaders = [] } = ui
+
+	if (!Shell) throw new Error('Missing app shell')
 
 	const initial = error ? (
 		Err ? (
-			<Suspense fallback={null}>
-				<Err error={error} />
-			</Suspense>
+			<Err error={error} />
 		) : (
 			<Fallback error={error} />
 		)
 	) : Page ? (
-		<Suspense fallback={null}>
-			<Page params={params} />
-		</Suspense>
+		<Page params={params} />
 	) : null
 
-	if (!layouts?.length) return initial
+	const ShellLoading = loaders[0]
 
-	return layouts.reduce((child, Layout, idx) => {
-		const key = `l:${idx}`
+	return (
+		<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
+			<Shell>
+				{layouts?.length
+					? layouts.reduce((child, Layout, idx) => {
+							const key = `l:${idx}`
+							// account for zero index shell loader
+							const Loading = loaders[idx + 1]
 
-		return (
-			<Suspense key={key} fallback={null}>
-				<Layout params={params}>{child}</Layout>
-			</Suspense>
-		)
-	}, initial)
+							return (
+								<Suspense key={key} fallback={Loading ? <Loading /> : null}>
+									<Layout params={params}>{child}</Layout>
+								</Suspense>
+							)
+						}, initial)
+					: initial}
+			</Shell>
+		</Suspense>
+	)
 }

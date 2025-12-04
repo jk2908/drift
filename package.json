@@ -21,12 +21,12 @@
 		"bunchee": "^6.5.4"
 	},
 	"peerDependencies": {
-		"@types/react": "latest",
-		"@types/react-dom": "latest",
-		"@vitejs/plugin-rsc": "latest",
-		"react": "latest",
-		"react-dom": "latest",
-		"react-server-dom-webpack": "^19.2.0",
+		"@types/react": "^19.2.1",
+		"@types/react-dom": "^19.2.1",
+		"@vitejs/plugin-rsc": "^0.5.5",
+		"react": "^19.2.1",
+		"react-dom": "^19.2.1",
+		"react-server-dom-webpack": "^19.2.1",
 		"typescript": "^5.8.3",
 		"vite": "^7.2.4"
 	},

@@ -14,5 +14,6 @@ export const EntryKind = {
 	LAYOUT: '$L',
 	PAGE: '$P',
 	ERROR: '$ERR',
+	LOADING: '$LOAD',
 	ENDPOINT: '$E',
 } as const

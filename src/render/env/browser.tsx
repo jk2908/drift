@@ -45,7 +45,7 @@ export async function browser() {
 			// server callback to update payload after
 			// action execution
 			setPayload = setPayloadInTransition
-		}, [])
+		}, [setPayloadInTransition])
 
 		return (
 			<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>

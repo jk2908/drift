@@ -263,6 +263,7 @@ export class Router {
 				layouts: [],
 				Page: null,
 				Err: null,
+				loaders: [],
 			},
 			...match,
 		}
@@ -288,6 +289,14 @@ export class Router {
 		// is thrown
 		if (entry.error && 'error' in match && match.error) {
 			enhanced.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(entry.error)
+		}
+
+		// each route can display a loading component whilst layouts
+		// are suspended - not inherited like other components
+		if (entry.loaders?.length) {
+			enhanced.ui.loaders = entry.loaders.map(l =>
+				l ? Router.#view<NonNullable<EnhancedMatch['ui']['loaders'][number]>>(l) : null,
+			)
 		}
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
@@ -515,6 +524,12 @@ export class Router {
 
 		if (imports.page) loads.push(Router.#load(imports.page).p)
 		if (imports.error) loads.push(Router.#load(imports.error).p)
+		if (imports.loaders?.length) {
+			for (const loader of imports.loaders) {
+				if (!loader) continue
+				loads.push(Router.#load(loader).p)
+			}
+		}
 
 		return await Promise.allSettled(loads)
 	}

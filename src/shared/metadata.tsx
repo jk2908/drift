@@ -18,6 +18,7 @@ export const PRIORITY: Record<MetadataSource, number> = {
 	[EntryKind.LAYOUT]: 20,
 	[EntryKind.PAGE]: 30,
 	[EntryKind.ERROR]: 40,
+	[EntryKind.LOADING]: 50,
 } as const
 
 export class MetadataCollection {

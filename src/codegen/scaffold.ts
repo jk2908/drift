@@ -1,13 +1,6 @@
 import path from 'node:path'
 
-import {
-	APP_DIR,
-	ENTRY_BROWSER,
-	ENTRY_RSC,
-	ENTRY_SSR,
-	GENERATED_DIR,
-	PKG_NAME,
-} from '../config'
+import { ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR, PKG_NAME } from '../config'
 
 import { AUTO_GEN_MSG } from './utils'
 
@@ -19,7 +12,6 @@ export async function createScaffold() {
 	const cwd = process.cwd()
 
 	const generatedDir = path.join(cwd, GENERATED_DIR)
-	const shellImport = `../${APP_DIR}/+layout`
 
 	const scaffold: Promise<number>[] = []
 
@@ -38,8 +30,6 @@ export async function createScaffold() {
         import { config } from './config'
         import { handle } from './server'
 
-        import Shell from '${shellImport}'
-
         export async function handler(req: Request) {
           let opts: {
             formState?: ReactFormState
@@ -55,7 +45,6 @@ export async function createScaffold() {
 
           const rscStream = await rsc(
             req, 
-            Shell, 
             manifest, 
             importMap, 
             config.metadata, 
