@@ -79,6 +79,7 @@ export type Page = {
 		shell: string
 		layouts?: string[]
 		error?: string | null
+		loaders?: (string | null)[]
 	}
 	error?: HTTPException
 	shouldPrerender: boolean

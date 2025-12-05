@@ -1,3 +1,4 @@
+import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -34,7 +35,7 @@ export type Modules = Record<
 		layoutIds?: string[]
 		pageId?: string
 		errorId?: string
-		loaderIds?: (string | null)[]
+		loadingIds?: (string | null)[]
 		endpointId?: string
 	}
 >
@@ -86,16 +87,6 @@ export class RouteProcessor {
 		},
 	) {
 		try {
-			const files = await fs.readdir(dir, { withFileTypes: true })
-
-			// process directories after files to ensure
-			// +layout is found first
-			files.sort((a, b) => {
-				if (a.isFile() && b.isDirectory()) return -1
-				if (a.isDirectory() && b.isFile()) return 1
-				return 0
-			})
-
 			// define valid route files
 			const EXTENSIONS = {
 				page: ['tsx', 'jsx'],
@@ -120,6 +111,34 @@ export class RouteProcessor {
 				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)),
 			}
 
+			const files = await fs.readdir(dir, { withFileTypes: true })
+
+			// keep a predictable order so layout/loading are picked
+			// up before page. Avoids OS dir ordering causing pages
+			// to steal layout/loaders first and drop alignment
+			files.sort((a, b) => {
+				if (a.isFile() && b.isDirectory()) return -1
+				if (a.isDirectory() && b.isFile()) return 1
+
+				if (a.isFile() && b.isFile()) {
+					const priority = (d: Dirent) => {
+						const base = path.basename(d.name)
+
+						if (validFiles[TYPES.layout].has(base)) return 0
+						if (validFiles[TYPES.error].has(base)) return 1
+						if (validFiles[TYPES.loading].has(base)) return 2
+						if (validFiles[TYPES.page].has(base)) return 3
+						if (validFiles[TYPES.api].has(base)) return 4
+
+						return 5
+					}
+
+					return priority(a) - priority(b)
+				}
+
+				return 0
+			})
+
 			// current layout, error, and loader files
 			let currentLayout: string | undefined
 			let currentError: string | undefined
@@ -132,7 +151,8 @@ export class RouteProcessor {
 					const next = {
 						layouts: currentLayout ? [...prev.layouts, currentLayout] : prev.layouts,
 						errors: currentError ? [...prev.errors, currentError] : prev.errors,
-						// loaders align positionally with layouts (including shell); use null when absent
+						// loaders align positionally with layouts inc. shell.
+						// Keep holes as nulls so later levels stay in place
 						loaders: currentLayout
 							? [...prev.loaders, currentLoader ?? null]
 							: prev.loaders,
@@ -161,7 +181,7 @@ export class RouteProcessor {
 							: prev.loaders
 						const shell = layouts?.[0]
 
-						if (!shell) throw new Error('!Shell')
+						if (!shell) throw new Error('Missing app shell')
 
 						res.pages.push({
 							page: relative,
@@ -225,7 +245,7 @@ export class RouteProcessor {
 				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 				const layoutIds: string[] = []
 				let errorId: string | undefined
-				const loaderIds: (string | null)[] = []
+				const loadingIds: (string | null)[] = []
 
 				// if shell not processed yet
 				if (!processed.has(shell)) {
@@ -244,26 +264,25 @@ export class RouteProcessor {
 					hasInheritedPrerender =
 						hasInheritedPrerender || (prerenderableCache.get(shell) ?? false)
 				}
-
 				for (const layout of layouts) {
+					const layoutImport = RouteProcessor.getImportPath(layout)
+					const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
+
+					let cached = prerenderableCache.get(layout)
+
+					if (cached === undefined) {
+						cached = await isPrerenderable(layout, this.ctx)
+						prerenderableCache.set(layout, cached)
+					}
+
+					hasInheritedPrerender ||= cached
+					// always record chain. Only imports are deduped
+					layoutIds.push(layoutId)
+
+					// avoid re-importing seen layouts
 					if (!processed.has(layout)) {
-						const layoutImport = RouteProcessor.getImportPath(layout)
-						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
-
-						let cached = prerenderableCache.get(layout)
-
-						if (cached === undefined) {
-							cached = await isPrerenderable(layout, this.ctx)
-							prerenderableCache.set(layout, cached)
-						}
-
-						hasInheritedPrerender ||= cached
-
-						layoutIds.push(layoutId)
 						imports.components.dynamic.set(layoutId, layoutImport)
 						processed.add(layout)
-					} else {
-						hasInheritedPrerender ||= prerenderableCache.get(layout) ?? false
 					}
 				}
 
@@ -280,19 +299,19 @@ export class RouteProcessor {
 				}
 
 				for (const loader of loaders) {
-					// hole if level does not declare a loader
+					// hole if level does not declare a loader.
+					// Keep slot so indices match layouts
 					if (!loader) {
-						loaderIds.push(null)
+						loadingIds.push(null)
 						continue
 					}
 
 					const loaderImport = RouteProcessor.getImportPath(loader)
 					const loaderId = `${EntryKind.LOADING}${Bun.hash(loaderImport)}`
 
-					loaderIds.push(loaderId)
+					loadingIds.push(loaderId)
 
-					// dedupe imports but keep the id for every
-					// route that declares this loader
+					// dedupe imports but still assign the slot for this route
 					if (!processed.has(loader)) {
 						imports.components.dynamic.set(loaderId, loaderImport)
 						processed.add(loader)
@@ -366,7 +385,7 @@ export class RouteProcessor {
 				}
 
 				imports.components.dynamic.set(pageId, pageImport)
-				modules[pageId] = { shellId, layoutIds, pageId, errorId, loaderIds }
+				modules[pageId] = { shellId, layoutIds, pageId, errorId, loadingIds }
 				processed.add(page)
 			} catch (err) {
 				this.ctx?.logger.error('[process]: failed to process page', err)

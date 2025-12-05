@@ -32,6 +32,11 @@ export function writeImportMap(imports: Imports, modules: Modules) {
 		if (m.endpointId) parts.push(`endpoint: ${m.endpointId}`)
 		if (m.errorId) parts.push(`error: ${m.errorId}`)
 
+		if (m.loadingIds?.length) {
+			const loaders = m.loadingIds.map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`loaders: [${loaders}]`)
+		}
+
 		return `${key(id)}: { ${parts.join(', ')} }`
 	})
 

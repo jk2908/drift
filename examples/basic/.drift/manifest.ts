@@ -93,7 +93,7 @@ export const manifest = {
 			shell: 'app/+layout.tsx',
 			layouts: ['app/about/+layout.tsx', 'app/about/me/+layout.tsx'],
 			error: null,
-			loaders: [null, null, null],
+			loaders: [null, null, 'app/about/me/+loading.tsx'],
 		},
 		shouldPrerender: true,
 		isDynamic: false,
