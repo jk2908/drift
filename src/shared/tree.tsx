@@ -19,10 +19,6 @@ export function Tree({
 
 	if (!Shell) throw new Error('Missing app shell')
 
-	const expectShellLoader = loaders.length === (layouts?.length ?? 0) + 1
-	const ShellLoader = expectShellLoader ? loaders[0] : null
-	const layoutLoaders = expectShellLoader ? loaders.slice(1) : loaders
-
 	const initial = error ? (
 		Err ? (
 			<Err error={error} />
@@ -33,13 +29,16 @@ export function Tree({
 		<Page params={params} />
 	) : null
 
+	const ShellLoading = loaders[0]
+
 	return (
-		<Suspense fallback={ShellLoader ? <ShellLoader /> : null}>
+		<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
 			<Shell>
 				{layouts?.length
 					? layouts.reduce((child, Layout, idx) => {
 							const key = `l:${idx}`
-							const Loading = layoutLoaders[idx]
+							// account for shell loader at index 0
+							const Loading = loaders[idx + 1]
 
 							return (
 								<Suspense key={key} fallback={Loading ? <Loading /> : null}>
