@@ -7,7 +7,9 @@ export function Blue() {
 
 	return (
 		<div style={{ backgroundColor: 'blue', width: '100px', height: '100px' }}>
-			<button onClick={() => setCount(count + 1)}>Count: {count}</button>
+			<button type="button" onClick={() => setCount(count + 1)}>
+				Count: {count}
+			</button>
 		</div>
 	)
 }

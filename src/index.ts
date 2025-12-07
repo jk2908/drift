@@ -8,12 +8,11 @@ import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
 
-import { writeClient } from './codegen/client'
 import { writeConfig } from './codegen/config'
+import { createEntries } from './codegen/entries'
 import { writeImportMap } from './codegen/import-map'
 import { writeManifest } from './codegen/manifest'
-import { createScaffold } from './codegen/scaffold'
-import { writeServer } from './codegen/server'
+import { writeRouter } from './codegen/router'
 
 import {
 	APP_DIR,
@@ -112,9 +111,8 @@ function drift(c: PluginConfig): PluginOption[] {
 				path.join(generatedDir, 'import-map.ts'),
 				writeImportMap(imports, modules),
 			),
-			Bun.write(path.join(generatedDir, 'server.tsx'), writeServer(manifest, imports)),
-			Bun.write(path.join(generatedDir, 'client.tsx'), writeClient()),
-			...(await createScaffold()),
+			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
+			...(await createEntries()),
 		])
 
 		// format generated files, avoid stopping build on errors

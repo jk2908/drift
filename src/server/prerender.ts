@@ -1,5 +1,3 @@
-import type { Hono } from 'hono'
-
 import type { BuildContext } from '../types'
 
 /**

@@ -13,7 +13,7 @@ import { AUTO_GEN_MSG } from './utils'
  * @param imports - the imported modules
  * @returns the stringified code
  */
-export function writeServer(manifest: Manifest, imports: Imports) {
+export function writeRouter(manifest: Manifest, imports: Imports) {
 	const handlers = createHandlerGroups(manifest)
 
 	return `
@@ -22,6 +22,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
     /// <reference types="bun" />
 
     import { Hono } from 'hono'
+    import { hc } from 'hono/client'
     import { serveStatic } from 'hono/bun'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
@@ -36,7 +37,11 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 			})
 			.join('\n')}
 
-    export function handle() {
+    /**
+     * Creates a Hono app instance with all routes and handlers wired up
+     * @returns the Hono app
+     */
+    export function createRouter() {
       return new Hono()
         .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         .use(
@@ -49,7 +54,7 @@ export function writeServer(manifest: Manifest, imports: Imports) {
             precompressed: config.precompress,
           }))
         ${[...handlers.entries()]
-					.map(([route, group]) => {
+					.map(([, group]) => {
 						if (!Array.isArray(group)) {
 							return group.__kind === EntryKind.PAGE
 								? `.${group.method}('${group.__path}', async c => rsc(c.req.raw))`
@@ -59,8 +64,9 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 						if (group.length > 2) throw new Error('Unexpected group length')
 
 						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
+						const path = group[0].__path
 
-						return `.get('/${route.split('/').pop()}', async c => {
+						return `.get('${path}', async c => {
               const accept = c.req.header('accept') ?? ''
 
               if (accept.includes('text/html') || accept.includes('text/x-component')) {
@@ -81,7 +87,8 @@ export function writeServer(manifest: Manifest, imports: Imports) {
         .notFound(c => rsc(c.req.raw))
     }
 
-    export type App = ReturnType<typeof handle>
+    export type App = ReturnType<typeof createRouter>    
+    export const client = hc<App>(config.app?.url ?? import.meta.env.VITE_APP_URL)
   `.trim()
 }
 

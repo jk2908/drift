@@ -5,10 +5,10 @@ import { ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR, PKG_NAME } from '..
 import { AUTO_GEN_MSG } from './utils'
 
 /**
- * Generates the essential scaffold files required to run the application
- * @returns a promise that resolves when the scaffold files have been created
+ * Scaffolds entry files for RSC, SSR and browser environments
+ * @returns a promise that resolves when the files have been created
  */
-export async function createScaffold() {
+export async function createEntries() {
 	const cwd = process.cwd()
 
 	const generatedDir = path.join(cwd, GENERATED_DIR)
@@ -28,7 +28,7 @@ export async function createScaffold() {
         import { manifest } from './manifest'
         import { importMap } from './import-map'
         import { config } from './config'
-        import { handle } from './server'
+        import { createRouter } from './router'
 
         export async function handler(req: Request) {
           let opts: {
@@ -79,7 +79,8 @@ export async function createScaffold() {
 
         import.meta.hot?.accept()
 
-        export default handle()
+        // this is the rsc entrypoint
+        export default createHonoRouter()
       `.trim(),
 		),
 	)
