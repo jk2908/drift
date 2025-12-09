@@ -46,6 +46,7 @@ export async function ssr(
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
 	)
+
 	const htmlStream = await renderToReadableStream(<A />, {
 		bootstrapScriptContent,
 		nonce,

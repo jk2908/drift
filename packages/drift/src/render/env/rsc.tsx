@@ -105,7 +105,9 @@ export async function rsc(
 		metadata,
 	}
 
-	return renderToReadableStream(rscPayload, { temporaryReferences })
+	return renderToReadableStream(rscPayload, {
+		temporaryReferences,
+	})
 }
 
 export async function action(req: Request) {

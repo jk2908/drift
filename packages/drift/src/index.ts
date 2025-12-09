@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { loadEnv, type PluginOption } from 'vite'
+import { type PluginOption } from 'vite'
 
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
@@ -43,8 +43,6 @@ const DEFAULT_CONFIG = {
 function drift(c: PluginConfig): PluginOption[] {
 	const config = { ...DEFAULT_CONFIG, ...c }
 
-	if (!config.ctx) throw new Error('Vite context is required to be passed to the plugin')
-
 	config.app = {
 		...(config.app ?? {}),
 		// @todo: runtime validation
@@ -58,18 +56,14 @@ function drift(c: PluginConfig): PluginOption[] {
 	config.logger = {
 		...(config.logger ?? {}),
 		level:
-			config.logger?.level ??
-			(config.ctx?.mode === 'production' ||
-			import.meta.env.PROD ||
-			process.env.NODE_ENV === 'production'
+			(config.logger?.level ??
+			(import.meta.env.PROD || process.env.NODE_ENV === 'production'))
 				? 'error'
-				: 'debug'),
+				: 'debug',
 	}
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger(config.logger.level)
-
-	const env = loadEnv(config.ctx.mode, process.cwd(), '')
 
 	const buildCtx: BuildContext = {
 		outDir: config.outDir,
@@ -169,7 +163,7 @@ function drift(c: PluginConfig): PluginOption[] {
 				})
 		},
 		async writeBundle(options, output) {
-			if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
+			if (process.env.NODE_ENV === 'development') return
 
 			try {
 				const viteManifest = Bun.file(
@@ -211,7 +205,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			}
 		},
 		async closeBundle() {
-			if (config.ctx.mode === 'client' || env.NODE_ENV === 'development') return
+			if (process.env.NODE_ENV === 'development') return
 
 			try {
 				if (buildCtx.prerenders.size > 0) {
@@ -313,12 +307,6 @@ function drift(c: PluginConfig): PluginOption[] {
 			},
 		}),
 		react(),
-		/*
-		devServer({
-			adapter: bunAdapter(),
-			entry: `./${GENERATED_DIR}/${ENTRY_SSR}`,
-			injectClientScript: false,
-		}),*/
 	]
 }
 

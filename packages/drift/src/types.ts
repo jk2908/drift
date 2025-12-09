@@ -1,5 +1,3 @@
-import type { ConfigEnv } from 'vite'
-
 import type { Context } from 'hono'
 import type { HTTPException } from 'hono/http-exception'
 
@@ -12,7 +10,6 @@ import type { Router } from './shared/router'
 import type { RouteProcessor } from './build/route-processor'
 
 export type PluginConfig = {
-	ctx: ConfigEnv
 	app?: {
 		url?: `http://${string}` | `https://${string}`
 	}

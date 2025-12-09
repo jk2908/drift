@@ -30,7 +30,7 @@ export async function createEntries() {
         import { config } from './config'
         import { createRouter } from './router'
 
-        export async function handler(req: Request) {
+        export async function handler(req: Request) { 
           let opts: {
             formState?: ReactFormState
             temporaryReferences?: unknown
@@ -80,7 +80,7 @@ export async function createEntries() {
         import.meta.hot?.accept()
 
         // this is the rsc entrypoint
-        export default createHonoRouter()
+        export default createRouter()
       `.trim(),
 		),
 	)

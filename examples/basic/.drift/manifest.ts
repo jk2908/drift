@@ -123,9 +123,9 @@ export const manifest = {
 		method: 'get',
 		paths: {
 			shell: 'app/+layout.tsx',
-			layouts: [],
+			layouts: ['app/profile/+layout.tsx'],
 			error: null,
-			loaders: [null],
+			loaders: [null, null],
 		},
 		shouldPrerender: false,
 		isDynamic: false,

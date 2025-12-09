@@ -8,7 +8,7 @@
 		"preview": "bun --env-file=.env.preview --port=8787 --inspect --no-cache \"dist/index.js\""
 	},
 	"dependencies": {
-		"@jk2908/drift": "link:@jk2908/drift",
+		"@jk2908/drift": "workspace:*",
 		"@vitejs/plugin-rsc": "latest",
 		"react": "^19.2.1",
 		"react-dom": "^19.2.1",
