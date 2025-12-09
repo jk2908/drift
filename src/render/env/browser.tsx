@@ -1,138 +1,96 @@
-import { StrictMode } from 'react'
-import { createRoot, hydrateRoot } from 'react-dom/client'
+import {
+	StrictMode,
+	Suspense,
+	useCallback,
+	useEffect,
+	useState,
+	useTransition,
+} from 'react'
+import { hydrateRoot } from 'react-dom/client'
 
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import {
+	createFromFetch,
+	createFromReadableStream,
+	createTemporaryReferenceSet,
+	encodeReply,
+	setServerCallback,
+} from '@vitejs/plugin-rsc/browser'
+import { rscStream } from 'rsc-html-stream/client'
+import { RouterProvider } from 'src/client/router'
 
-import * as devalue from 'devalue'
+import { Metadata } from '../../shared/metadata'
 
-import type { ImportMap, Manifest, PluginConfig } from '../../types'
-
-import { EntryKind } from '../../config'
-
-import { HTTPException, NOT_FOUND, type Payload } from '../../shared/error'
-import { Logger } from '../../shared/logger'
-import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
-import { Router, RouterProvider } from '../../shared/router'
-import { getRelativeBasePath } from '../../shared/utils'
-
-import { readDriftPayload } from '../../client/hydration'
-
-import * as fallback from '../../ui/+error'
-
-import { createAssets } from '../utils'
+import type { RSCPayload } from './rsc'
 
 /**
- * Hydration and routing handler for the browser env
+ * Browser RSC hydration entry point
  */
-export async function browser(
-	Shell: ({
-		children,
-		assets,
-		metadata,
-	}: {
-		children: React.ReactNode
-		assets: React.ReactNode
-		metadata: React.ReactNode
-	}) => React.ReactNode,
-	manifest: Manifest,
-	map: ImportMap,
-	config: PluginConfig,
-) {
-	const logger = new Logger(config.logger?.level)
-	const router = new Router(manifest, map, logger)
+export async function browser() {
+	let setPayload: (payload: RSCPayload) => void = () => {}
 
-	const relativeBase = getRelativeBasePath(window.location.pathname)
+	const payload = await createFromReadableStream<RSCPayload>(rscStream)
 
-	try {
-		const payload = readDriftPayload()
-		const { entry, metadata } = payload ? devalue.parse(payload, payloadReviver) : {}
+	function A() {
+		const [p, setP] = useState<RSCPayload>(payload)
+		const [isPending, startTransition] = useTransition()
 
-		// reconstruct the match object from ssr'd payload data to avoid
-		// redundant router.match call during hydration. Set match to
-		// null to trigger fallback if lookup has failed. Could try
-		// match w/ router.match(window.location.pathname) but
-		// don't see why that would be worth it. This makes
-		// fallback error handling marginally quicker
-		const lookup = Router.narrow(manifest[entry?.__path])
+		const setPayloadInTransition = useCallback((payload: RSCPayload) => {
+			startTransition(() => {
+				setP(payload)
+			})
+		}, [])
 
-		const match = lookup
-			? router.enhance({ ...lookup, params: entry.params, error: entry.error })
-			: null
+		useEffect(() => {
+			// expose external setPayload - used inside
+			// server callback to update payload after
+			// action execution
+			setPayload = setPayloadInTransition
+		}, [setPayloadInTransition])
 
-		const assets = createAssets(relativeBase, payload)
-		const initial = { match, metadata }
+		return (
+			<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
+				<Suspense fallback={null}>
+					<Metadata metadata={p.metadata} />
+				</Suspense>
 
-		hydrateRoot(
-			document,
-			<StrictMode>
-				<RouterProvider router={router} initial={initial} config={config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
-						</Shell>
-					)}
-				</RouterProvider>
-			</StrictMode>,
-		)
-	} catch (err) {
-		// if we've errored and made it to here, something bad
-		// has happened - let's try build from scratch
-
-		logger.error(Logger.print(err), err)
-
-		const match = router.enhance(router.match(window.location.pathname))
-		const collection = new MetadataCollection(config.metadata)
-
-		const metadata = match
-			? await match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(m =>
-						collection
-							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
-							.run(),
-					)
-			: await collection
-					.add({
-						task: fallback.metadata({ error: NOT_FOUND }),
-						priority: METADATA_PRIORITY[EntryKind.ERROR],
-					})
-					.run()
-
-		const assets = createAssets(relativeBase)
-
-		createRoot(document).render(
-			<StrictMode>
-				<RouterProvider router={router} initial={{ match, metadata }} config={config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={NOT_FOUND} />}
-						</Shell>
-					)}
-				</RouterProvider>
-			</StrictMode>,
+				{p.root}
+			</RouterProvider>
 		)
 	}
-}
 
-const payloadReviver = {
-	Error: ([name, message, cause, stack, status, payload]: [
-		string,
-		string | undefined,
-		unknown,
-		string | undefined,
-		ContentfulStatusCode | undefined,
-		Payload | undefined,
-	]) => {
-		if (name === 'HTTPException' && status !== undefined) {
-			const error = new HTTPException(status, message, { payload, cause })
-			if (stack) error.stack = stack
+	setServerCallback(async (id, args) => {
+		const url = new URL(window.location.href)
+		const temporaryReferences = createTemporaryReferenceSet()
+		const payload = await createFromFetch<RSCPayload>(
+			fetch(url, {
+				method: 'POST',
+				body: await encodeReply(args, { temporaryReferences }),
+				headers: {
+					'x-rsc-action': id,
+				},
+			}),
+			{ temporaryReferences },
+		)
 
-			return error
-		} else {
-			const error = new Error(message, { cause })
-			if (stack) error.stack = stack
+		setPayload(payload)
 
-			return error
-		}
-	},
+		const { ok, data } = payload.returnValue ?? {}
+
+		if (!ok) throw data
+		return data
+	})
+
+	hydrateRoot(
+		document,
+		<StrictMode>
+			<A />
+		</StrictMode>,
+		{
+			formState: payload.formState,
+		},
+	)
+
+	import.meta.hot?.on?.('rsc:update', async () => {
+		setPayload(await createFromFetch<RSCPayload>(fetch(window.location.href)))
+	})
 }

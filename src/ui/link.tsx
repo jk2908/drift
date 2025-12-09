@@ -1,4 +1,6 @@
-import { useRouter } from '../shared/router'
+'use client'
+
+import { useRouter } from '../client/router'
 
 type Props = {
 	href: string

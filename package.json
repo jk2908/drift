@@ -8,30 +8,41 @@
 		"build": "bunchee"
 	},
 	"dependencies": {
-		"@biomejs/biome": "^2.1.1",
-		"@hono/vite-build": "^1.6.2",
-		"@hono/vite-dev-server": "^0.19.1",
-		"@vitejs/plugin-react": "^4.6.0",
+		"@vitejs/plugin-react": "latest",
 		"devalue": "^5.1.1",
 		"hono": "^4.8.5",
-		"isbot": "^5.1.28"
+		"isbot": "^5.1.28",
+		"rsc-html-stream": "^0.0.7"
 	},
 	"devDependencies": {
-		"@types/react": "latest",
-		"@types/react-dom": "latest",
+		"@biomejs/biome": "^2.1.1",
 		"@types/bun": "latest",
+		"@types/dom-navigation": "^1.0.6",
 		"bunchee": "^6.5.4"
 	},
 	"peerDependencies": {
-		"react": "^19.1.0",
-		"react-dom": "^19.1.0",
-		"vite": "^7.0.4",
-		"typescript": "^5.8.3"
+		"@types/react": "^19.2.1",
+		"@types/react-dom": "^19.2.1",
+		"@vitejs/plugin-rsc": "^0.5.5",
+		"react": "^19.2.1",
+		"react-dom": "^19.2.1",
+		"react-server-dom-webpack": "^19.2.1",
+		"typescript": "^5.8.3",
+		"vite": "^7.2.4"
+	},
+	"peerDependenciesMeta": {
+		"react-server-dom-webpack": {
+			"optional": true
+		}
 	},
 	"exports": {
 		".": {
 			"types": "./dist/types.d.ts",
 			"default": "./dist/index.js"
+		},
+		"./render/env/rsc": {
+			"types": "./dist/render/env/rsc.d.ts",
+			"default": "./dist/render/env/rsc.js"
 		},
 		"./render/env/ssr": {
 			"types": "./dist/render/env/ssr.d.ts",
@@ -72,6 +83,10 @@
 		"./client/runtime": {
 			"types": "./dist/client/runtime.d.ts",
 			"default": "./dist/client/runtime.js"
+		},
+		"./client/router": {
+			"types": "./dist/client/router.d.ts",
+			"default": "./dist/client/router.js"
 		},
 		"./config": {
 			"types": "./dist/config.d.ts",

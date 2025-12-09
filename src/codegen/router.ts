@@ -1,6 +1,6 @@
 import type { Endpoint, Manifest, Page } from '../types'
 
-import { EntryKind, PKG_NAME } from '../config'
+import { EntryKind } from '../config'
 
 import type { Imports } from '../build/route-processor'
 
@@ -13,7 +13,7 @@ import { AUTO_GEN_MSG } from './utils'
  * @param imports - the imported modules
  * @returns the stringified code
  */
-export function writeServer(manifest: Manifest, imports: Imports) {
+export function writeRouter(manifest: Manifest, imports: Imports) {
 	const handlers = createHandlerGroups(manifest)
 
 	return `
@@ -22,13 +22,11 @@ export function writeServer(manifest: Manifest, imports: Imports) {
     /// <reference types="bun" />
 
     import { Hono } from 'hono'
+    import { hc } from 'hono/client'
     import { serveStatic } from 'hono/bun'
     import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-    import { ssr } from '${PKG_NAME}/render/env/ssr'
-
-    import { manifest } from './manifest'
-    import { map } from './map'
+    import { handler as rsc } from './entry.rsc'
     import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
@@ -39,18 +37,13 @@ export function writeServer(manifest: Manifest, imports: Imports) {
 			})
 			.join('\n')}
 
-    export function handle(
-      Shell: ({
-        children,
-        assets,
-        metadata,
-      }: {
-        children: React.ReactNode
-        assets?: React.ReactNode
-        metadata?: React.ReactNode
-      }) => React.ReactNode,
-    ) {
+    /**
+     * Creates a Hono app instance with all routes and handlers wired up
+     * @returns the Hono app
+     */
+    export function createRouter() {
       return new Hono()
+        .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         .use(
           '/assets/*', 
           serveStatic({ 
@@ -60,41 +53,42 @@ export function writeServer(manifest: Manifest, imports: Imports) {
             },
             precompressed: config.precompress,
           }))
-        .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
         ${[...handlers.entries()]
-					.map(([route, group]) => {
+					.map(([, group]) => {
 						if (!Array.isArray(group)) {
 							return group.__kind === EntryKind.PAGE
-								? `.${group.method}('${group.__path}', async c => ssr(c, Shell, manifest, map, config))`
+								? `.${group.method}('${group.__path}', async c => rsc(c.req.raw))`
 								: `.${group.method}('${group.__path}', ${group.__id})`
 						}
 
 						if (group.length > 2) throw new Error('Unexpected group length')
 
 						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
+						const path = group[0].__path
 
-						return `.get('/${route.split('/').pop()}', async c => {
-            const accept = c.req.header('Accept') ?? ''
+						return `.get('${path}', async c => {
+              const accept = c.req.header('accept') ?? ''
 
-            if (accept.includes('text/html')) {
-              return ssr(c, Shell, manifest, map, config)
-            }
+              if (accept.includes('text/html') || accept.includes('text/x-component')) {
+                return rsc(c.req.raw)
+              }
 
-            if (!${id}) {
-              throw new Error('Unified handler missing implementation')
-            }
+              if (!${id}) {
+                throw new Error('Unified handler missing implementation')
+              }
 
-            // handler might be called with no args so 
-            // ignore to prevent red squigglies
-            // @ts-ignore
-            return ${id}(c)
-          })`
+              // handler might be called with no args so 
+              // ignore to prevent red squigglies
+              // @ts-ignore
+              return ${id}(c)
+            })`
 					})
 					.join('\n')}
-        .notFound(c => ssr(c, Shell, manifest, map, config))
+        .notFound(c => rsc(c.req.raw))
     }
 
-    export type App = ReturnType<typeof handle>
+    export type App = ReturnType<typeof createRouter>    
+    export const client = hc<App>(config.app?.url ?? import.meta.env.VITE_APP_URL)
   `.trim()
 }
 

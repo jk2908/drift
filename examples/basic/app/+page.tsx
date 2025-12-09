@@ -1,15 +1,37 @@
-import { useEffect, useState } from 'react'
+import { Suspense } from 'react'
 
 import { Link } from '@jk2908/drift/ui/link'
+
+import { Blue } from './blue'
+import { Red } from './red'
+
+//export const prerender = true
 
 export const metadata = {
 	title: 'Home',
 }
 
-export const prerender = true
-
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+export default async function Page() {
+	return (
+		<div>
+			Hi am a page <Blue />
+			<Suspense fallback={<div>Loading suspended component...</div>}>
+				<SuspendedComponent />
+			</Suspense>
+			<Link href="/profile">Go to Profile</Link>
+			<Link href="/?foo=bar&baz=qux">Go to Home with Search Params</Link>
+			<Red />
+		</div>
+	)
+}
+
+async function SuspendedComponent() {
+	await wait(5000)
+	return <div>I am suspended!</div>
+}
+/*
 export default function HomePage({ params }: { params?: Record<string, string> }) {
 	const [count, setCount] = useState(0)
 	const [posts, setPosts] = useState([])
@@ -38,4 +60,4 @@ export default function HomePage({ params }: { params?: Record<string, string> }
 				: posts.map(p => <div key={p.id}>{JSON.stringify(p)}</div>)}
 		</div>
 	)
-}
+}*/

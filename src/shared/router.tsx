@@ -1,13 +1,4 @@
-import {
-	createContext,
-	lazy,
-	use,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-	useTransition,
-} from 'react'
+import { lazy } from 'react'
 
 import { RegExpRouter } from 'hono/router/reg-exp-router'
 import { SmartRouter } from 'hono/router/smart-router'
@@ -22,7 +13,6 @@ import type {
 	Match,
 	Page,
 	Params,
-	PluginConfig,
 	Primitive,
 	Metadata as TMetadata,
 	View,
@@ -30,29 +20,20 @@ import type {
 
 import { EntryKind } from '../config'
 
-import { Tree } from '../shared/tree'
-
 import { HTTPException } from './error'
-import type { Logger } from './logger'
-import { MetadataCollection, PRIORITY } from './metadata'
-
-type GoConfig = {
-	replace?: boolean
-	query?: Record<string, string | number | boolean>
-}
+import { Logger } from './logger'
+import { PRIORITY } from './metadata'
 
 /**
  * Handle routing and matching of within the application
  * @param manifest - contains all the routes (pages and api) and their metadata
  * @param map - contains the static and dynamic imports for each route
- * @param logger - logger instance for logging
  * @see {@link Manifest} for the structure of the manifest
  * @see {@link ImportMap} for the structure of the import map
- * @see {@link Logger} for the logger instance
  */
 export class Router {
-	static #enh = new Map<string, EnhancedMatch>()
-	static #mods = new WeakMap<
+	static #enhancedMatchCache = new Map<string, EnhancedMatch>()
+	static #moduleCache = new WeakMap<
 		DynamicImport,
 		{
 			p: Promise<Record<string, unknown>>
@@ -60,21 +41,19 @@ export class Router {
 			L?: View<React.ComponentProps<any>>
 		}
 	>()
-	static #logger: Logger | null = null
+	static #logger: Logger = new Logger()
 
 	#manifest: Manifest = {}
-	#map: ImportMap = {}
+	#importMap: ImportMap = {}
 
 	// @see: https://hono.dev/docs/concepts/routers
 	#router: SmartRouter<Page> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
-	constructor(manifest: Manifest, map: ImportMap, logger: Logger) {
-		Router.#logger = logger
-
+	constructor(manifest: Manifest, importMap: ImportMap) {
 		this.#manifest = manifest
-		this.#map = map
+		this.#importMap = importMap
 
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
@@ -129,23 +108,23 @@ export class Router {
 	 * @returns the module entry
 	 */
 	static #load(loader: DynamicImport) {
-		let entry = Router.#mods.get(loader)
+		let entry = Router.#moduleCache.get(loader)
 		if (entry) return entry
 
 		const p = loader()
 			.then(mod => {
-				const entry = Router.#mods.get(loader)
+				const entry = Router.#moduleCache.get(loader)
 				if (entry) entry.v = mod
 
 				return mod
 			})
 			.catch(err => {
-				Router.#mods.delete(loader)
+				Router.#moduleCache.delete(loader)
 				throw err
 			})
 
 		entry = { p }
-		Router.#mods.set(loader, entry)
+		Router.#moduleCache.set(loader, entry)
 
 		return entry
 	}
@@ -253,7 +232,7 @@ export class Router {
 		if (!match) return null
 
 		const { __id } = match
-		const cached = Router.#enh.get(__id)
+		const cached = Router.#enhancedMatchCache.get(__id)
 
 		if (cached) {
 			Router.#logger?.debug('[enhance]', __id, 'CACHED')
@@ -263,7 +242,7 @@ export class Router {
 			// cached version doesn't have an error boundary, we
 			// need to load it up
 			if ('error' in match && match.error && !cached.ui.Err) {
-				const entry = this.#map[__id]
+				const entry = this.#importMap[__id]
 
 				if (entry.error) {
 					cached.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(
@@ -275,7 +254,7 @@ export class Router {
 			return cached
 		}
 
-		const entry = this.#map[__id]
+		const entry = this.#importMap[__id]
 		if (!entry) return null
 
 		const enhanced: EnhancedMatch = {
@@ -284,6 +263,7 @@ export class Router {
 				layouts: [],
 				Page: null,
 				Err: null,
+				loaders: [],
 			},
 			...match,
 		}
@@ -309,6 +289,14 @@ export class Router {
 		// is thrown
 		if (entry.error && 'error' in match && match.error) {
 			enhanced.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(entry.error)
+		}
+
+		// each route can display a loading component whilst layouts
+		// are suspended - not inherited like other components
+		if (entry.loaders?.length) {
+			enhanced.ui.loaders = entry.loaders.map(l =>
+				l ? Router.#view<NonNullable<EnhancedMatch['ui']['loaders'][number]>>(l) : null,
+			)
 		}
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
@@ -467,7 +455,7 @@ export class Router {
 			return Promise.allSettled(tasks)
 		}
 
-		Router.#enh.set(__id, enhanced)
+		Router.#enhancedMatchCache.set(__id, enhanced)
 
 		return enhanced
 	}
@@ -525,7 +513,7 @@ export class Router {
 		const match = this.match(path)
 		if (!match) return
 
-		const imports = this.#map[match.__id]
+		const imports = this.#importMap[match.__id]
 		if (!imports) return
 
 		const loads: Promise<unknown>[] = []
@@ -536,6 +524,12 @@ export class Router {
 
 		if (imports.page) loads.push(Router.#load(imports.page).p)
 		if (imports.error) loads.push(Router.#load(imports.error).p)
+		if (imports.loaders?.length) {
+			for (const loader of imports.loaders) {
+				if (!loader) continue
+				loads.push(Router.#load(loader).p)
+			}
+		}
 
 		return await Promise.allSettled(loads)
 	}
@@ -544,206 +538,7 @@ export class Router {
 		return this.#manifest
 	}
 
-	get map() {
-		return this.#map
+	get importMap() {
+		return this.#importMap
 	}
-}
-
-const DEFAULT_GO_CONFIG = {
-	replace: false,
-} satisfies GoConfig
-
-export const RouterContext = createContext<{
-	match: EnhancedMatch | null
-	go: (to: string, config?: GoConfig) => string
-	preload: (path: string) => ReturnType<typeof Router.prototype.preload>
-	isPending: boolean
-}>({
-	match: null,
-	go: () => '',
-	preload: () => Promise.resolve([]),
-	isPending: false,
-})
-
-export function RouterProvider({
-	router,
-	initial,
-	config,
-	children,
-}: {
-	router: Router
-	initial: {
-		match: EnhancedMatch | null
-		metadata?: TMetadata
-	}
-	config: Readonly<Partial<PluginConfig>>
-	children:
-		| React.ReactNode
-		| (({
-				el,
-				metadata,
-		  }: {
-				el: React.ReactNode
-				metadata: React.ReactNode
-		  }) => React.ReactNode)
-}) {
-	const [match, setMatch] = useState<EnhancedMatch | null>(initial?.match ?? null)
-	const [metadata, setMetadata] = useState<TMetadata>(initial?.metadata ?? {})
-
-	const [isPending, startTransition] = useTransition()
-
-	const update = useCallback(
-		(match: EnhancedMatch | null) => {
-			setMatch(match)
-
-			const collection = new MetadataCollection(config.metadata)
-
-			if (!match) {
-				setMetadata(collection.base)
-			} else {
-				match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(async m => {
-						setMetadata(
-							await collection
-								.add(...m.filter(r => r.status === 'fulfilled').map(r => r.value))
-								.run()
-								.catch(() => ({})),
-						)
-					})
-					.catch(() => setMetadata({}))
-			}
-		},
-		[config],
-	)
-
-	/**
-	 * Navigate to a new route
-	 * @param to - the path to navigate to
-	 * @param goConfig - configuration for the navigation
-	 * @param goConfig.replace - whether to replace the current history entry (default: false)
-	 * @returns the new path
-	 */
-	const go = useCallback(
-		(to: string, goConfig?: GoConfig) => {
-			const url = new URL(to, window.location.origin)
-			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
-
-			const path = url.pathname + url.search + url.hash
-
-			startTransition(() => {
-				update(router.enhance(router.match(path)))
-
-				if (replace) {
-					window.history.replaceState(null, '', path)
-				} else {
-					window.history.pushState(null, '', path)
-				}
-			})
-
-			return path
-		},
-		[router.match, router.enhance, update],
-	)
-
-	/**
-	 * Preload a route's assets
-	 * @param path - the path to preload
-	 * @returns a promise that resolves when all assets are loaded
-	 */
-	const preload = useCallback(
-		(path: string) => router.preload(new URL(path, window.location.origin).pathname),
-		[router.preload],
-	)
-
-	useEffect(() => {
-		const onPopState = () => {
-			startTransition(() => {
-				update(router.enhance(router.match(window.location.pathname)))
-			})
-		}
-
-		window.addEventListener('popstate', onPopState)
-
-		return () => {
-			window.removeEventListener('popstate', onPopState)
-		}
-	}, [router.match, router.enhance, update])
-
-	const el = useMemo(() => (match ? <Tree match={match} /> : null), [match])
-
-	const tags = useMemo(
-		() => (
-			<>
-				{metadata.title && <title>{metadata.title.toString()}</title>}
-
-				{metadata.meta?.map(meta => {
-					if ('charSet' in meta) {
-						return <meta key={meta.charSet} charSet={meta.charSet} />
-					}
-
-					if ('name' in meta) {
-						return (
-							<meta key={meta.name} name={meta.name} content={meta.content?.toString()} />
-						)
-					}
-
-					if ('httpEquiv' in meta) {
-						return (
-							<meta
-								key={meta.httpEquiv}
-								httpEquiv={meta.httpEquiv}
-								content={meta.content?.toString()}
-							/>
-						)
-					}
-
-					if ('property' in meta) {
-						return (
-							<meta
-								key={meta.property}
-								property={meta.property}
-								content={meta.content?.toString()}
-							/>
-						)
-					}
-
-					return null
-				})}
-
-				{metadata.link?.map(link => (
-					<link key={`${link.rel}${link.href ?? ''}`} {...link} />
-				))}
-			</>
-		),
-		[metadata],
-	)
-
-	const value = useMemo(
-		() => ({
-			match,
-			go,
-			preload,
-			isPending,
-		}),
-		[match, go, preload, isPending],
-	)
-
-	return (
-		<RouterContext value={value}>
-			{typeof children === 'function' ? children({ el, metadata: tags }) : children}
-		</RouterContext>
-	)
-}
-
-export function useRouter() {
-	return use(RouterContext)
-}
-
-export function useParams() {
-	return useRouter().match?.params ?? {}
-}
-
-export function useSearchParams() {
-	// @todo
 }

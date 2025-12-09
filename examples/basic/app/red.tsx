@@ -1,3 +1,10 @@
+'use client'
+
+import { useSearchParams } from '@jk2908/drift/client/router'
+
 export function Red() {
-	return <div style={{ backgroundColor: 'red', width: '100px', height: '100px' }} />
+	const params = useSearchParams()
+	const entries = Object.fromEntries(params.entries())
+
+	return <pre>{JSON.stringify(entries, null, 2)}</pre>
 }

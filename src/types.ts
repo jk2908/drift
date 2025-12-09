@@ -79,6 +79,7 @@ export type Page = {
 		shell: string
 		layouts?: string[]
 		error?: string | null
+		loaders?: (string | null)[]
 	}
 	error?: HTTPException
 	shouldPrerender: boolean
@@ -110,8 +111,6 @@ export type EnhancedMatch = Match & {
 	ui: {
 		Shell: React.ComponentType<{
 			children?: React.ReactNode
-			metadata?: React.ReactNode
-			assets?: React.ReactNode
 		}> | null
 		layouts: View<{
 			children?: React.ReactNode
@@ -125,15 +124,12 @@ export type EnhancedMatch = Match & {
 			children?: React.ReactNode
 			error?: Error
 		}> | null
+		loaders: Array<View<{
+			children?: React.ReactNode
+		}> | null>
 	}
 	endpoint?: (c: Context) => unknown
-	metadata?: ({
-		params,
-		error,
-	}: {
-		params?: Params
-		error?: Error
-	}) => Promise<
+	metadata?: ({ params, error }: { params?: Params; error?: Error }) => Promise<
 		PromiseSettledResult<{
 			task: Promise<Metadata>
 			priority: (typeof PRIORITY)[keyof typeof PRIORITY]
@@ -149,6 +145,7 @@ export type MapEntry = {
 	page?: DynamicImport
 	layouts?: readonly DynamicImport[]
 	error?: DynamicImport
+	loaders?: readonly (DynamicImport | null)[]
 	endpoint?: (c: Context) => unknown
 }
 

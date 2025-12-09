@@ -1,255 +1,168 @@
-import path from 'node:path'
+import { Suspense, use } from 'react'
+import type { ReactFormState } from 'react-dom/client'
+import { renderToReadableStream } from 'react-dom/server.edge'
 
-import { renderToReadableStream } from 'react-dom/server.browser'
+import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
+import { injectRSCPayload } from 'rsc-html-stream/server'
 
-import type { Context as HonoContext } from 'hono'
+import { DRIFT_PAYLOAD_ID } from '../../config'
 
-import * as devalue from 'devalue'
-import { isbot } from 'isbot'
+import { Metadata } from '../../shared/metadata'
 
-import type { ImportMap, Manifest, PluginConfig } from '../../types'
+import { RouterProvider } from '../../client/router'
 
-import { EntryKind, NAME } from '../../config'
-
-import { HTTPException, NOT_FOUND } from '../../shared/error'
-import { Logger } from '../../shared/logger'
-import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
-import { Redirect } from '../../shared/redirect'
-import { Router, RouterProvider } from '../../shared/router'
-import { getRelativeBasePath } from '../../shared/utils'
-
-import * as fallback from '../../ui/+error'
-
-import { createAssets } from '../utils'
+import type { RSCPayload } from './rsc'
 
 /**
- * Server-side rendering handler to bridge incoming Hono requests with React
- * @param c - the Hono context
- * @param Shell - the app root (shell) component to render
- * @param manifest - the application manifest containing routes and metadata
- * @param config - the plugin configuration
- * @returns a Hono streaming response
+ * SSR handler - returns a ReadableStream response for HTML requests
+ * @param rscStream - the RSC ReadableStream to render
+ * @param formState - optional React form state for hydration
+ * @param nonce - optional nonce for CSP
+ * @returns a ReadableStream of the rendered HTML
  */
 export async function ssr(
-	c: HonoContext,
-	Shell: ({
-		children,
-		assets,
-		metadata,
-	}: {
-		children: React.ReactNode
-		assets: React.ReactNode
-		metadata: React.ReactNode
-	}) => React.ReactNode,
-	manifest: Manifest,
-	map: ImportMap,
-	config: PluginConfig,
+	rscStream: ReadableStream<Uint8Array>,
+	formState?: ReactFormState,
+	nonce?: string,
 ) {
-	const logger = new Logger(config.logger?.level)
-	const router = new Router(manifest, map, logger)
+	const [s1, s2] = rscStream.tee()
 
-	const relativeBase = getRelativeBasePath(c.req.path)
+	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
 
-	let controller: AbortController | null = new AbortController()
-	let caughtError = null
+	function A() {
+		const payload = use(payloadPromise)
 
-	if (c.req.path.startsWith('/.well-known/appspecific/com.chrome.devtools.json')) {
-		return c.body(null, 204)
+		return (
+			<RouterProvider>
+				<Suspense fallback={null}>
+					<Metadata metadata={payload.metadata} />
+				</Suspense>
+
+				{payload.root}
+			</RouterProvider>
+		)
 	}
 
-	try {
-		const match = router.enhance(router.match(c.req.path))
+	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
+		'index',
+	)
+	const htmlStream = await renderToReadableStream(<A />, {
+		bootstrapScriptContent,
+		nonce,
+		formState,
+	})
 
-		// early return of static html if route is prerendered
-		if (match?.shouldPrerender && !import.meta.env.DEV && !Bun.env.PRERENDER) {
-			const canonical = match?.__path ?? c.req?.path ?? '/'
-			const rel = canonical.startsWith('/') ? canonical.slice(1) : canonical
-
-			let outPath: string
-
-			if (!rel) {
-				outPath = path.join(import.meta.dir, 'index.html')
-			} else {
-				outPath = /[^/]+\.[^/]+$/.test(rel)
-					? path.join(import.meta.dir, rel)
-					: path.join(import.meta.dir, rel, 'index.html')
-			}
-
-			// read if exists, else continue to ssr
-			try {
-				const f = Bun.file(outPath)
-
-				if (await f.exists()) {
-					return c.html(await f.text(), {
-						headers: { 
-							'X-Drift-Renderer': 'prerender' 
-						},
-					})
-				}
-			} catch {}
-		}
-
-		const collection = new MetadataCollection(config.metadata)
-
-		const metadata = match
-			? await match
-					.metadata?.({ params: match.params, error: match.error })
-					.then(m =>
-						collection
-							.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
-							.run(),
-					)
-			: await collection
-					.add({
-						task: fallback.metadata({ error: NOT_FOUND }),
-						priority: METADATA_PRIORITY[EntryKind.ERROR],
-					})
-					.run()
-
-		const payload = devalue.stringify(
-			{
-				entry: {
-					__path: match?.__path,
-					params: match?.params,
-					error: match?.error,
-				},
-				metadata,
-			},
-			payloadReducer,
-		)
-
-		const assets = createAssets(relativeBase, payload)
-		const initial = { match, metadata }
-
-		const stream = await renderToReadableStream(
-			<RouterProvider router={router} initial={initial} config={config}>
-				{({ el, metadata }) => (
-					<Shell assets={assets} metadata={metadata}>
-						{el ?? <fallback.default error={NOT_FOUND} />}
-					</Shell>
-				)}
-			</RouterProvider>,
-			{
-				signal: controller?.signal,
-				onError: (err: unknown) => {
-					logger.error(Logger.print(err), err)
-					caughtError = err
-				},
-			},
-		)
-
-		if (caughtError) throw caughtError
-		if (isbot(c.req.header('User-Agent'))) await stream.allReady
-
-		const status = Router.getMatchStatusCode(match)
-
-		return c.body(stream, {
-			status,
-			headers: {
-				'Content-Type': 'text/html',
-				'Transfer-Encoding': 'chunked',
-				'X-Drift-Renderer': 'ssr',
-			},
-		})
-	} catch (err) {
-		if (err && err instanceof Redirect) {
-			logger.info('[renderToReadableStream:Redirect]', `Redirecting to ${err.url}`)
-
-			controller?.abort()
-			controller = null
-			caughtError = null
-
-			return c.redirect(err.url, err.status)
-		}
-
-		if (err && err instanceof HTTPException) {
-			logger.warn(
-				'[renderToReadableStream:HTTPException]',
-				`HTTPException thrown during render: ${err.status} ${err.message}`,
-			)
-
-			controller?.abort()
-			controller = new AbortController()
-			caughtError = null
-
-			const errorMatch = router.closest(c.req.path, 'paths.error')
-			const match = errorMatch
-				? router.enhance({ ...errorMatch, params: {}, error: err })
-				: null
-
-			const collection = new MetadataCollection(config.metadata)
-			const metadata = await collection
-				.add({
-					task: fallback.metadata({ error: NOT_FOUND }),
-					priority: METADATA_PRIORITY[EntryKind.ERROR],
-				})
-				.run()
-
-			const payload = devalue.stringify(
-				{
-					entry: {
-						__path: match?.__path,
-						params: {},
-						error: err,
-						metadata,
-					},
-				},
-				payloadReducer,
-			)
-
-			const assets = createAssets(relativeBase, payload)
-			const initial = { match, metadata }
-
-			const stream = await renderToReadableStream(
-				<RouterProvider router={router} initial={initial} config={config}>
-					{({ el, metadata }) => (
-						<Shell assets={assets} metadata={metadata}>
-							{el ?? <fallback.default error={err} />}
-						</Shell>
-					)}
-				</RouterProvider>,
-				{
-					signal: controller?.signal,
-					onError: (err: unknown) => {
-						logger.error(Logger.print(err), err)
-						caughtError = err
-					},
-				},
-			)
-
-			if (isbot(c.req.header('User-Agent'))) await stream.allReady
-
-			return c.body(stream, {
-				status: Router.getMatchStatusCode(match),
-				headers: {
-					'Content-Type': 'text/html',
-					'Transfer-Encoding': 'chunked',
-					'X-Drift-Renderer': 'ssr',
-				},
-			})
-		}
-
-		logger.error(Logger.print(err), err)
-
-		controller?.abort()
-		controller = null
-		caughtError = null
-
-		return c.text(`${NAME}: internal server error`, 500)
-	}
+	return htmlStream.pipeThrough(injectDriftPayload(payloadPromise)).pipeThrough(
+		injectRSCPayload(s2, {
+			nonce,
+		}),
+	)
 }
 
-const payloadReducer = {
-	Error: (v: unknown) => {
-		if (!(v instanceof Error)) return false
+function injectDriftPayload(payloadPromise: Promise<RSCPayload>) {
+	const encoder = new TextEncoder()
+	const decoder = new TextDecoder()
+	const TM = 25
 
-		return [
-			v.constructor.name,
-			v.message,
-			v.cause,
-			v.stack,
-			v instanceof HTTPException ? v.status : undefined,
-			v instanceof HTTPException ? v.payload : undefined,
-		]
-	},
+	let buf = ''
+	let timeout: ReturnType<typeof setTimeout> | null = null
+	let done = false
+
+	const emptyPayload = { driftPayload: '' } satisfies Partial<RSCPayload>
+
+	return new TransformStream<Uint8Array, Uint8Array>({
+		start() {},
+
+		transform(chunk, controller) {
+			buf += decoder.decode(chunk, { stream: true })
+
+			if (timeout) return
+
+			timeout = setTimeout(async () => {
+				try {
+					const idx = buf.indexOf('</head>')
+
+					if (idx !== -1 && !done) {
+						const before = buf.slice(0, idx)
+						const after = buf.slice(idx)
+
+						const payload = await Promise.race<
+							[Promise<RSCPayload>, Promise<Partial<RSCPayload>>]
+						>([
+							payloadPromise,
+							new Promise(res => setTimeout(() => res(emptyPayload), TM)),
+						])
+
+						const content = payload.driftPayload ?? ''
+						const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
+
+						controller.enqueue(encoder.encode(before + tag + after))
+						buf = ''
+						done ||= !!payload.driftPayload
+					} else {
+						controller.enqueue(encoder.encode(buf))
+						buf = ''
+					}
+				} catch (err) {
+					controller.error(err)
+				} finally {
+					if (timeout) {
+						clearTimeout(timeout)
+						timeout = null
+					}
+				}
+			}, 0)
+		},
+
+		async flush(controller) {
+			if (timeout) {
+				clearTimeout(timeout)
+				timeout = null
+			}
+
+			if (buf.length > 0) {
+				const payload = await Promise.race<
+					[Promise<RSCPayload>, Promise<Partial<RSCPayload>>]
+				>([payloadPromise, new Promise(res => setTimeout(() => res(emptyPayload), 100))])
+
+				const content = payload.driftPayload ?? ''
+
+				if (!done && content) {
+					const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
+
+					controller.enqueue(encoder.encode(buf + tag))
+					done = true
+				} else {
+					controller.enqueue(encoder.encode(buf))
+				}
+
+				buf = ''
+				return
+			}
+
+			if (!done) {
+				let payload: Partial<RSCPayload>
+
+				try {
+					payload = await payloadPromise
+				} catch {
+					payload = emptyPayload
+				}
+
+				const content = payload.driftPayload ?? ''
+
+				if (payload && content) {
+					const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
+
+					controller.enqueue(encoder.encode(tag))
+					done = true
+				}
+			}
+		},
+	})
+}
+
+// from rsc-html-stream
+function escapeScript(script: string) {
+	return script.replace(/<!--/g, '<\\!--').replace(/<\/(script)/gi, '</\\$1')
 }

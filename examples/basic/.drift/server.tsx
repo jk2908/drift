@@ -4,31 +4,17 @@
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
-import { appendTrailingSlash, trimTrailingSlash } from 'hono/trailing-slash'
+import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
 
-import { ssr } from '@jk2908/drift/render/env/ssr'
-
+import { handler as rsc } from './entry.rsc'
 import { config } from './config'
 
-import {
-	GET as $E36045888637312226_get,
-	POST as $E36045888637312226_post,
-} from '../app/posts/+api'
-import { manifest } from './manifest'
-import { map } from './map'
+import { GET as $E36045888637312226_get } from '../app/posts/+api'
+import { POST as $E36045888637312226_post } from '../app/posts/+api'
 
-export function handle(
-	Shell: ({
-		children,
-		assets,
-		metadata,
-	}: {
-		children: React.ReactNode
-		assets?: React.ReactNode
-		metadata?: React.ReactNode
-	}) => React.ReactNode,
-) {
+export function handle() {
 	return new Hono()
+		.use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
 		.use(
 			'/assets/*',
 			serveStatic({
@@ -39,18 +25,12 @@ export function handle(
 				precompressed: config.precompress,
 			}),
 		)
-		.use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
-		.get('/', async c => ssr(c, Shell, manifest, map, config))
-		.get('/about', async c => ssr(c, Shell, manifest, map, config))
-		.get('/about/another', async c => ssr(c, Shell, manifest, map, config))
-		.get('/about/me', async c => ssr(c, Shell, manifest, map, config))
-		.get('/foo', async c => ssr(c, Shell, manifest, map, config))
-		.get('/p/:id', async c => ssr(c, Shell, manifest, map, config))
+		.get('/', async c => rsc(c.req.raw))
 		.get('/posts', async c => {
-			const accept = c.req.header('Accept') ?? ''
+			const accept = c.req.header('accept') ?? ''
 
-			if (accept.includes('text/html')) {
-				return ssr(c, Shell, manifest, map, config)
+			if (accept.includes('text/html') || accept.includes('text/x-component')) {
+				return rsc(c.req.raw)
 			}
 
 			if (!$E36045888637312226_get) {
@@ -63,9 +43,14 @@ export function handle(
 			return $E36045888637312226_get(c)
 		})
 		.post('/posts', $E36045888637312226_post)
-		.get('/profile', async c => ssr(c, Shell, manifest, map, config))
-		.get('/test/*', async c => ssr(c, Shell, manifest, map, config))
-		.notFound(c => ssr(c, Shell, manifest, map, config))
+		.get('/test/*', async c => rsc(c.req.raw))
+		.get('/about', async c => rsc(c.req.raw))
+		.get('/about/me', async c => rsc(c.req.raw))
+		.get('/about/another', async c => rsc(c.req.raw))
+		.get('/profile', async c => rsc(c.req.raw))
+		.get('/foo', async c => rsc(c.req.raw))
+		.get('/p/:id', async c => rsc(c.req.raw))
+		.notFound(c => rsc(c.req.raw))
 }
 
 export type App = ReturnType<typeof handle>
