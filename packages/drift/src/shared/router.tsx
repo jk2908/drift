@@ -32,21 +32,40 @@ import { PRIORITY } from './metadata'
  * @see {@link ImportMap} for the structure of the import map
  */
 export class Router {
+	/**
+	 * Cache of enhanced matches
+	 */
 	static #enhancedMatchCache = new Map<string, EnhancedMatch>()
+
+	/**
+	 * Cache of loaded modules from dynamic imports
+	 */
 	static #moduleCache = new WeakMap<
 		DynamicImport,
 		{
-			p: Promise<Record<string, unknown>>
-			v?: Record<string, unknown>
-			L?: View<React.ComponentProps<any>>
+			/**
+			 * The promise resolving to the module
+			 */
+			promise: Promise<Record<string, unknown>>
+			/**
+			 * The loaded module
+			 */
+			module?: Record<string, unknown>
+			/**
+			 * The (maybe lazy) React component loaded from the module
+			 */
+			Component?: View<React.ComponentProps<any>>
 		}
 	>()
+
 	static #logger: Logger = new Logger()
 
 	#manifest: Manifest = {}
 	#importMap: ImportMap = {}
 
-	// @see: https://hono.dev/docs/concepts/routers
+	/**
+	 * @see: https://hono.dev/docs/concepts/routers
+	 */
 	#router: SmartRouter<Page> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
@@ -58,18 +77,19 @@ export class Router {
 		for (const path in this.#manifest) {
 			const entry = this.#manifest[path]
 
+			// process array entries (multiple entries per path)
+			// and register each page entry with the router
 			if (Array.isArray(entry)) {
 				for (const e of entry) {
 					if (e.__kind !== EntryKind.PAGE) continue
-
 					this.#router.add('GET', path, e)
 				}
 
 				continue
 			}
 
+			// single entry - only register if it's a page
 			if (entry.__kind !== EntryKind.PAGE) continue
-
 			this.#router.add('GET', path, entry)
 		}
 	}
@@ -111,10 +131,10 @@ export class Router {
 		let entry = Router.#moduleCache.get(loader)
 		if (entry) return entry
 
-		const p = loader()
+		const promise = loader()
 			.then(mod => {
 				const entry = Router.#moduleCache.get(loader)
-				if (entry) entry.v = mod
+				if (entry) entry.module = mod
 
 				return mod
 			})
@@ -123,7 +143,7 @@ export class Router {
 				throw err
 			})
 
-		entry = { p }
+		entry = { promise }
 		Router.#moduleCache.set(loader, entry)
 
 		return entry
@@ -142,20 +162,22 @@ export class Router {
 		Router.#logger?.debug(
 			'[#view]',
 			loader.toString().slice(0, 60),
-			entry.v ? 'SYNC' : 'LAZY',
+			entry.module ? 'SYNC' : 'LAZY',
 		)
 
-		if (entry.v?.default) {
-			entry.L = entry.v.default as View<React.ComponentProps<T>>
-			return entry.L
+		if (entry.module?.default) {
+			entry.Component = entry.module.default as View<React.ComponentProps<T>>
+			return entry.Component
 		}
 
-		if (entry.L) return entry.L as View<React.ComponentProps<T>>
+		if (entry.Component) return entry.Component as View<React.ComponentProps<T>>
 
-		const L = lazy(() => entry.p.then(mod => ({ default: (mod as any).default as T })))
-		entry.L = L as View<React.ComponentProps<T>>
+		const Component = lazy(() =>
+			entry.promise.then(mod => ({ default: (mod as any).default as T })),
+		)
+		entry.Component = Component as View<React.ComponentProps<T>>
 
-		return entry.L
+		return entry.Component
 	}
 
 	/**
@@ -334,8 +356,8 @@ export class Router {
 				for (const l of entry.layouts) {
 					const e = Router.#load(l)
 
-					if (e.v && 'metadata' in e.v) {
-						const metadata = e.v?.metadata
+					if (e.module && 'metadata' in e.module) {
+						const metadata = e.module?.metadata
 
 						if (metadata) {
 							if (typeof metadata === 'function') {
@@ -355,7 +377,7 @@ export class Router {
 						}
 					} else {
 						tasks.push({
-							task: e.p.then(m => {
+							task: e.promise.then(m => {
 								const metadata = m.metadata
 								if (!metadata) return {}
 
@@ -377,8 +399,8 @@ export class Router {
 			if (entry.page) {
 				const e = Router.#load(entry.page)
 
-				if (e.v && 'metadata' in e.v) {
-					const metadata = e.v.metadata
+				if (e.module && 'metadata' in e.module) {
+					const metadata = e.module.metadata
 
 					if (metadata) {
 						if (typeof metadata === 'function') {
@@ -398,7 +420,7 @@ export class Router {
 					}
 				} else {
 					tasks.push({
-						task: e.p.then(m => {
+						task: e.promise.then(m => {
 							const metadata = m.metadata
 							if (!metadata) return {}
 
@@ -419,8 +441,8 @@ export class Router {
 			if (entry.error && error) {
 				const e = Router.#load(entry.error)
 
-				if (e.v && 'metadata' in e.v) {
-					const metadata = e.v.metadata
+				if (e.module && 'metadata' in e.module) {
+					const metadata = e.module.metadata
 
 					if (metadata) {
 						if (typeof metadata === 'function') {
@@ -439,7 +461,7 @@ export class Router {
 					}
 				} else {
 					tasks.push({
-						task: e.p.then(m => {
+						task: e.promise.then(m => {
 							const metadata = m.metadata
 							if (!metadata) return {}
 
@@ -524,15 +546,16 @@ export class Router {
 		const loads: Promise<unknown>[] = []
 
 		if (imports.layouts) {
-			for (const l of imports.layouts) loads.push(Router.#load(l).p)
+			for (const l of imports.layouts) loads.push(Router.#load(l).promise)
 		}
 
-		if (imports.page) loads.push(Router.#load(imports.page).p)
-		if (imports.error) loads.push(Router.#load(imports.error).p)
+		if (imports.page) loads.push(Router.#load(imports.page).promise)
+		if (imports.error) loads.push(Router.#load(imports.error).promise)
+
 		if (imports.loaders?.length) {
 			for (const loader of imports.loaders) {
 				if (!loader) continue
-				loads.push(Router.#load(loader).p)
+				loads.push(Router.#load(loader).promise)
 			}
 		}
 
