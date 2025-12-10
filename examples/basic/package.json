@@ -10,6 +10,7 @@
 	"dependencies": {
 		"@jk2908/drift": "workspace:*",
 		"@vitejs/plugin-rsc": "latest",
+		"hono": "^4.10.8",
 		"react": "^19.2.1",
 		"react-dom": "^19.2.1",
 		"vite": "^7.2.4",

@@ -237,6 +237,11 @@ export class Router {
 		if (cached) {
 			Router.#logger?.debug('[enhance]', __id, 'CACHED')
 
+			// update params and error in case they changed as part
+			// of a dynamic route navigation
+			cached.params = match.params
+			cached.error = 'error' in match ? match.error : undefined
+
 			// this route might(?) have been loaded previously without
 			// an error present. If we've got an error now, and the
 			// cached version doesn't have an error boundary, we
