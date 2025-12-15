@@ -87,7 +87,7 @@ export class MetadataCollection {
 	}
 
 	/**
-	 * Clones an object using structuredClone with a fallback to JSON methods
+	 * Clones an object using structuredClone w/ JSON fallback
 	 * @param obj - the object to clone
 	 * @returns a clone of the object
 	 */
