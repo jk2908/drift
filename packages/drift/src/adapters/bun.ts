@@ -1,7 +1,7 @@
 import type { AdapterFactory, RuntimeAdapter, ServeOptions } from './types'
 
 class BunAdapter implements RuntimeAdapter {
-	private transpiler = new Bun.Transpiler({ loader: 'tsx' })
+	#transpiler = new Bun.Transpiler({ loader: 'tsx' })
 
 	async read(path: string) {
 		return await Bun.file(path).text()
@@ -28,7 +28,7 @@ class BunAdapter implements RuntimeAdapter {
 
 	async scan(code: string): Promise<{ exports: string[]; imports: string[] }> {
 		try {
-			const result = this.transpiler.scan(code)
+			const result = this.#transpiler.scan(code)
 
 			return {
 				exports: result.exports,

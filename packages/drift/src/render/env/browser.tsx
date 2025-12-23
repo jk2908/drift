@@ -26,9 +26,8 @@ import type { RSCPayload } from './rsc'
  * Browser RSC hydration entry point
  */
 export async function browser() {
-	let setPayload: (payload: RSCPayload) => void = () => {}
-
 	const payload = await createFromReadableStream<RSCPayload>(rscStream)
+	let setPayload: (payload: RSCPayload) => void = () => {}
 
 	function A() {
 		const [p, setP] = useState<RSCPayload>(payload)

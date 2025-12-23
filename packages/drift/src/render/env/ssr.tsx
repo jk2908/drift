@@ -12,6 +12,7 @@ import { Metadata } from '../../shared/metadata'
 import { RouterProvider } from '../../client/router'
 
 import type { RSCPayload } from './rsc'
+import { onError } from './utils'
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
@@ -51,6 +52,7 @@ export async function ssr(
 		bootstrapScriptContent,
 		nonce,
 		formState,
+		onError,
 	})
 
 	return htmlStream.pipeThrough(injectDriftPayload(payloadPromise)).pipeThrough(

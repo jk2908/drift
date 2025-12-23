@@ -9,7 +9,6 @@ import {
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
 import * as devalue from 'devalue'
-import { Tree } from 'src/shared/tree'
 
 import type { ImportMap, Manifest, Metadata } from '../../types'
 
@@ -18,8 +17,11 @@ import { EntryKind } from '../../config'
 import { HTTPException, NOT_FOUND } from '../../shared/error'
 import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
+import { Tree } from '../../shared/tree'
 
 import * as fallback from '../../ui/+error'
+
+import { onError } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -96,7 +98,14 @@ export async function rsc(
 	const rscPayload: RSCPayload = {
 		root: (
 			<>
-				{match ? <Tree params={match.params} error={match.error} ui={match.ui} /> : null}
+				{match ? (
+					<Tree
+						depth={match.__depth}
+						params={match.params}
+						error={match.error}
+						ui={match.ui}
+					/>
+				) : null}
 			</>
 		),
 		returnValue,
@@ -107,6 +116,7 @@ export async function rsc(
 
 	return renderToReadableStream(rscPayload, {
 		temporaryReferences,
+		onError,
 	})
 }
 

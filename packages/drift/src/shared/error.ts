@@ -14,7 +14,7 @@ type HTTPExceptionOptions = {
  * @param status - the status code of the error
  * @param options - the options
  * @param options.payload - the payload
- * @param options.cause - the cause 
+ * @param options.cause - the cause
  */
 export class HTTPException extends Error {
 	readonly status?: ContentfulStatusCode
@@ -34,9 +34,9 @@ export class HTTPException extends Error {
 /**
  * Throw an HTTPException
  * @param status - the status code of the error
- * @param message - the message 
- * @param options - the options 
- * @param options.payload - the payload 
+ * @param message - the message
+ * @param options - the options
+ * @param options.payload - the payload
  * @throws a HTTPException with the given status and options
  */
 export function error(

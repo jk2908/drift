@@ -10,7 +10,7 @@ export const metadata = async () => ({
 })
 
 export default function Page() {
-	redirect(300, '/')
+	redirect('/')
 
 	return (
 		<>

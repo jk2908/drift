@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { type PluginOption } from 'vite'
+import type { PluginOption } from 'vite'
 
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
@@ -79,7 +79,7 @@ function drift(c: PluginConfig): PluginOption[] {
 		},
 		transpiler,
 		logger,
-		prerenders: new Set<string>(),
+		prerenderableRoutes: new Set<string>(),
 	}
 
 	async function build() {
@@ -93,10 +93,10 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		const processor = new RouteProcessor(buildCtx, config)
-		const { manifest, prerenders, imports, modules } = await processor.run()
+		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
 
-		// set prerender in context for use in closeBundle
-		buildCtx.prerenders = prerenders
+		// set prerenderable routes in context for use in closeBundle
+		buildCtx.prerenderableRoutes = prerenderableRoutes
 
 		await Promise.all([
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
@@ -208,7 +208,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			if (process.env.NODE_ENV === 'development') return
 
 			try {
-				if (buildCtx.prerenders.size > 0) {
+				if (buildCtx.prerenderableRoutes.size > 0) {
 					if (!config.app?.url) {
 						logger.error(
 							'[closeBundle]',
@@ -226,7 +226,7 @@ function drift(c: PluginConfig): PluginOption[] {
 								await import(`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`)
 							).default
 
-							for (const route of buildCtx.prerenders) {
+							for (const route of buildCtx.prerenderableRoutes) {
 								const { value, done } = await prerender(
 									(req: Request) => app.fetch(req),
 									route,

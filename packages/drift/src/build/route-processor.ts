@@ -15,7 +15,7 @@ import {
 export type ScanResult = {
 	pages: {
 		page: string
-		layouts: string[]
+		layouts: (string | null)[]
 		shell: string
 		error?: string
 		loaders?: (string | null)[]
@@ -32,7 +32,7 @@ export type Modules = Record<
 	string,
 	{
 		shellId?: string
-		layoutIds?: string[]
+		layoutIds?: (string | null)[]
 		pageId?: string
 		errorId?: string
 		loadingIds?: (string | null)[]
@@ -58,7 +58,7 @@ export class RouteProcessor {
 	 * @returns data.entries - the full list of entries for the manifest
 	 * @returns data.imports - the dynamic and static imports for page and API routes
 	 * @returns data.handlers - the Hono route handlers
-	 * @returns data.prerenders - the prerenderable routes
+	 * @returns data.prerenderableRoutes - the prerenderable routes
 	 * @throws if an error occurs during scanning
 	 */
 	async run() {
@@ -80,7 +80,7 @@ export class RouteProcessor {
 	async #scan(
 		dir: string,
 		res: ScanResult = { pages: [], endpoints: [] },
-		prev: { layouts: string[]; errors: string[]; loaders: (string | null)[] } = {
+		prev: { layouts: (string | null)[]; errors: string[]; loaders: (string | null)[] } = {
 			layouts: [],
 			errors: [],
 			loaders: [],
@@ -99,7 +99,7 @@ export class RouteProcessor {
 				error: '+error',
 				layout: '+layout',
 				loading: '+loading',
-				api: '+api',
+				endpoint: '+endpoint',
 			} as const
 
 			// map of valid files for each type
@@ -108,7 +108,7 @@ export class RouteProcessor {
 				[TYPES.error]: new Set(EXTENSIONS.page.map(ext => `${TYPES.error}.${ext}`)),
 				[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
 				[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
-				[TYPES.api]: new Set(EXTENSIONS.api.map(ext => `${TYPES.api}.${ext}`)),
+				[TYPES.endpoint]: new Set(EXTENSIONS.api.map(ext => `${TYPES.endpoint}.${ext}`)),
 			}
 
 			const files = await fs.readdir(dir, { withFileTypes: true })
@@ -128,7 +128,7 @@ export class RouteProcessor {
 						if (validFiles[TYPES.error].has(base)) return 1
 						if (validFiles[TYPES.loading].has(base)) return 2
 						if (validFiles[TYPES.page].has(base)) return 3
-						if (validFiles[TYPES.api].has(base)) return 4
+						if (validFiles[TYPES.endpoint].has(base)) return 4
 
 						return 5
 					}
@@ -149,13 +149,9 @@ export class RouteProcessor {
 
 				if (file.isDirectory()) {
 					const next = {
-						layouts: currentLayout ? [...prev.layouts, currentLayout] : prev.layouts,
+						layouts: [...prev.layouts, currentLayout ?? null],
 						errors: currentError ? [...prev.errors, currentError] : prev.errors,
-						// loaders align positionally with layouts inc. shell.
-						// Keep holes as nulls so later levels stay in place
-						loaders: currentLayout
-							? [...prev.loaders, currentLoader ?? null]
-							: prev.loaders,
+						loaders: [...prev.loaders, currentLoader ?? null],
 					}
 
 					await this.#scan(route, res, next)
@@ -169,16 +165,12 @@ export class RouteProcessor {
 						currentError = relative
 					} else if (validFiles[TYPES.loading].has(base)) {
 						currentLoader = relative
-					} else if (validFiles[TYPES.api].has(base)) {
+					} else if (validFiles[TYPES.endpoint].has(base)) {
 						res.endpoints.push(relative)
 					} else if (validFiles[TYPES.page].has(base)) {
-						const layouts = currentLayout
-							? [...prev.layouts, currentLayout]
-							: prev.layouts
+						const layouts = [...prev.layouts, currentLayout ?? null]
 						const errors = currentError ? [...prev.errors, currentError] : prev.errors
-						const loaders = currentLayout
-							? [...prev.loaders, currentLoader ?? null]
-							: prev.loaders
+						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts?.[0]
 
 						if (!shell) throw new Error('Missing app shell')
@@ -208,11 +200,11 @@ export class RouteProcessor {
 	/**
 	 * Process the scanned route data
 	 * @param res the scanned route data
-	 * @returns an object containing finalised manifest, imports, and prerenders
+	 * @returns an object containing finalised manifest, imports, and prerenderable routes
 	 */
 	async process(res: ScanResult) {
 		const processed = new Set<string>()
-		const prerenders = new Set<string>()
+		const prerenderableRoutes = new Set<string>()
 
 		const manifest: Record<string, Page | Endpoint | (Page | Endpoint)[]> = {}
 
@@ -233,6 +225,7 @@ export class RouteProcessor {
 
 				const route = RouteProcessor.toCanonicalRoute(page)
 				const params = RouteProcessor.getParams(page)
+				const depth = RouteProcessor.getDepth(route)
 
 				const isDynamic = route.includes(':')
 				const isCatchAll = route.includes('*')
@@ -243,7 +236,7 @@ export class RouteProcessor {
 				const shellImport = RouteProcessor.getImportPath(shell)
 
 				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
-				const layoutIds: string[] = []
+				const layoutIds: (string | null)[] = []
 				let errorId: string | undefined
 				const loadingIds: (string | null)[] = []
 
@@ -264,7 +257,13 @@ export class RouteProcessor {
 					hasInheritedPrerender =
 						hasInheritedPrerender || (prerenderableCache.get(shell) ?? false)
 				}
+
 				for (const layout of layouts) {
+					if (!layout) {
+						layoutIds.push(null)
+						continue
+					}
+
 					const layoutImport = RouteProcessor.getImportPath(layout)
 					const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
 
@@ -327,7 +326,7 @@ export class RouteProcessor {
 
 				if (shouldPrerender) {
 					if (!isDynamic && !isCatchAll) {
-						prerenders.add(route)
+						prerenderableRoutes.add(route)
 					} else {
 						const paramsList = await getPrerenderParamsList(
 							path.resolve(process.cwd(), page),
@@ -341,18 +340,18 @@ export class RouteProcessor {
 							)
 						}
 
-						const dynamicPrerenders = createPrerenderRoutesFromParamsList(
+						const dynamicPrerenderableRoutes = createPrerenderRoutesFromParamsList(
 							route,
 							paramsList,
 						)
 
-						if (!dynamicPrerenders?.length) {
+						if (!dynamicPrerenderableRoutes?.length) {
 							this.ctx?.logger.warn(
 								'[process]',
 								`No prerenderable routes found for ${page}, skipping prerendering`,
 							)
 						} else {
-							for (const r of dynamicPrerenders) prerenders.add(r)
+							for (const r of dynamicPrerenderableRoutes) prerenderableRoutes.add(r)
 						}
 					}
 				}
@@ -362,16 +361,16 @@ export class RouteProcessor {
 					__path: route,
 					__params: params,
 					__kind: EntryKind.PAGE,
+					__depth: depth,
 					method: 'get' as const,
 					paths: {
-						shell,
-						layouts,
+						layouts: [shell, ...layouts],
 						error: error ?? null,
 						loaders,
 					},
-					shouldPrerender,
-					isDynamic,
-					isCatchAll,
+					prerender: shouldPrerender,
+					dynamic: isDynamic,
+					catch_all: isCatchAll,
 				}
 
 				if (manifest[route]) {
@@ -451,7 +450,7 @@ export class RouteProcessor {
 			}
 		}
 
-		return { manifest, imports, prerenders, modules }
+		return { manifest, imports, prerenderableRoutes, modules }
 	}
 
 	/**
@@ -464,6 +463,18 @@ export class RouteProcessor {
 	}
 
 	/**
+	 * Get the depth of a route based on slashes
+	 * @param route - the route to get the depth of
+	 * @returns the depth of the route
+	 */
+	static getDepth(route: string) {
+		if (route === '/') return 0
+
+		// count slashes to determine depth
+		return route.split('/').length - 1
+	}
+
+	/**
 	 * Convert a file path to a Hono-compatible route.
 	 * @param file - the file to convert to a route
 	 * @returns the converted route
@@ -472,7 +483,7 @@ export class RouteProcessor {
 		const route = file
 			.replace(new RegExp(`^${APP_DIR}`), '')
 			.replace(/\/\+page\.(j|t)sx?$/, '')
-			.replace(/\/\+api\.(j|t)sx?$/, '')
+			.replace(/\/\+endpoint\.(j|t)sx?$/, '')
 			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
 			.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
 

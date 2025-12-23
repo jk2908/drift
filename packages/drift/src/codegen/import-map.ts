@@ -27,7 +27,12 @@ export function writeImportMap(imports: Imports, modules: Modules) {
 		const parts: string[] = []
 
 		if (m.shellId) parts.push(`shell: ${m.shellId}`)
-		if (m.layoutIds?.length) parts.push(`layouts: [${m.layoutIds.join(', ')}]`)
+
+		if (m.layoutIds?.length) {
+			const layouts = m.layoutIds.map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`layouts: [${layouts}]`)
+		}
+
 		if (m.pageId) parts.push(`page: ${m.pageId}`)
 		if (m.endpointId) parts.push(`endpoint: ${m.endpointId}`)
 		if (m.errorId) parts.push(`error: ${m.errorId}`)

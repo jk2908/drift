@@ -2,9 +2,11 @@
 
 import { Component } from 'react'
 
-type Props = {
-	fallback: ((err: Error, reset: () => void) => React.ReactNode) | React.ReactNode
-	onError?: (error: Error) => void
+type BoundaryError = Error & { digest?: string }
+
+export type Props = {
+	fallback: ((err: BoundaryError, reset: () => void) => React.ReactNode) | React.ReactNode
+	onError?: (error: BoundaryError) => void
 	onReset?: () => void
 	children: React.ReactNode
 }
@@ -20,7 +22,7 @@ type Props = {
 export class ErrorBoundary extends Component<
 	Props,
 	{
-		error: Error | null
+		error: BoundaryError | null
 	}
 > {
 	constructor(props: Props) {

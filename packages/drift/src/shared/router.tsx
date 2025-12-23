@@ -173,7 +173,7 @@ export class Router {
 		if (entry.Component) return entry.Component as View<React.ComponentProps<T>>
 
 		const Component = lazy(() =>
-			entry.promise.then(mod => ({ default: (mod as any).default as T })),
+			entry.promise.then(mod => ({ default: mod.default as T })),
 		)
 		entry.Component = Component as View<React.ComponentProps<T>>
 
@@ -198,7 +198,7 @@ export class Router {
 
 				// only process parameters if the router returned any
 				if (paramStash?.length) {
-					if (entry.isCatchAll) {
+					if (entry.catch_all) {
 						// for a catch-all, we use the __path property on the matched entry.
 						// Neccessary because Hono doesn't expose wildcard params so we need
 						// to grab them from here. Derive the value by removing the
@@ -301,7 +301,7 @@ export class Router {
 
 		if (entry.layouts) {
 			enhanced.ui.layouts = entry.layouts.map(l =>
-				Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l),
+				l ? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l) : null,
 			)
 		}
 
@@ -354,6 +354,7 @@ export class Router {
 
 			if (entry.layouts?.length) {
 				for (const l of entry.layouts) {
+					if (!l) continue
 					const e = Router.#load(l)
 
 					if (e.module && 'metadata' in e.module) {
@@ -546,13 +547,16 @@ export class Router {
 		const loads: Promise<unknown>[] = []
 
 		if (imports.layouts) {
-			for (const l of imports.layouts) loads.push(Router.#load(l).promise)
+			for (const l of imports.layouts) {
+				if (!l) continue
+				loads.push(Router.#load(l).promise)
+			}
 		}
 
 		if (imports.page) loads.push(Router.#load(imports.page).promise)
 		if (imports.error) loads.push(Router.#load(imports.error).promise)
 
-		if (imports.loaders?.length) {
+		if (imports.loaders) {
 			for (const loader of imports.loaders) {
 				if (!loader) continue
 				loads.push(Router.#load(loader).promise)

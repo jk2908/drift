@@ -1,8 +1,8 @@
 import type { Context } from 'hono'
-import type { HTTPException } from 'hono/http-exception'
 
 import type { EntryKind } from './config'
 
+import type { HTTPException } from './shared/error'
 import type { Logger, LogLevel } from './shared/logger'
 import type { PRIORITY } from './shared/metadata'
 import type { Router } from './shared/router'
@@ -37,7 +37,7 @@ export type BuildContext = {
 	}
 	transpiler: InstanceType<typeof Bun.Transpiler>
 	logger: InstanceType<typeof Logger>
-	prerenders: Set<string>
+	prerenderableRoutes: Set<string>
 }
 
 export type Params = Record<string, string | string[]>
@@ -71,17 +71,17 @@ export type Page = {
 	__path: string
 	__params: string[]
 	__kind: typeof EntryKind.PAGE
+	__depth: number
 	method: 'get'
 	paths: {
-		shell: string
-		layouts?: string[]
+		layouts: (string | null)[]
 		error?: string | null
-		loaders?: (string | null)[]
+		loaders: (string | null)[]
 	}
 	error?: HTTPException
-	shouldPrerender: boolean
-	isDynamic: boolean
-	isCatchAll: boolean
+	prerender: boolean
+	dynamic: boolean
+	catch_all: boolean
 }
 
 export type Endpoint = {
@@ -109,10 +109,10 @@ export type EnhancedMatch = Match & {
 		Shell: React.ComponentType<{
 			children?: React.ReactNode
 		}> | null
-		layouts: View<{
+		layouts: (View<{
 			children?: React.ReactNode
 			params?: Params
-		}>[]
+		}> | null)[]
 		Page: View<{
 			children?: React.ReactNode
 			params?: Params
@@ -121,9 +121,9 @@ export type EnhancedMatch = Match & {
 			children?: React.ReactNode
 			error?: Error
 		}> | null
-		loaders: Array<View<{
+		loaders: (View<{
 			children?: React.ReactNode
-		}> | null>
+		}> | null)[]
 	}
 	endpoint?: (c: Context) => unknown
 	metadata?: ({ params, error }: { params?: Params; error?: Error }) => Promise<

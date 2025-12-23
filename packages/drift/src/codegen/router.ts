@@ -21,10 +21,13 @@ export function writeRouter(manifest: Manifest, imports: Imports) {
 
     /// <reference types="bun" />
 
-    import { Hono } from 'hono'
-    import { hc } from 'hono/client'
-    import { serveStatic } from 'hono/bun'
-    import { trimTrailingSlash, appendTrailingSlash } from 'hono/trailing-slash'
+    import {
+      Hono,
+      hc,
+      serveStatic,
+      trimTrailingSlash,
+      appendTrailingSlash,
+    } from '@jk2908/drift/_internal/hono'
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'
@@ -79,7 +82,7 @@ export function writeRouter(manifest: Manifest, imports: Imports) {
 
               // handler might be called with no args so 
               // ignore to prevent red squigglies
-              // @ts-ignore
+              // @ts-expect-error
               return ${id}(c)
             })`
 					})
