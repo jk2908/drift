@@ -5,7 +5,9 @@ import { Component } from 'react'
 type BoundaryError = Error & { digest?: string }
 
 export type Props = {
-	fallback: ((err: BoundaryError, reset: () => void) => React.ReactNode) | React.ReactNode
+	fallback:
+		| ((error: BoundaryError, reset: () => void) => React.ReactNode)
+		| React.ReactNode
 	onError?: (error: BoundaryError) => void
 	onReset?: () => void
 	children: React.ReactNode
