@@ -1,12 +1,8 @@
 import { use } from 'react'
 
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
-
 import type { LinkTag, MetaTag, Metadata as TMetadata } from '../types'
 
 import { EntryKind } from '../config'
-
-import { HTTPException, type Payload } from './error'
 
 type TEntryKind = typeof EntryKind
 type MetadataSource = Exclude<TEntryKind[keyof TEntryKind], typeof EntryKind.ENDPOINT>
@@ -227,27 +223,4 @@ export function Metadata({ metadata: m }: { metadata?: Promise<TMetadata> }) {
 			))}
 		</>
 	)
-}
-
-const payloadReviver = {
-	Error: ([name, message, cause, stack, status, payload]: [
-		string,
-		string | undefined,
-		unknown,
-		string | undefined,
-		ContentfulStatusCode | undefined,
-		Payload | undefined,
-	]) => {
-		if (name === 'HTTPException' && status !== undefined) {
-			const error = new HTTPException(status, message, { payload, cause })
-			if (stack) error.stack = stack
-
-			return error
-		} else {
-			const error = new Error(message, { cause })
-			if (stack) error.stack = stack
-
-			return error
-		}
-	},
 }

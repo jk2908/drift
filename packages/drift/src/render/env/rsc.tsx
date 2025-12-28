@@ -1,5 +1,7 @@
 import type { ReactFormState } from 'react-dom/client'
 
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+
 import {
 	createTemporaryReferenceSet,
 	decodeAction,
@@ -14,7 +16,11 @@ import type { ImportMap, Manifest, Metadata } from '../../types'
 
 import { EntryKind } from '../../config'
 
-import { HTTPException, NOT_FOUND } from '../../shared/error'
+import {
+	HTTPException,
+	type Payload as HTTPExceptionPayload,
+	NOT_FOUND,
+} from '../../shared/error'
 import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
 import { Tree } from '../../shared/tree'
@@ -165,7 +171,6 @@ export async function action(req: Request) {
 		const formData = await req.formData()
 		const decodedAction = await decodeAction(formData)
 		const result = await decodedAction()
-
 		formState = await decodeFormState(result, formData)
 	}
 
@@ -184,5 +189,28 @@ const driftPayloadReducer = {
 			v instanceof HTTPException ? v.status : undefined,
 			v instanceof HTTPException ? v.payload : undefined,
 		]
+	},
+}
+
+export const driftPayloadReviver = {
+	Error: ([name, message, cause, stack, status, payload]: [
+		string,
+		string | undefined,
+		unknown,
+		string | undefined,
+		ContentfulStatusCode | undefined,
+		HTTPExceptionPayload | undefined,
+	]) => {
+		if (name === 'HTTPException' && status !== undefined) {
+			const error = new HTTPException(status, message, { payload, cause })
+			if (stack) error.stack = stack
+
+			return error
+		} else {
+			const error = new Error(message, { cause })
+			if (stack) error.stack = stack
+
+			return error
+		}
 	},
 }
