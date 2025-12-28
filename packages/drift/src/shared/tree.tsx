@@ -5,8 +5,6 @@ import type { EnhancedMatch } from '../types'
 import Fallback from '../ui/+error'
 import { RedirectBoundary } from '../ui/redirect-boundary'
 
-import type { HTTPException } from './error'
-
 type Match = NonNullable<EnhancedMatch>
 
 export function Tree({
@@ -15,40 +13,36 @@ export function Tree({
 	error,
 	ui,
 }: {
-	depth?: Match['__depth']
-	params?: Match['params']
-	error?: Match['error'] | HTTPException
-	ui?: Match['ui']
+	depth: Match['__depth']
+	params: Match['params']
+	error: Match['error']
+	ui: Match['ui']
 }) {
-	const { Shell, layouts, Page, Err, loaders = [] } = ui ?? {}
+	const { Shell, layouts = [], Page, Err, loaders = [] } = ui
+
+	if (!Shell) return <Fallback error={new Error('Missing app shell')} />
 
 	let initial: React.ReactNode
 
-	if (error && !Err) {
-		return <Fallback error={error} />
-	} else {
-		if (!Shell) return <Fallback error={new Error('Missing app shell')} />
+	if (error) {
+		initial = Err ? <Err error={error} /> : <Fallback error={error} />
+	} else if (Page) {
+		// if we're deeper than 0 (root) and there's no
+		// layout at this depth but there is a loader,
+		// wrap the page in suspense
+		if (depth > 0 && !layouts?.[depth] && loaders[depth]) {
+			const Loading = loaders?.[depth]
 
-		if (error && Err) {
-			initial = <Err error={error} />
-		} else if (Page) {
-			// if we're deeper than 0 (root) and there's no
-			// layout at this depth but there is a loader,
-			// wrap the page in suspense
-			if (depth !== undefined && depth > 0 && !layouts?.[depth] && loaders[depth]) {
-				const Loading = loaders?.[depth]
-
-				initial = (
-					<Suspense fallback={<Loading />}>
-						<Page params={params} />
-					</Suspense>
-				)
-			} else {
-				initial = <Page params={params} />
-			}
+			initial = (
+				<Suspense fallback={<Loading />}>
+					<Page params={params} />
+				</Suspense>
+			)
 		} else {
-			initial = null
+			initial = <Page params={params} />
 		}
+	} else {
+		initial = null
 	}
 
 	const ShellLoading = loaders[0]
@@ -56,7 +50,7 @@ export function Tree({
 	return (
 		<RedirectBoundary>
 			<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
-				<Shell params={params}>
+				<Shell>
 					{layouts?.length
 						? layouts.reduce((child, Layout, idx) => {
 								if (!Layout) return child

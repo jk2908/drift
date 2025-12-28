@@ -19,7 +19,10 @@ import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/
 import { Router } from '../../shared/router'
 import { Tree } from '../../shared/tree'
 
-import * as fallback from '../../ui/+error'
+import {
+	default as DefaultErrorPage,
+	metadata as defaultErrorMetadata,
+} from '../../ui/+error'
 
 import { onError } from './utils'
 
@@ -27,8 +30,8 @@ export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
-	driftPayload: string
-	metadata: Promise<Metadata> | undefined
+	driftPayload?: string
+	metadata?: Promise<Metadata>
 }
 
 export type DriftPayload = {
@@ -63,26 +66,41 @@ export async function rsc(
 	temporaryReferences?: unknown,
 ) {
 	const router = new Router(manifest, importMap)
+	const collection = new MetadataCollection(baseMetadata)
 
 	const url = new URL(req.url)
 	const match = router.enhance(router.match(url.pathname))
 
-	const collection = new MetadataCollection(baseMetadata)
+	if (!match) {
+		const metadata = collection
+			.add({
+				task: defaultErrorMetadata({ error: NOT_FOUND }),
+				priority: METADATA_PRIORITY[EntryKind.ERROR],
+			})
+			.run()
+
+		const rscPayload: RSCPayload = {
+			root: (
+				<>
+					<DefaultErrorPage error={NOT_FOUND} />
+				</>
+			),
+			returnValue,
+			formState,
+			metadata,
+		}
+
+		return renderToReadableStream(rscPayload, {
+			temporaryReferences,
+			onError,
+		})
+	}
 
 	const metadata = match
-		? match
-				.metadata?.({ params: match.params, error: match.error })
-				.then(m =>
-					collection
-						.add(...m.filter(r => r.status !== 'rejected').map(r => r.value))
-						.run(),
-				)
-		: collection
-				.add({
-					task: fallback.metadata({ error: NOT_FOUND }),
-					priority: METADATA_PRIORITY[EntryKind.ERROR],
-				})
-				.run()
+		.metadata?.({ params: match.params, error: match.error })
+		.then(m =>
+			collection.add(...m.filter(r => r.status !== 'rejected').map(r => r.value)).run(),
+		)
 
 	const driftPayload = devalue.stringify(
 		{
@@ -99,10 +117,10 @@ export async function rsc(
 		root: (
 			<>
 				<Tree
-					depth={match?.__depth}
-					params={match?.params}
-					error={match ? match.error : NOT_FOUND}
-					ui={match?.ui}
+					depth={match.__depth}
+					params={match.params}
+					error={match.error}
+					ui={match.ui}
 				/>
 			</>
 		),
