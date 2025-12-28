@@ -108,6 +108,7 @@ export type EnhancedMatch = Match & {
 	ui: {
 		Shell: React.ComponentType<{
 			children?: React.ReactNode
+			params?: Params
 		}> | null
 		layouts: (View<{
 			children?: React.ReactNode

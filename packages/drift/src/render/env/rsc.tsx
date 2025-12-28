@@ -98,14 +98,12 @@ export async function rsc(
 	const rscPayload: RSCPayload = {
 		root: (
 			<>
-				{match ? (
-					<Tree
-						depth={match.__depth}
-						params={match.params}
-						error={match.error}
-						ui={match.ui}
-					/>
-				) : null}
+				<Tree
+					depth={match?.__depth}
+					params={match?.params}
+					error={match ? match.error : NOT_FOUND}
+					ui={match?.ui}
+				/>
 			</>
 		),
 		returnValue,

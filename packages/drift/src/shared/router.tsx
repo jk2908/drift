@@ -199,7 +199,7 @@ export class Router {
 				// only process parameters if the router returned any
 				if (paramStash?.length) {
 					if (entry.catch_all) {
-						// for a catch-all, we use the __path property on the matched entry.
+						// for a catch all, we use the __path property on the matched entry.
 						// Neccessary because Hono doesn't expose wildcard params so we need
 						// to grab them from here. Derive the value by removing the
 						// static part of the pattern from the full path that was
@@ -522,7 +522,7 @@ export class Router {
 				if (curr === undefined) break
 			}
 
-			if (curr !== undefined) {
+			if (curr !== undefined && curr !== null) {
 				if (value !== undefined && curr !== value) return null
 
 				return pageEntry
@@ -563,7 +563,7 @@ export class Router {
 			}
 		}
 
-		return await Promise.allSettled(loads)
+		return Promise.allSettled(loads)
 	}
 
 	get manifest() {

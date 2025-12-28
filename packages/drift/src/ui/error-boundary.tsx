@@ -9,7 +9,6 @@ export type Props = {
 		| ((error: BoundaryError, reset: () => void) => React.ReactNode)
 		| React.ReactNode
 	onError?: (error: BoundaryError) => void
-	onReset?: () => void
 	children: React.ReactNode
 }
 
@@ -42,9 +41,9 @@ export class ErrorBoundary extends Component<
 		this.props.onError?.(error)
 	}
 
-	reset() {
-		this.props.onReset?.()
+	reset(onReset?: () => void) {
 		if (this.state.error) this.setState({ error: null })
+		onReset?.()
 	}
 
 	render() {

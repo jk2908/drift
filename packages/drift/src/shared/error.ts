@@ -1,7 +1,5 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
-// built upon Hono's HTTPException for compat
-
 export type Payload = string | Record<string, unknown>
 
 type HTTPExceptionOptions = {

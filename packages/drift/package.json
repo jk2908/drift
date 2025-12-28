@@ -76,10 +76,6 @@
 			"types": "./dist/shared/logger.d.ts",
 			"default": "./dist/shared/logger.js"
 		},
-		"./shared/utils": {
-			"types": "./dist/shared/utils.d.ts",
-			"default": "./dist/shared/utils.js"
-		},
 		"./client/router": {
 			"types": "./dist/client/router.d.ts",
 			"default": "./dist/client/router.js"
