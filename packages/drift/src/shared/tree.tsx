@@ -2,8 +2,7 @@ import { Suspense } from 'react'
 
 import type { EnhancedMatch } from '../types'
 
-import Fallback from '../ui/+error'
-import { RedirectBoundary } from '../ui/redirect-boundary'
+import DefaultErrorPage from '../ui/defaults/+error'
 
 type Match = NonNullable<EnhancedMatch>
 
@@ -20,16 +19,16 @@ export function Tree({
 }) {
 	const { Shell, layouts = [], Page, Err, loaders = [] } = ui
 
-	if (!Shell) return <Fallback error={new Error('Missing app shell')} />
+	if (!Shell) return <DefaultErrorPage error={new Error('Missing app shell')} />
 
 	let initial: React.ReactNode
 
 	if (error) {
-		initial = Err ? <Err error={error} /> : <Fallback error={error} />
+		initial = Err ? <Err error={error} /> : <DefaultErrorPage error={error} />
 	} else if (Page) {
 		// if we're deeper than 0 (root) and there's no
 		// layout at this depth but there is a loader,
-		// wrap the page in suspense
+		// wrap the page in <Suspense />
 		if (depth > 0 && !layouts?.[depth] && loaders[depth]) {
 			const Loading = loaders?.[depth]
 
@@ -48,34 +47,32 @@ export function Tree({
 	const ShellLoading = loaders[0]
 
 	return (
-		<RedirectBoundary>
-			<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
-				<Shell>
-					{layouts?.length
-						? layouts.reduce((child, Layout, idx) => {
-								if (!Layout) return child
+		<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
+			<Shell>
+				{layouts?.length
+					? layouts.reduce((child, Layout, idx) => {
+							if (!Layout) return child
 
-								const key = `l:${idx}`
-								// account for shell loader at index 0
-								const Loading = loaders[idx + 1]
+							const key = `l:${idx}`
+							// account for shell loader at index 0
+							const Loading = loaders[idx + 1]
 
-								if (Loading) {
-									return (
-										<Suspense key={key} fallback={Loading ? <Loading /> : null}>
-											<Layout params={params}>{child}</Layout>
-										</Suspense>
-									)
-								}
-
+							if (Loading) {
 								return (
-									<Layout key={key} params={params}>
-										{child}
-									</Layout>
+									<Suspense key={key} fallback={Loading ? <Loading /> : null}>
+										<Layout params={params}>{child}</Layout>
+									</Suspense>
 								)
-							}, initial)
-						: initial}
-				</Shell>
-			</Suspense>
-		</RedirectBoundary>
+							}
+
+							return (
+								<Layout key={key} params={params}>
+									{child}
+								</Layout>
+							)
+						}, initial)
+					: initial}
+			</Shell>
+		</Suspense>
 	)
 }

@@ -1,3 +1,5 @@
+import { error } from '@jk2908/drift/shared/error'
+
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
 
@@ -15,9 +17,7 @@ export const metadata = async ({ params }: { params?: { id: string } }) => {
 export default function Post({ params }: { params?: { id: string } }) {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
 
-	if (!post) {
-		return <>Post not found</>
-	}
+	if (!post) error('Post not found', 404)
 
 	return <>Post {JSON.stringify(post)}</>
 }

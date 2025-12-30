@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { Link } from '@jk2908/drift/ui/link'
+import { Link } from '@jk2908/drift/ui/components/link'
 
 import { Blue } from './blue'
 import { Red } from './red'

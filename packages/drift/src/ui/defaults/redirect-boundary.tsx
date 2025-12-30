@@ -1,20 +1,22 @@
 'use client'
 
-import { ErrorBoundary } from './error-boundary'
+import { ErrorBoundary } from '../components/error-boundary'
 
 export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 	return (
 		<ErrorBoundary
 			fallback={err => {
 				if ('digest' in err && typeof err.digest === 'string') {
-					const [type, url] = err.digest.split(':')
+					const [type, ...rest] = err.digest.split(':')
 
 					if (type === 'redirect') {
+						const [url] = rest
+
 						return <meta httpEquiv="refresh" content={`0;url=${url}`} />
 					}
 				}
 
-				// only catch redirects, re-throw other errors?
+				// only catch redirects
 				throw err
 			}}>
 			{children}

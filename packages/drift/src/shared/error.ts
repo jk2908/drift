@@ -1,4 +1,4 @@
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import type { LooseNumber } from '../types'
 
 export type Payload = string | Record<string, unknown>
 
@@ -7,22 +7,87 @@ type HTTPExceptionOptions = {
 	cause?: unknown
 }
 
+type Code =
+	| 100
+	| 101
+	| 102
+	| 103
+	| 200
+	| 201
+	| 202
+	| 203
+	| 204
+	| 205
+	| 206
+	| 207
+	| 208
+	| 226
+	| 300
+	| 301
+	| 302
+	| 303
+	| 304
+	| 305
+	| 306
+	| 307
+	| 308
+	| 400
+	| 401
+	| 402
+	| 403
+	| 404
+	| 405
+	| 406
+	| 407
+	| 408
+	| 409
+	| 410
+	| 411
+	| 412
+	| 413
+	| 414
+	| 415
+	| 416
+	| 417
+	| 418
+	| 421
+	| 422
+	| 423
+	| 424
+	| 425
+	| 426
+	| 428
+	| 429
+	| 431
+	| 451
+	| 500
+	| 501
+	| 502
+	| 503
+	| 504
+	| 505
+	| 506
+	| 507
+	| 508
+	| 510
+	| 511
+
+export type StatusCode = LooseNumber<Code>
+
 /**
  * Create a HTTPException instance
+ * @param message - the message
  * @param status - the status code of the error
- * @param options - the options
- * @param options.payload - the payload
- * @param options.cause - the cause
+ * @param opts - the options
+ * @param opts.payload - the payload
+ * @param opts.cause - the cause
  */
 export class HTTPException extends Error {
-	readonly status?: ContentfulStatusCode
-	readonly payload?: Payload
+	status: StatusCode
+	payload?: Payload
+	digest?: string
 
-	constructor(
-		status: ContentfulStatusCode,
-		message?: string,
-		opts?: HTTPExceptionOptions,
-	) {
+	constructor(message: string, status: StatusCode, opts?: HTTPExceptionOptions) {
 		super(message, { cause: opts?.cause })
 		this.status = status
 		this.payload = opts?.payload
@@ -31,24 +96,27 @@ export class HTTPException extends Error {
 
 /**
  * Throw an HTTPException
- * @param status - the status code of the error
  * @param message - the message
- * @param options - the options
- * @param options.payload - the payload
+ * @param status - the status code of the error
+ * @param opts - the options
+ * @param opts.payload - the payload
  * @throws a HTTPException with the given status and options
  */
 export function error(
-	status: ContentfulStatusCode,
-	message?: string,
-	options?: {
+	message: string,
+	status: StatusCode,
+	opts?: {
 		payload?: Payload
 		cause?: unknown
 	},
 ): never {
-	throw new HTTPException(status, message, {
-		payload: options?.payload,
-		cause: options?.cause,
+	const h = new HTTPException(message, status, {
+		payload: opts?.payload,
+		cause: opts?.cause,
 	})
+	h.digest = `http_exception:${message}:${status}`
+
+	throw h
 }
 
-export const NOT_FOUND = new HTTPException(404, 'Not found')
+export const NOT_FOUND = new HTTPException('Not found', 404)

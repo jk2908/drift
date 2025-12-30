@@ -84,13 +84,13 @@
 			"types": "./dist/config.d.ts",
 			"default": "./dist/config.js"
 		},
-		"./ui/link": {
-			"types": "./dist/ui/link.d.ts",
-			"default": "./dist/ui/link.js"
+		"./ui/components/link": {
+			"types": "./dist/ui/components/link.d.ts",
+			"default": "./dist/ui/components/link.js"
 		},
-		"./ui/error-boundary": {
-			"types": "./dist/ui/error-boundary.d.ts",
-			"default": "./dist/ui/error-boundary.js"
+		"./ui/components/error-boundary": {
+			"types": "./dist/ui/components/error-boundary.d.ts",
+			"default": "./dist/ui/components/error-boundary.js"
 		}
 	},
 	"files": [

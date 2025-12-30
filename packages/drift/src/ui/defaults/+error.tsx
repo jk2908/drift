@@ -1,11 +1,13 @@
-import type { HTTPException } from '../shared/error'
+import type { HTTPException } from '../../shared/error'
 
 export const metadata = async ({ error }: { error: HTTPException }) => ({
 	title: `${error.status} ${error.message}`,
 	description: error.stack,
 })
 
-export default function Page({ error }: { error: HTTPException }) {
+export default function Page({ error }: { error?: HTTPException | Error }) {
+	if (!error) return null
+
 	return (
 		<html lang="en">
 			<head>
@@ -16,11 +18,11 @@ export default function Page({ error }: { error: HTTPException }) {
 
 			<body>
 				<h1>
-					{error.status && `${error.status} - `}
-					{error.message}
+					{'status' in error ? `${error.status} - ` : ''}
+					{error?.message}
 				</h1>
 
-				{error.stack && <pre>{error.stack}</pre>}
+				{error?.stack && <pre>{error.stack}</pre>}
 			</body>
 		</html>
 	)

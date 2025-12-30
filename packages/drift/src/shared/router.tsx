@@ -238,7 +238,7 @@ export class Router {
 			return {
 				...entry,
 				params: {},
-				error: new HTTPException(404, 'Not found'),
+				error: new HTTPException('Not found', 404),
 			}
 		}
 

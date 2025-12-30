@@ -120,7 +120,7 @@ export type EnhancedMatch = Match & {
 		}> | null
 		Err: View<{
 			children?: React.ReactNode
-			error?: Error
+			error?: HTTPException | Error
 		}> | null
 		loaders: (View<{
 			children?: React.ReactNode
@@ -152,3 +152,5 @@ export type ImportMap = Record<string, MapEntry>
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 export type Primitive = string | number | boolean | bigint | symbol | null | undefined
+
+export type LooseNumber<T extends number> = T | (number & {})

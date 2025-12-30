@@ -11,6 +11,8 @@ import { Metadata } from '../../shared/metadata'
 
 import { RouterProvider } from '../../client/router'
 
+import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
+
 import type { RSCPayload } from './rsc'
 import { onError } from './utils'
 
@@ -34,13 +36,15 @@ export async function ssr(
 		const payload = use(payloadPromise)
 
 		return (
-			<RouterProvider>
-				<Suspense fallback={null}>
-					<Metadata metadata={payload.metadata} />
-				</Suspense>
+			<RedirectBoundary>
+				<RouterProvider>
+					<Suspense fallback={null}>
+						<Metadata metadata={payload.metadata} />
+					</Suspense>
 
-				{payload.root}
-			</RouterProvider>
+					{payload.root}
+				</RouterProvider>
+			</RedirectBoundary>
 		)
 	}
 

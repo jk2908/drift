@@ -9,19 +9,12 @@ import rsc from '@vitejs/plugin-rsc'
 import type { BuildContext, PluginConfig } from './types'
 
 import { writeConfig } from './codegen/config'
-import { createEntries } from './codegen/entries'
+import { writeBrowserEntry, writeRSCEntry, writeSSREntry } from './codegen/environments'
 import { writeImportMap } from './codegen/import-map'
 import { writeManifest } from './codegen/manifest'
 import { writeRouter } from './codegen/router'
 
-import {
-	APP_DIR,
-	ASSETS_DIR,
-	ENTRY_BROWSER,
-	ENTRY_RSC,
-	ENTRY_SSR,
-	GENERATED_DIR,
-} from './config'
+import { APP_DIR, ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR } from './config'
 
 import { Logger } from './shared/logger'
 
@@ -65,7 +58,7 @@ function drift(c: PluginConfig): PluginOption[] {
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger(config.logger.level)
 
-	const buildCtx: BuildContext = {
+	const buildContext: BuildContext = {
 		outDir: config.outDir,
 		bundle: {
 			server: {
@@ -92,11 +85,11 @@ function drift(c: PluginConfig): PluginOption[] {
 			fs.mkdir(generatedDir, { recursive: true }),
 		])
 
-		const processor = new RouteProcessor(buildCtx, config)
+		const processor = new RouteProcessor(buildContext, config)
 		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
 
 		// set prerenderable routes in context for use in closeBundle
-		buildCtx.prerenderableRoutes = prerenderableRoutes
+		buildContext.prerenderableRoutes = prerenderableRoutes
 
 		await Promise.all([
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
@@ -106,11 +99,13 @@ function drift(c: PluginConfig): PluginOption[] {
 				writeImportMap(imports, modules),
 			),
 			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
-			...(await createEntries()),
+			Bun.write(path.join(generatedDir, ENTRY_RSC), writeRSCEntry()),
+			Bun.write(path.join(generatedDir, ENTRY_SSR), writeSSREntry()),
+			Bun.write(path.join(generatedDir, ENTRY_BROWSER), writeBrowserEntry()),
 		])
 
 		// format generated files, avoid stopping build on errors
-		await format(GENERATED_DIR, buildCtx).catch(() => {})
+		await format(GENERATED_DIR, buildContext).catch(() => {})
 	}
 
 	// debounced build to avoid multiple builds on file changes
@@ -162,53 +157,11 @@ function drift(c: PluginConfig): PluginOption[] {
 					if (path.includes(APP_DIR)) rebuild()
 				})
 		},
-		async writeBundle(options, output) {
-			if (process.env.NODE_ENV === 'development') return
-
-			try {
-				const viteManifest = Bun.file(
-					path.resolve(
-						process.cwd(),
-						options.dir ?? config.outDir,
-						'.vite/manifest.json',
-					),
-				)
-
-				if (!(await viteManifest.exists())) {
-					throw new Error('No manifest found, cannot get client hash')
-				}
-
-				const json = await viteManifest.json()
-				const clientEntryPath = json[`${GENERATED_DIR}/${ENTRY_BROWSER}`].file
-
-				buildCtx.bundle.client.entryPath = path.join(
-					options.dir ?? config.outDir,
-					clientEntryPath,
-				)
-				buildCtx.bundle.client.outDir = `${options.dir ?? config.outDir}/${ASSETS_DIR}`
-
-				const serverEntryChunk = Object.entries(output).find(
-					([_, chunk]) => chunk.type === 'chunk' && chunk.isEntry,
-				)
-
-				if (!serverEntryChunk) throw new Error('No server entry chunk found')
-
-				const [serverEntryPath] = serverEntryChunk
-
-				buildCtx.bundle.server.entryPath = path.join(
-					options.dir ?? config.outDir,
-					serverEntryPath,
-				)
-				buildCtx.bundle.server.outDir = options.dir ?? config.outDir
-			} catch (err) {
-				logger.error('[writeBundle]', err)
-			}
-		},
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
 			try {
-				if (buildCtx.prerenderableRoutes.size > 0) {
+				if (buildContext.prerenderableRoutes.size > 0) {
 					if (!config.app?.url) {
 						logger.error(
 							'[closeBundle]',
@@ -218,20 +171,25 @@ function drift(c: PluginConfig): PluginOption[] {
 						Bun.env.PRERENDER = 'true'
 
 						try {
-							if (!buildCtx.bundle.server.outDir || !buildCtx.bundle.server.entryPath) {
+							if (
+								!buildContext.bundle.server.outDir ||
+								!buildContext.bundle.server.entryPath
+							) {
 								throw new Error('No server outDir or entryPath found')
 							}
 
 							const app = (
-								await import(`file://${Bun.file(buildCtx.bundle.server.entryPath).name}`)
+								await import(
+									`file://${Bun.file(buildContext.bundle.server.entryPath).name}`
+								)
 							).default
 
-							for (const route of buildCtx.prerenderableRoutes) {
+							for (const route of buildContext.prerenderableRoutes) {
 								const { value, done } = await prerender(
 									(req: Request) => app.fetch(req),
 									route,
 									config.app.url,
-									buildCtx,
+									buildContext,
 								).next()
 
 								if (done || !value) {
@@ -248,8 +206,8 @@ function drift(c: PluginConfig): PluginOption[] {
 
 								const outPath =
 									route === '/'
-										? path.join(buildCtx.bundle.server.outDir, 'index.html')
-										: path.join(buildCtx.bundle.server.outDir, route, 'index.html')
+										? path.join(buildContext.bundle.server.outDir, 'index.html')
+										: path.join(buildContext.bundle.server.outDir, route, 'index.html')
 
 								await fs.mkdir(path.dirname(outPath), { recursive: true })
 								await Bun.write(outPath, body)
@@ -269,7 +227,7 @@ function drift(c: PluginConfig): PluginOption[] {
 					try {
 						const dir = path.resolve(process.cwd(), config.outDir)
 
-						for await (const { input, compressed } of compress(dir, buildCtx, {
+						for await (const { input, compressed } of compress(dir, buildContext, {
 							filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 						})) {
 							await Bun.write(`${input}.br`, compressed)
@@ -286,7 +244,7 @@ function drift(c: PluginConfig): PluginOption[] {
 				logger.error('[closeBundle]', err)
 				return
 			} finally {
-				buildCtx.bundle.server = {
+				buildContext.bundle.server = {
 					entryPath: null,
 					outDir: null,
 				}

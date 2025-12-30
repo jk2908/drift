@@ -20,6 +20,8 @@ import { RouterProvider } from 'src/client/router'
 
 import { Metadata } from '../../shared/metadata'
 
+import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
+
 import type { RSCPayload } from './rsc'
 
 /**
@@ -47,13 +49,15 @@ export async function browser() {
 		}, [setPayloadInTransition])
 
 		return (
-			<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
-				<Suspense fallback={null}>
-					<Metadata metadata={p.metadata} />
-				</Suspense>
+			<RedirectBoundary>
+				<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
+					<Suspense fallback={null}>
+						<Metadata metadata={p.metadata} />
+					</Suspense>
 
-				{p.root}
-			</RouterProvider>
+					{p.root}
+				</RouterProvider>
+			</RedirectBoundary>
 		)
 	}
 

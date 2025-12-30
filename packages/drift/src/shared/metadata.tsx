@@ -18,7 +18,16 @@ export const PRIORITY: Record<MetadataSource, number> = {
 } as const
 
 export class MetadataCollection {
+	/**
+	 * The base metadata object
+	 * @description - normally extends config.metadata
+	 */
 	#base: TMetadata = {}
+
+	/**
+	 * The collection of metadata tasks with their priorities
+	 * @description - each task is a promise that resolves to a metadata object
+	 */
 	#collection: {
 		priority: number
 		item: Promise<TMetadata>

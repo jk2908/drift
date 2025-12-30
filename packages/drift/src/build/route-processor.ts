@@ -42,6 +42,9 @@ export type Modules = Record<
 
 const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
 
+/**
+ * RouteProcessor class to process application routes
+ */
 export class RouteProcessor {
 	ctx: BuildContext | null = null
 	config: PluginConfig | null = null
@@ -49,6 +52,63 @@ export class RouteProcessor {
 	constructor(ctx: BuildContext, config: PluginConfig) {
 		this.ctx = ctx
 		this.config = config
+	}
+
+	/**
+	 * Extracts dynamic parameter names from a file path
+	 * @param file - the file path to extract parameters from
+	 * @returns an array of parameter names
+	 */
+	static getParams(file: string) {
+		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
+	}
+
+	/**
+	 * Get the depth of a route based on slashes
+	 * @param route - the route to get the depth of
+	 * @returns the depth of the route
+	 */
+	static getDepth(route: string) {
+		if (route === '/') return 0
+
+		// count slashes to determine depth
+		return route.split('/').length - 1
+	}
+
+	/**
+	 * Convert a file path to a Hono-compatible route.
+	 * @param file - the file to convert to a route
+	 * @returns the converted route
+	 */
+	static toCanonicalRoute(file: string) {
+		const route = file
+			.replace(new RegExp(`^${APP_DIR}`), '')
+			.replace(/\/\+page\.(j|t)sx?$/, '')
+			.replace(/\/\+endpoint\.(j|t)sx?$/, '')
+			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
+			.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
+
+		if (!route || route === '') return '/'
+
+		return route.startsWith('/') ? route : `/${route}`
+	}
+
+	/**
+	 * Get the import path for a file
+	 * This finds the relative path from the generated
+	 * directory to the file, removes the extension and
+	 * replaces backslashes with forward slashes.
+	 * @param file the file to get the import path for
+	 * @returns the import path for the file
+	 */
+	static getImportPath(file: string) {
+		const cwd = process.cwd()
+		const generatedDir = path.join(cwd, GENERATED_DIR)
+
+		return path
+			.relative(generatedDir, path.resolve(cwd, file))
+			.replace(/\\/g, '/')
+			.replace(/\.(t|j)sx?$/, '')
 	}
 
 	/**
@@ -451,62 +511,5 @@ export class RouteProcessor {
 		}
 
 		return { manifest, imports, prerenderableRoutes, modules }
-	}
-
-	/**
-	 * Extracts dynamic parameter names from a file path
-	 * @param file - the file path to extract parameters from
-	 * @returns an array of parameter names
-	 */
-	static getParams(file: string) {
-		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
-	}
-
-	/**
-	 * Get the depth of a route based on slashes
-	 * @param route - the route to get the depth of
-	 * @returns the depth of the route
-	 */
-	static getDepth(route: string) {
-		if (route === '/') return 0
-
-		// count slashes to determine depth
-		return route.split('/').length - 1
-	}
-
-	/**
-	 * Convert a file path to a Hono-compatible route.
-	 * @param file - the file to convert to a route
-	 * @returns the converted route
-	 */
-	static toCanonicalRoute(file: string) {
-		const route = file
-			.replace(new RegExp(`^${APP_DIR}`), '')
-			.replace(/\/\+page\.(j|t)sx?$/, '')
-			.replace(/\/\+endpoint\.(j|t)sx?$/, '')
-			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
-			.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
-
-		if (!route || route === '') return '/'
-
-		return route.startsWith('/') ? route : `/${route}`
-	}
-
-	/**
-	 * Get the import path for a file
-	 * This finds the relative path from the generated
-	 * directory to the file, removes the extension and
-	 * replaces backslashes with forward slashes.
-	 * @param file the file to get the import path for
-	 * @returns the import path for the file
-	 */
-	static getImportPath(file: string) {
-		const cwd = process.cwd()
-		const generatedDir = path.join(cwd, GENERATED_DIR)
-
-		return path
-			.relative(generatedDir, path.resolve(cwd, file))
-			.replace(/\\/g, '/')
-			.replace(/\.(t|j)sx?$/, '')
 	}
 }

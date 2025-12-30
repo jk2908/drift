@@ -28,7 +28,7 @@ import { Tree } from '../../shared/tree'
 import {
 	default as DefaultErrorPage,
 	metadata as defaultErrorMetadata,
-} from '../../ui/+error'
+} from '../../ui/defaults/+error'
 
 import { onError } from './utils'
 
@@ -195,14 +195,14 @@ const driftPayloadReducer = {
 export const driftPayloadReviver = {
 	Error: ([name, message, cause, stack, status, payload]: [
 		string,
-		string | undefined,
+		string,
 		unknown,
 		string | undefined,
 		ContentfulStatusCode | undefined,
 		HTTPExceptionPayload | undefined,
 	]) => {
 		if (name === 'HTTPException' && status !== undefined) {
-			const error = new HTTPException(status, message, { payload, cause })
+			const error = new HTTPException(message, status, { payload, cause })
 			if (stack) error.stack = stack
 
 			return error

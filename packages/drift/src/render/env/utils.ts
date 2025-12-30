@@ -1,8 +1,11 @@
-import { createRedirectDigest, Redirect } from '../../shared/redirect'
-
 export function onError(err: unknown) {
-	if (err instanceof Redirect) {
-		return createRedirectDigest(err.url, err.status)
+	if (
+		typeof err === 'object' &&
+		err !== null &&
+		'digest' in err &&
+		typeof err.digest === 'string'
+	) {
+		return err.digest
 	}
 
 	console.error(err)
