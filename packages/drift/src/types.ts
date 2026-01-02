@@ -75,10 +75,10 @@ export type Page = {
 	method: 'get'
 	paths: {
 		layouts: (string | null)[]
-		error?: string | null
+		errors?: (string | null)[]
 		loaders: (string | null)[]
 	}
-	error?: HTTPException
+	error?: HTTPException | Error
 	prerender: boolean
 	dynamic: boolean
 	catch_all: boolean
@@ -106,10 +106,6 @@ export type View<TProps> =
 
 export type EnhancedMatch = Match & {
 	ui: {
-		Shell: React.ComponentType<{
-			children?: React.ReactNode
-			params?: Params
-		}> | null
 		layouts: (View<{
 			children?: React.ReactNode
 			params?: Params
@@ -118,10 +114,10 @@ export type EnhancedMatch = Match & {
 			children?: React.ReactNode
 			params?: Params
 		}> | null
-		Err: View<{
+		errors: (View<{
 			children?: React.ReactNode
 			error?: HTTPException | Error
-		}> | null
+		}> | null)[]
 		loaders: (View<{
 			children?: React.ReactNode
 		}> | null)[]
@@ -141,13 +137,26 @@ export type DynamicImport<T = Record<string, unknown>> = () => Promise<T>
 export type MapEntry = {
 	shell?: StaticImport
 	page?: DynamicImport
-	layouts?: readonly DynamicImport[]
-	error?: DynamicImport
+	layouts?: readonly (DynamicImport | null)[]
+	errors?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
-	endpoint?: (c: Context) => unknown
+	endpoint?: (c?: Context) => unknown
 }
 
 export type ImportMap = Record<string, MapEntry>
+
+export type PathMap = {
+	layouts: Record<string, StaticImport | DynamicImport>
+	pages: Record<string, DynamicImport>
+	errors: Record<string, DynamicImport>
+	loaders: Record<string, DynamicImport>
+	endpoints: Partial<
+		Record<
+			Lowercase<HTTPMethod>,
+			Record<string, (c?: Context) => Response | Promise<Response>>
+		>
+	>
+}
 
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 

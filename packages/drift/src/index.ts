@@ -10,8 +10,8 @@ import type { BuildContext, PluginConfig } from './types'
 
 import { writeConfig } from './codegen/config'
 import { writeBrowserEntry, writeRSCEntry, writeSSREntry } from './codegen/environments'
-import { writeImportMap } from './codegen/import-map'
 import { writeManifest } from './codegen/manifest'
+import { writeMaps } from './codegen/maps'
 import { writeRouter } from './codegen/router'
 
 import { APP_DIR, ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR } from './config'
@@ -94,10 +94,7 @@ function drift(c: PluginConfig): PluginOption[] {
 		await Promise.all([
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
-			Bun.write(
-				path.join(generatedDir, 'import-map.ts'),
-				writeImportMap(imports, modules),
-			),
+			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
 			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
 			Bun.write(path.join(generatedDir, ENTRY_RSC), writeRSCEntry()),
 			Bun.write(path.join(generatedDir, ENTRY_SSR), writeSSREntry()),

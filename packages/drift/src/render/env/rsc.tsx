@@ -16,11 +16,7 @@ import type { ImportMap, Manifest, Metadata } from '../../types'
 
 import { EntryKind } from '../../config'
 
-import {
-	HTTPException,
-	type Payload as HTTPExceptionPayload,
-	NOT_FOUND,
-} from '../../shared/error'
+import { HTTPException, type Payload as HTTPExceptionPayload } from '../../shared/error'
 import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
 import { Tree } from '../../shared/tree'
@@ -78,9 +74,11 @@ export async function rsc(
 	const match = router.enhance(router.match(url.pathname))
 
 	if (!match) {
+		const error = new HTTPException('Not found', 404)
+
 		const metadata = collection
 			.add({
-				task: defaultErrorMetadata({ error: NOT_FOUND }),
+				task: defaultErrorMetadata({ error }),
 				priority: METADATA_PRIORITY[EntryKind.ERROR],
 			})
 			.run()
@@ -88,7 +86,7 @@ export async function rsc(
 		const rscPayload: RSCPayload = {
 			root: (
 				<>
-					<DefaultErrorPage error={NOT_FOUND} />
+					<DefaultErrorPage error={error} />
 				</>
 			),
 			returnValue,
@@ -124,6 +122,7 @@ export async function rsc(
 			<>
 				<Tree
 					depth={match.__depth}
+					paths={match.paths}
 					params={match.params}
 					error={match.error}
 					ui={match.ui}

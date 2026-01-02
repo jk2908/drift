@@ -118,5 +118,3 @@ export function error(
 
 	throw h
 }
-
-export const NOT_FOUND = new HTTPException('Not found', 404)

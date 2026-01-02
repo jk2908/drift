@@ -17,7 +17,7 @@ export type ScanResult = {
 		page: string
 		layouts: (string | null)[]
 		shell: string
-		error?: string
+		errors?: (string | null)[]
 		loaders?: (string | null)[]
 	}[]
 	endpoints: string[]
@@ -34,7 +34,7 @@ export type Modules = Record<
 		shellId?: string
 		layoutIds?: (string | null)[]
 		pageId?: string
-		errorId?: string
+		errorIds?: (string | null)[]
 		loadingIds?: (string | null)[]
 		endpointId?: string
 	}
@@ -140,7 +140,11 @@ export class RouteProcessor {
 	async #scan(
 		dir: string,
 		res: ScanResult = { pages: [], endpoints: [] },
-		prev: { layouts: (string | null)[]; errors: string[]; loaders: (string | null)[] } = {
+		prev: {
+			layouts: (string | null)[]
+			errors: (string | null)[]
+			loaders: (string | null)[]
+		} = {
 			layouts: [],
 			errors: [],
 			loaders: [],
@@ -210,7 +214,7 @@ export class RouteProcessor {
 				if (file.isDirectory()) {
 					const next = {
 						layouts: [...prev.layouts, currentLayout ?? null],
-						errors: currentError ? [...prev.errors, currentError] : prev.errors,
+						errors: [...prev.errors, currentError ?? null],
 						loaders: [...prev.loaders, currentLoader ?? null],
 					}
 
@@ -229,7 +233,7 @@ export class RouteProcessor {
 						res.endpoints.push(relative)
 					} else if (validFiles[TYPES.page].has(base)) {
 						const layouts = [...prev.layouts, currentLayout ?? null]
-						const errors = currentError ? [...prev.errors, currentError] : prev.errors
+						const errors = [...prev.errors, currentError ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts?.[0]
 
@@ -237,7 +241,7 @@ export class RouteProcessor {
 
 						res.pages.push({
 							page: relative,
-							error: errors?.[errors?.length - 1],
+							errors,
 							loaders,
 							layouts: layouts.length > 1 ? layouts.slice(1) : [],
 							shell,
@@ -281,7 +285,7 @@ export class RouteProcessor {
 			try {
 				if (!this.ctx || !this.config) continue
 
-				const { shell, layouts, page, error, loaders = [] } = file
+				const { shell, layouts, page, errors = [], loaders = [] } = file
 
 				const route = RouteProcessor.toCanonicalRoute(page)
 				const params = RouteProcessor.getParams(page)
@@ -297,7 +301,7 @@ export class RouteProcessor {
 
 				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 				const layoutIds: (string | null)[] = []
-				let errorId: string | undefined
+				const errorIds: (string | null)[] = []
 				const loadingIds: (string | null)[] = []
 
 				// if shell not processed yet
@@ -345,12 +349,20 @@ export class RouteProcessor {
 					}
 				}
 
-				if (error) {
-					const errorImport = RouteProcessor.getImportPath(error)
-					errorId = `${EntryKind.ERROR}${Bun.hash(errorImport)}`
+				for (const error of errors) {
+					// hole if level does not declare an error boundary.
+					// Keep slot so indices match layouts
+					if (!error) {
+						errorIds.push(null)
+						continue
+					}
 
-					// dedupe imports but keep the id for every
-					// route that declares this error boundary
+					const errorImport = RouteProcessor.getImportPath(error)
+					const errorId = `${EntryKind.ERROR}${Bun.hash(errorImport)}`
+
+					errorIds.push(errorId)
+
+					// dedupe imports but still assign the slot for this route
 					if (!processed.has(error)) {
 						imports.components.dynamic.set(errorId, errorImport)
 						processed.add(error)
@@ -424,9 +436,11 @@ export class RouteProcessor {
 					__depth: depth,
 					method: 'get' as const,
 					paths: {
-						layouts: [shell, ...layouts],
-						error: error ?? null,
-						loaders,
+						layouts: [shell, ...layouts].map(l =>
+							l ? RouteProcessor.getImportPath(l) : null,
+						),
+						errors: errors.map(e => (e ? RouteProcessor.getImportPath(e) : null)),
+						loaders: loaders.map(l => (l ? RouteProcessor.getImportPath(l) : null)),
 					},
 					prerender: shouldPrerender,
 					dynamic: isDynamic,
@@ -444,7 +458,7 @@ export class RouteProcessor {
 				}
 
 				imports.components.dynamic.set(pageId, pageImport)
-				modules[pageId] = { shellId, layoutIds, pageId, errorId, loadingIds }
+				modules[pageId] = { shellId, layoutIds, pageId, errorIds, loadingIds }
 				processed.add(page)
 			} catch (err) {
 				this.ctx?.logger.error('[process]: failed to process page', err)

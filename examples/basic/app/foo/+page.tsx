@@ -1,3 +1,5 @@
+import { Link } from '@jk2908/drift/ui/components/link'
+
 export default async function Page() {
 	await new Promise(resolve => setTimeout(resolve, 2000))
 	const data = await fetch('http://localhost:8787/posts').then(res => res.json())
@@ -7,6 +9,8 @@ export default async function Page() {
 			{data?.map(d => (
 				<div key={d.id}>{d.title}</div>
 			))}
+
+			<Link href="/p/post-that-does-not-exist">Go to non-existing post</Link>
 		</div>
 	)
 }

@@ -8,71 +8,53 @@ type Match = NonNullable<EnhancedMatch>
 
 export function Tree({
 	depth,
+	paths,
 	params,
 	error,
 	ui,
 }: {
 	depth: Match['__depth']
+	paths: Match['paths']
 	params: Match['params']
 	error: Match['error']
 	ui: Match['ui']
 }) {
-	const { Shell, layouts = [], Page, Err, loaders = [] } = ui
+	const { layouts, Page, errors, loaders } = ui
 
-	if (!Shell) return <DefaultErrorPage error={new Error('Missing app shell')} />
+	// layouts[0] is the shell - required
+	if (!layouts?.[0]) return <DefaultErrorPage error={new Error('Missing app shell')} />
 
-	let initial: React.ReactNode
+	// start with either the error or page component
+	let initial: React.ReactNode = null
 
 	if (error) {
-		initial = Err ? <Err error={error} /> : <DefaultErrorPage error={error} />
+		// find the nearest error boundary at or above this depth
+		const Err = errors.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorPage
+		initial = <Err error={error} />
 	} else if (Page) {
-		// if we're deeper than 0 (root) and there's no
-		// layout at this depth but there is a loader,
-		// wrap the page in <Suspense />
-		if (depth > 0 && !layouts?.[depth] && loaders[depth]) {
-			const Loading = loaders?.[depth]
-
-			initial = (
-				<Suspense fallback={<Loading />}>
-					<Page params={params} />
-				</Suspense>
-			)
-		} else {
-			initial = <Page params={params} />
-		}
-	} else {
-		initial = null
+		initial = <Page params={params} />
 	}
 
-	const ShellLoading = loaders[0]
+	// wrap from inside out: page -> layouts -> shell
+	let node = initial
 
-	return (
-		<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
-			<Shell>
-				{layouts?.length
-					? layouts.reduce((child, Layout, idx) => {
-							if (!Layout) return child
+	for (let idx = layouts.length - 1; idx >= 0; idx--) {
+		const Layout = layouts[idx]
+		const Loading = loaders[idx]
+		const Err = errors[idx]
 
-							const key = `l:${idx}`
-							// account for shell loader at index 0
-							const Loading = loaders[idx + 1]
+		if (Layout) {
+			node = (
+				<Layout key={`l:${idx}`} params={params}>
+					{node}
+				</Layout>
+			)
+		}
 
-							if (Loading) {
-								return (
-									<Suspense key={key} fallback={Loading ? <Loading /> : null}>
-										<Layout params={params}>{child}</Layout>
-									</Suspense>
-								)
-							}
+		if (Loading) {
+			node = <Suspense fallback={<Loading />}>{node}</Suspense>
+		}
+	}
 
-							return (
-								<Layout key={key} params={params}>
-									{child}
-								</Layout>
-							)
-						}, initial)
-					: initial}
-			</Shell>
-		</Suspense>
-	)
+	return node
 }

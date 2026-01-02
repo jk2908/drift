@@ -232,7 +232,7 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.closest(path, 'paths.error')
+		const entry = this.closest(path, 'paths.errors')
 
 		if (entry) {
 			return {
@@ -264,20 +264,6 @@ export class Router {
 			cached.params = match.params
 			cached.error = 'error' in match ? match.error : undefined
 
-			// this route might(?) have been loaded previously without
-			// an error present. If we've got an error now, and the
-			// cached version doesn't have an error boundary, we
-			// need to load it up
-			if ('error' in match && match.error && !cached.ui.Err) {
-				const entry = this.#importMap[__id]
-
-				if (entry.error) {
-					cached.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(
-						entry.error,
-					)
-				}
-			}
-
 			return cached
 		}
 
@@ -286,24 +272,29 @@ export class Router {
 
 		const enhanced: EnhancedMatch = {
 			ui: {
-				Shell: null,
 				layouts: [],
 				Page: null,
-				Err: null,
+				errors: [],
 				loaders: [],
 			},
 			...match,
 		}
 
-		if (entry.shell) {
-			enhanced.ui.Shell = entry.shell.default as EnhancedMatch['ui']['Shell']
-		}
+		// shell component is handled separately inside the import map,
+		// but is treated like a layout component when mapping views
+		const Shell = entry.shell?.default as EnhancedMatch['ui']['layouts'][number]
 
-		if (entry.layouts) {
-			enhanced.ui.layouts = entry.layouts.map(l =>
-				l ? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l) : null,
-			)
-		}
+		// merge Shell with remaining (dynamically) imported components
+		enhanced.ui.layouts = [
+			Shell,
+			...(entry.layouts
+				? entry.layouts.map(l =>
+						l
+							? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l)
+							: null,
+					)
+				: []),
+		]
 
 		if (entry.page) {
 			enhanced.ui.Page = Router.#view<NonNullable<EnhancedMatch['ui']['Page']>>(
@@ -311,11 +302,12 @@ export class Router {
 			)
 		}
 
-		// don't load an error boundary if we don't have an error.
-		// We'll cover this later (above in cached) when/if one
-		// is thrown
-		if (entry.error && 'error' in match && match.error) {
-			enhanced.ui.Err = Router.#view<NonNullable<EnhancedMatch['ui']['Err']>>(entry.error)
+		// each route can have error boundaries that are inherited
+		// from parent layouts/shells
+		if (entry.errors?.length) {
+			enhanced.ui.errors = entry.errors.map(e =>
+				e ? Router.#view<NonNullable<EnhancedMatch['ui']['errors'][number]>>(e) : null,
+			)
 		}
 
 		// each route can display a loading component whilst layouts
@@ -439,44 +431,59 @@ export class Router {
 				}
 			}
 
-			if (entry.error && error) {
-				const e = Router.#load(entry.error)
+			// find the last (deepest) non-null error module if there's
+			//  an error
+			if (entry.errors?.length && error) {
+				const last = entry.errors.length - 1
+				let err: DynamicImport | null = null
 
-				if (e.module && 'metadata' in e.module) {
-					const metadata = e.module.metadata
-
-					if (metadata) {
-						if (typeof metadata === 'function') {
-							tasks.push({
-								task: Promise.resolve(metadata({ params, error })).catch(err => {
-									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
-								}),
-								priority: PRIORITY[EntryKind.ERROR],
-							})
-						} else if (typeof metadata === 'object') {
-							tasks.push({
-								task: Promise.resolve(metadata),
-								priority: PRIORITY[EntryKind.ERROR],
-							})
-						}
+				for (let i = last; i >= 0; i--) {
+					if (entry.errors[i]) {
+						err = entry.errors[i]
+						break
 					}
-				} else {
-					tasks.push({
-						task: e.promise.then(m => {
-							const metadata = m.metadata
-							if (!metadata) return {}
+				}
 
+				if (err) {
+					const e = Router.#load(err)
+
+					if (e.module && 'metadata' in e.module) {
+						const metadata = e.module.metadata
+
+						if (metadata) {
 							if (typeof metadata === 'function') {
-								return metadata({ params, error }).catch((err: unknown) => {
-									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
-									return {}
+								tasks.push({
+									task: Promise.resolve(metadata({ params, error })).catch(err => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									}),
+									priority: PRIORITY[EntryKind.ERROR],
 								})
 							} else if (typeof metadata === 'object') {
-								return metadata
+								tasks.push({
+									task: Promise.resolve(metadata),
+									priority: PRIORITY[EntryKind.ERROR],
+								})
 							}
-						}),
-						priority: PRIORITY[EntryKind.ERROR],
-					})
+						}
+					} else {
+						tasks.push({
+							task: e.promise.then(m => {
+								const metadata = m.metadata
+								if (!metadata) return {}
+
+								if (typeof metadata === 'function') {
+									return metadata({ params, error }).catch((err: unknown) => {
+										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										return {}
+									})
+								} else if (typeof metadata === 'object') {
+									return metadata
+								}
+							}),
+							priority: PRIORITY[EntryKind.ERROR],
+						})
+					}
 				}
 			}
 
@@ -522,7 +529,18 @@ export class Router {
 				if (curr === undefined) break
 			}
 
-			if (curr !== undefined && curr !== null) {
+			if (property === 'paths.errors' && Array.isArray(curr)) {
+				// find the last non-null error boundary in the array
+				for (let j = curr.length - 1; j >= 0; j--) {
+					const error = curr[j]
+
+					if (error !== undefined && error !== null) {
+						if (value !== undefined && error !== value) break
+
+						return pageEntry
+					}
+				}
+			} else if (curr !== undefined && curr !== null) {
 				if (value !== undefined && curr !== value) return null
 
 				return pageEntry
@@ -554,7 +572,13 @@ export class Router {
 		}
 
 		if (imports.page) loads.push(Router.#load(imports.page).promise)
-		if (imports.error) loads.push(Router.#load(imports.error).promise)
+
+		if (imports.errors) {
+			for (const error of imports.errors) {
+				if (!error) continue
+				loads.push(Router.#load(error).promise)
+			}
+		}
 
 		if (imports.loaders) {
 			for (const loader of imports.loaders) {
