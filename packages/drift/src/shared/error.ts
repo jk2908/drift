@@ -94,6 +94,8 @@ export class HTTPException extends Error {
 	}
 }
 
+export const HTTP_EXCEPTION_DIGEST_PREFIX = 'http_exception'
+
 /**
  * Throw an HTTPException
  * @param message - the message
@@ -114,7 +116,7 @@ export function error(
 		payload: opts?.payload,
 		cause: opts?.cause,
 	})
-	h.digest = `http_exception:${message}:${status}`
+	h.digest = `${HTTP_EXCEPTION_DIGEST_PREFIX}:${message}:${status}`
 
 	throw h
 }

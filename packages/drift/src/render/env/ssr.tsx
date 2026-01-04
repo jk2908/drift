@@ -15,7 +15,7 @@ import { RouterProvider } from '../../client/router'
 import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
 
 import type { RSCPayload } from './rsc'
-import { getDigest } from './utils'
+import { getKnownDigest } from './utils'
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
@@ -58,7 +58,7 @@ export async function ssr(
 		nonce,
 		formState,
 		onError(err) {
-			const digest = getDigest(err)
+			const digest = getKnownDigest(err)
 			if (digest) return digest
 
 			logger.error('ssr', err)

@@ -22,7 +22,7 @@ import { MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
 import { Tree } from '../../shared/tree'
 
-import { getDigest } from './utils'
+import { getKnownDigest } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -99,7 +99,7 @@ export async function rsc(
 			stream: renderToReadableStream(rscPayload, {
 				temporaryReferences,
 				onError(err: unknown) {
-					const digest = getDigest(err)
+					const digest = getKnownDigest(err)
 					if (digest) return digest
 
 					logger.error('rsc', err)
@@ -153,7 +153,7 @@ export async function rsc(
 		const stream = renderToReadableStream(rscPayload, {
 			temporaryReferences,
 			onError(err: unknown) {
-				const digest = getDigest(err)
+				const digest = getKnownDigest(err)
 				if (digest) return digest
 
 				logger.error('rsc', err)

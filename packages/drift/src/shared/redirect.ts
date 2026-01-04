@@ -17,6 +17,8 @@ export class Redirect extends Error {
 	}
 }
 
+export const REDIRECT_DIGEST_PREFIX = 'redirect'
+
 /**
  * Throws a Redirect exception to signal a redirect
  * @param url - the URL to redirect to
@@ -24,7 +26,7 @@ export class Redirect extends Error {
  */
 export function redirect(url: string, status: RedirectStatusCode = 307): never {
 	const r = new Redirect(url, status)
-	r.digest = `redirect:${url}:${status}`
+	r.digest = `${REDIRECT_DIGEST_PREFIX}:${url}:${status}`
 
 	throw r
 }
