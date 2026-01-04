@@ -15,7 +15,7 @@ export function writeRSCEntry() {
     import { rsc, action } from '${PKG_NAME}/render/env/rsc'
 
     import { manifest } from './manifest'
-    import { importMap, pathMap } from './maps'
+    import { importMap } from './maps'
     import { config } from './config'
     import { createRouter } from './router'
 
@@ -32,7 +32,7 @@ export function writeRSCEntry() {
 
       if (req.method === 'POST') opts = await action(req)
 
-      const rscStream = await rsc(
+      const { stream: rscStream, status } = await rsc(
         req, 
         manifest, 
         importMap, 
@@ -48,6 +48,7 @@ export function writeRSCEntry() {
             'Content-Type': 'text/x-component;charset=utf-8',
             vary: 'accept',
           },
+          status,
         })
       }
 
@@ -56,13 +57,15 @@ export function writeRSCEntry() {
         'index',
       )
 
-      const htmlStream = await mod.ssr(rscStream, pathMap, opts?.formState)
+      const htmlStream = await mod.ssr(rscStream, opts?.formState)
                 
       return new Response(htmlStream, {
         headers: {
           'Content-Type': 'text/html',
           vary: 'accept',
         },
+        // use rsc status code?
+        status,
       })
     }
 
@@ -94,8 +97,7 @@ export function writeBrowserEntry() {
     ${AUTO_GEN_MSG}
 
     import { browser } from '${PKG_NAME}/render/env/browser'
-    import { pathMap } from './maps'
 
-    browser(pathMap)
+    browser()
   `.trim()
 }

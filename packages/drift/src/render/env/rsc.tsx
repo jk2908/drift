@@ -1,7 +1,5 @@
 import type { ReactFormState } from 'react-dom/client'
 
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
-
 import {
 	createTemporaryReferenceSet,
 	decodeAction,
@@ -14,19 +12,17 @@ import * as devalue from 'devalue'
 
 import type { ImportMap, Manifest, Metadata } from '../../types'
 
-import { EntryKind } from '../../config'
-
-import { HTTPException, type Payload as HTTPExceptionPayload } from '../../shared/error'
-import { PRIORITY as METADATA_PRIORITY, MetadataCollection } from '../../shared/metadata'
+import {
+	HTTPException,
+	type Payload as HTTPExceptionPayload,
+	type StatusCode,
+} from '../../shared/error'
+import { Logger } from '../../shared/logger'
+import { MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
 import { Tree } from '../../shared/tree'
 
-import {
-	default as DefaultErrorPage,
-	metadata as defaultErrorMetadata,
-} from '../../ui/defaults/+error'
-
-import { onError } from './utils'
+import { getDigest } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -68,37 +64,52 @@ export async function rsc(
 	temporaryReferences?: unknown,
 ) {
 	const router = new Router(manifest, importMap)
-	const collection = new MetadataCollection(baseMetadata)
-
+	const logger = new Logger()
 	const url = new URL(req.url)
 	const match = router.enhance(router.match(url.pathname))
 
 	if (!match) {
 		const error = new HTTPException('Not found', 404)
-
-		const metadata = collection
-			.add({
-				task: defaultErrorMetadata({ error }),
-				priority: METADATA_PRIORITY[EntryKind.ERROR],
-			})
-			.run()
+		const title = `${error.status} - ${error.message}`
 
 		const rscPayload: RSCPayload = {
 			root: (
-				<>
-					<DefaultErrorPage error={error} />
-				</>
+				<html lang="en">
+					<head>
+						<meta charSet="UTF-8" />
+						<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+						<title>{title}</title>
+
+						<meta name="robots" content="noindex,nofollow" />
+					</head>
+
+					<body>
+						<h1>{title}</h1>
+						<p>{error.message}</p>
+
+						{error.stack && <pre>{error.stack}</pre>}
+					</body>
+				</html>
 			),
 			returnValue,
 			formState,
-			metadata,
 		}
 
-		return renderToReadableStream(rscPayload, {
-			temporaryReferences,
-			onError,
-		})
+		return {
+			stream: renderToReadableStream(rscPayload, {
+				temporaryReferences,
+				onError(err: unknown) {
+					const digest = getDigest(err)
+					if (digest) return digest
+
+					logger.error('rsc', err)
+				},
+			}),
+			status: 404,
+		}
 	}
+
+	const collection = new MetadataCollection(baseMetadata)
 
 	const metadata = match
 		.metadata?.({ params: match.params, error: match.error })
@@ -135,10 +146,56 @@ export async function rsc(
 		metadata,
 	}
 
-	return renderToReadableStream(rscPayload, {
-		temporaryReferences,
-		onError,
-	})
+	// status code comes from route match error if any
+	const status = match.error instanceof HTTPException ? match.error.status : 200
+
+	try {
+		const stream = renderToReadableStream(rscPayload, {
+			temporaryReferences,
+			onError(err: unknown) {
+				const digest = getDigest(err)
+				if (digest) return digest
+
+				logger.error('rsc', err)
+			},
+		})
+
+		return { stream, status }
+	} catch (err) {
+		// shell failed to render - return minimal fallback
+		logger.error('rsc shell', err)
+
+		return {
+			stream: renderToReadableStream(
+				{
+					root: (
+						<html lang="en">
+							<head>
+								<meta charSet="UTF-8" />
+								<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+								<title>500 - Server error</title>
+
+								<meta name="robots" content="noindex,nofollow" />
+							</head>
+
+							<body>
+								<h1>500 - Server error</h1>
+								<p>{err instanceof Error ? err.message : 'Unknown error'}</p>
+
+								{err instanceof Error && err.stack && <pre>{err.stack}</pre>}
+							</body>
+						</html>
+					),
+					returnValue,
+					formState,
+				},
+				{
+					temporaryReferences,
+				},
+			),
+			status: 500,
+		}
+	}
 }
 
 export async function action(req: Request) {
@@ -197,7 +254,7 @@ export const driftPayloadReviver = {
 		string,
 		unknown,
 		string | undefined,
-		ContentfulStatusCode | undefined,
+		StatusCode | undefined,
 		HTTPExceptionPayload | undefined,
 	]) => {
 		if (name === 'HTTPException' && status !== undefined) {

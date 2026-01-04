@@ -5,20 +5,17 @@ import { renderToReadableStream } from 'react-dom/server.edge'
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
 
-import type { PathMap } from '../../types'
-
 import { DRIFT_PAYLOAD_ID } from '../../config'
 
+import { Logger } from '../../shared/logger'
 import { Metadata } from '../../shared/metadata'
 
 import { RouterProvider } from '../../client/router'
 
-import { HTTPExceptionBoundary } from '../../ui/defaults/http-exception-boundary'
-import { HTTPExceptionProvider } from '../../ui/defaults/http-exception-provider'
 import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
 
 import type { RSCPayload } from './rsc'
-import { onError } from './utils'
+import { getDigest } from './utils'
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
@@ -29,12 +26,11 @@ import { onError } from './utils'
  */
 export async function ssr(
 	rscStream: ReadableStream<Uint8Array>,
-	pathMap: PathMap,
 	formState?: ReactFormState,
 	nonce?: string,
 ) {
+	const logger = new Logger()
 	const [s1, s2] = rscStream.tee()
-
 	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
 
 	function A() {
@@ -42,17 +38,13 @@ export async function ssr(
 
 		return (
 			<RedirectBoundary>
-				<HTTPExceptionBoundary>
-					<HTTPExceptionProvider registry={pathMap.errors}>
-						<RouterProvider>
-							<Suspense fallback={null}>
-								<Metadata metadata={payload.metadata} />
-							</Suspense>
+				<RouterProvider>
+					<Suspense fallback={null}>
+						<Metadata metadata={payload.metadata} />
+					</Suspense>
 
-							{payload.root}
-						</RouterProvider>
-					</HTTPExceptionProvider>
-				</HTTPExceptionBoundary>
+					{payload.root}
+				</RouterProvider>
 			</RedirectBoundary>
 		)
 	}
@@ -65,7 +57,12 @@ export async function ssr(
 		bootstrapScriptContent,
 		nonce,
 		formState,
-		onError,
+		onError(err) {
+			const digest = getDigest(err)
+			if (digest) return digest
+
+			logger.error('ssr', err)
+		},
 	})
 
 	return htmlStream.pipeThrough(injectDriftPayload(payloadPromise)).pipeThrough(

@@ -1,11 +1,34 @@
 import { Suspense } from 'react'
 
-import type { EnhancedMatch } from '../types'
+import DefaultErrorComponent from 'src/ui/defaults/+error'
+import { HTTPExceptionBoundary } from 'src/ui/defaults/http-exception-boundary'
 
-import DefaultErrorPage from '../ui/defaults/+error'
+import type { EnhancedMatch } from '../types'
 
 type Match = NonNullable<EnhancedMatch>
 
+/**
+ * Route tree renderer
+ * @description stucture is as follows:
+ * - shell (layouts[0]) renders immediately as the "skeleton"
+ * - everything inside the shell is wrapped in Suspense so it can stream
+ * - error boundaries wrap Suspense so they can catch streaming errors
+ *
+ * Result:
+ * <HTTPExceptionBoundary>           ← catches shell errors
+ *   <Shell>                         ← renders immediately
+ *     <Suspense fallback={...}>     ← inner inner can stream
+ *       <HTTPExceptionBoundary>     ← catches inner errors
+ *         <Layout>
+ *           <Suspense>
+ *             <Page />
+ *           </Suspense>
+ *         </Layout>
+ *       </HTTPExceptionBoundary>
+ *     </Suspense>
+ *   </Shell>
+ * </HTTPExceptionBoundary>
+ */
 export function Tree({
 	depth,
 	paths,
@@ -21,40 +44,62 @@ export function Tree({
 }) {
 	const { layouts, Page, errors, loaders } = ui
 
-	// layouts[0] is the shell - required
-	if (!layouts?.[0]) return <DefaultErrorPage error={new Error('Missing app shell')} />
+	const Shell = layouts[0]
+	if (!Shell) throw new Error('Shell layout is required in the route tree')
 
-	// start with either the error or page component
-	let initial: React.ReactNode = null
+	// build the inner inner (everything after shell)
+	let inner: React.ReactNode = null
 
 	if (error) {
 		// find the nearest error boundary at or above this depth
-		const Err = errors.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorPage
-		initial = <Err error={error} />
+		// @note: error should only be present if there's an
+		// error boundary in the tree. So findLast should
+		// always succeed
+		const Err =
+			errors.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorComponent
+		inner = <Err error={error} />
 	} else if (Page) {
-		initial = <Page params={params} />
+		inner = <Page params={params} />
 	}
 
-	// wrap from inside out: page -> layouts -> shell
-	let node = initial
-
-	for (let idx = layouts.length - 1; idx >= 0; idx--) {
+	// wrap from innermost to layouts[1] (skip shell)
+	for (let idx = layouts.length - 1; idx >= 1; idx--) {
 		const Layout = layouts[idx]
 		const Loading = loaders[idx]
 		const Err = errors[idx]
 
+		// wrap in layout
 		if (Layout) {
-			node = (
+			inner = (
 				<Layout key={`l:${idx}`} params={params}>
-					{node}
+					{inner}
 				</Layout>
 			)
 		}
 
+		// wrap in suspense (for this segment's loading state)
 		if (Loading) {
-			node = <Suspense fallback={<Loading />}>{node}</Suspense>
+			inner = <Suspense fallback={<Loading />}>{inner}</Suspense>
+		}
+
+		// wrap in error boundary (outside suspense to catch streaming errors)
+		if (Err) {
+			inner = (
+				<HTTPExceptionBoundary path={paths.errors?.[idx]}>{inner}</HTTPExceptionBoundary>
+			)
 		}
 	}
 
-	return node
+	// now wrap with shell structure: shell renders immediately,
+	// inner streams inside Suspense
+	const ShellLoading = loaders[0]
+	const ShellErr = errors[0]
+
+	return (
+		<HTTPExceptionBoundary path={ShellErr ? paths.errors?.[0] : undefined}>
+			<Shell params={params}>
+				<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>{inner}</Suspense>
+			</Shell>
+		</HTTPExceptionBoundary>
+	)
 }

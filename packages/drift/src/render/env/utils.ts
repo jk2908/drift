@@ -1,4 +1,4 @@
-export function onError(err: unknown) {
+export function getDigest(err: unknown) {
 	if (
 		typeof err === 'object' &&
 		err !== null &&
@@ -7,6 +7,4 @@ export function onError(err: unknown) {
 	) {
 		return err.digest
 	}
-
-	console.error(err)
 }

@@ -1,29 +1,20 @@
+'use client'
+
 import type { HTTPException } from '../../shared/error'
 
-export const metadata = async ({ error }: { error: HTTPException }) => ({
-	title: `${error.status} ${error.message}`,
-	description: error.stack,
-})
-
-export default function Page({ error }: { error?: HTTPException | Error }) {
-	if (!error) return null
+export default function Err({ error }: { error: HTTPException | Error }) {
+	const title = 'status' in error ? `${error.status} - ${error.message}` : error.message
+	const description = error?.stack || ''
 
 	return (
-		<html lang="en">
-			<head>
-				<meta charSet="UTF-8" />
-				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-				<meta name="robots" content="noindex,nofollow" />
-			</head>
+		<>
+			<meta name="robots" content="noindex,nofollow" />
+			<title>{title}</title>
+			<meta name="description" content={description} />
 
-			<body>
-				<h1>
-					{'status' in error ? `${error.status} - ` : ''}
-					{error?.message}
-				</h1>
+			<h1>{title}</h1>
 
-				{error?.stack && <pre>{error.stack}</pre>}
-			</body>
-		</html>
+			{error?.stack && <pre>{error.stack}</pre>}
+		</>
 	)
 }
