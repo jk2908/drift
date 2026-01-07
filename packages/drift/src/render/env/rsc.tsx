@@ -12,8 +12,8 @@ import {
 import type { ImportMap, Manifest, Metadata } from '../../types'
 
 import {
-	HTTPException,
-	type Payload as HTTPExceptionPayload,
+	HttpException,
+	type Payload as HttpExceptionPayload,
 	type StatusCode,
 } from '../../shared/error'
 import { Logger } from '../../shared/logger'
@@ -57,7 +57,7 @@ export async function rsc(
 	const match = router.enhance(router.match(url.pathname))
 
 	if (!match) {
-		const error = new HTTPException('Not found', 404)
+		const error = new HttpException('Not found', 404)
 		const title = `${error.status} - ${error.message}`
 
 		const rscPayload: RSCPayload = {
@@ -110,7 +110,6 @@ export async function rsc(
 			<>
 				<Tree
 					depth={match.__depth}
-					paths={match.paths}
 					params={match.params}
 					error={match.error}
 					ui={match.ui}
@@ -123,7 +122,7 @@ export async function rsc(
 	}
 
 	// status code comes from route match error if any
-	const status = match.error instanceof HTTPException ? match.error.status : 200
+	const status = match.error instanceof HttpException ? match.error.status : 200
 
 	try {
 		const stream = renderToReadableStream(rscPayload, {
@@ -226,8 +225,8 @@ const driftPayloadReducer = {
 			v.message,
 			v.cause,
 			v.stack,
-			v instanceof HTTPException ? v.status : undefined,
-			v instanceof HTTPException ? v.payload : undefined,
+			v instanceof HttpException ? v.status : undefined,
+			v instanceof HttpException ? v.payload : undefined,
 		]
 	},
 }
@@ -239,10 +238,10 @@ export const driftPayloadReviver = {
 		unknown,
 		string | undefined,
 		StatusCode | undefined,
-		HTTPExceptionPayload | undefined,
+		HttpExceptionPayload | undefined,
 	]) => {
-		if (name === 'HTTPException' && status !== undefined) {
-			const error = new HTTPException(message, status, { payload, cause })
+		if (name === 'HttpException' && status !== undefined) {
+			const error = new HttpException(message, status, { payload, cause })
 			if (stack) error.stack = stack
 
 			return error

@@ -14,6 +14,7 @@ type Match = NonNullable<EnhancedMatch>
  * - everything inside the shell is wrapped in Suspense so it can stream
  * - error boundaries wrap Suspense so they can catch streaming errors
  *
+ * @example
  * <HTTPExceptionBoundary>           ← catches shell errors
  *   <Shell>                         ← renders immediately
  *     <Suspense fallback={...}>     ← inner inner can stream
@@ -30,13 +31,11 @@ type Match = NonNullable<EnhancedMatch>
  */
 export function Tree({
 	depth,
-	paths,
 	params,
 	error,
 	ui,
 }: {
 	depth: Match['__depth']
-	paths: Match['paths']
 	params: Match['params']
 	error: Match['error']
 	ui: Match['ui']
