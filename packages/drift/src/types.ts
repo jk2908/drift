@@ -66,7 +66,7 @@ export type Metadata = {
 	link?: LinkTag[]
 }
 
-export type Page = {
+export type Segment = {
 	__id: string
 	__path: string
 	__params: string[]
@@ -77,6 +77,7 @@ export type Page = {
 		layouts: (string | null)[]
 		errors?: (string | null)[]
 		loaders: (string | null)[]
+		page?: string | null
 	}
 	error?: HTTPException | Error
 	prerender: boolean
@@ -92,7 +93,7 @@ export type Endpoint = {
 	method: Lowercase<HTTPMethod>
 }
 
-export type ManifestEntry = Page | Endpoint
+export type ManifestEntry = Segment | Endpoint
 
 export type Manifest = Awaited<
 	ReturnType<typeof RouteProcessor.prototype.process>

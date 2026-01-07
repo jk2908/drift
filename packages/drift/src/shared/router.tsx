@@ -11,16 +11,16 @@ import type {
 	Manifest,
 	ManifestEntry,
 	Match,
-	Page,
 	Params,
 	Primitive,
+	Segment,
 	Metadata as TMetadata,
 	View,
 } from '../types'
 
 import { EntryKind } from '../config'
 
-import { HTTPException } from './error'
+import { HttpException } from './error'
 import { Logger } from './logger'
 import { PRIORITY } from './metadata'
 
@@ -66,7 +66,7 @@ export class Router {
 	/**
 	 * @see: https://hono.dev/docs/concepts/routers
 	 */
-	#router: SmartRouter<Page> = new SmartRouter({
+	#router: SmartRouter<Segment> = new SmartRouter({
 		routers: [new RegExpRouter(), new TrieRouter()],
 	})
 
@@ -116,7 +116,7 @@ export class Router {
 		if (!match) return 404
 
 		if ('error' in match) {
-			return match.error instanceof HTTPException ? match.error.status : 500
+			return match.error instanceof HttpException ? match.error.status : 500
 		}
 
 		return 200
@@ -238,7 +238,7 @@ export class Router {
 			return {
 				...entry,
 				params: {},
-				error: new HTTPException('Not found', 404),
+				error: new HttpException('Not found', 404),
 			}
 		}
 
@@ -280,21 +280,17 @@ export class Router {
 			...match,
 		}
 
-		// shell component is handled separately inside the import map,
-		// but is treated like a layout component when mapping views
-		const Shell = entry.shell?.default as EnhancedMatch['ui']['layouts'][number]
+		// shell is a static import, layouts[0] in the enhanced match
+		if (entry.shell) {
+			enhanced.ui.layouts = [entry.shell.default as EnhancedMatch['ui']['layouts'][0]]
+		}
 
-		// merge Shell with remaining (dynamically) imported components
-		enhanced.ui.layouts = [
-			Shell,
-			...(entry.layouts
-				? entry.layouts.map(l =>
-						l
-							? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l)
-							: null,
-					)
-				: []),
-		]
+		if (entry.layouts) {
+			const dynamicLayouts = entry.layouts.map(l =>
+				l ? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l) : null,
+			)
+			enhanced.ui.layouts = [...enhanced.ui.layouts, ...dynamicLayouts]
+		}
 
 		if (entry.page) {
 			enhanced.ui.Page = Router.#view<NonNullable<EnhancedMatch['ui']['Page']>>(
@@ -302,9 +298,8 @@ export class Router {
 			)
 		}
 
-		// each route can have error boundaries that are inherited
-		// from parent layouts/shells
-		if (entry.errors?.length) {
+		// load error boundaries
+		if (entry.errors) {
 			enhanced.ui.errors = entry.errors.map(e =>
 				e ? Router.#view<NonNullable<EnhancedMatch['ui']['errors'][number]>>(e) : null,
 			)
@@ -431,21 +426,10 @@ export class Router {
 				}
 			}
 
-			// find the last (deepest) non-null error module if there's
-			//  an error
-			if (entry.errors?.length && error) {
-				const last = entry.errors.length - 1
-				let err: DynamicImport | null = null
-
-				for (let i = last; i >= 0; i--) {
-					if (entry.errors[i]) {
-						err = entry.errors[i]
-						break
-					}
-				}
-
-				if (err) {
-					const e = Router.#load(err)
+			if (entry.errors && error) {
+				for (const errLoader of entry.errors) {
+					if (!errLoader) continue
+					const e = Router.#load(errLoader)
 
 					if (e.module && 'metadata' in e.module) {
 						const metadata = e.module.metadata
@@ -529,18 +513,18 @@ export class Router {
 				if (curr === undefined) break
 			}
 
-			if (property === 'paths.errors' && Array.isArray(curr)) {
-				// find the last non-null error boundary in the array
-				for (let j = curr.length - 1; j >= 0; j--) {
-					const error = curr[j]
-
-					if (error !== undefined && error !== null) {
-						if (value !== undefined && error !== value) break
-
-						return pageEntry
-					}
+			if (curr !== undefined && curr !== null) {
+				// if the matched property is an array (e.g. paths.errors),
+				// only consider it present if it contains at least one
+				// non-null value. If all entries are null/undefined
+				// then treat it as absent and continue searching
+				if (Array.isArray(curr)) {
+					if (!curr.some(e => e != null)) curr = undefined
 				}
-			} else if (curr !== undefined && curr !== null) {
+
+				// if the check above cleared curr, continue searching
+				if (curr === undefined || curr === null) continue
+				// if a specific value was provided, ensure it matches
 				if (value !== undefined && curr !== value) return null
 
 				return pageEntry
@@ -574,9 +558,9 @@ export class Router {
 		if (imports.page) loads.push(Router.#load(imports.page).promise)
 
 		if (imports.errors) {
-			for (const error of imports.errors) {
-				if (!error) continue
-				loads.push(Router.#load(error).promise)
+			for (const err of imports.errors) {
+				if (!err) continue
+				loads.push(Router.#load(err).promise)
 			}
 		}
 

@@ -7,15 +7,15 @@ import type { AdapterFactory, RuntimeAdapter, ServeOptions, Server } from './typ
 class NodeAdapter implements RuntimeAdapter {
 	constructor(private options: NodeAdapterOptions = {}) {}
 
-	async read(path: string): Promise<string> {
+	async read(path: string) {
 		return await readFile(path, 'utf-8')
 	}
 
-	async write(path: string, content: string): Promise<void> {
+	async write(path: string, content: string) {
 		await writeFile(path, content, 'utf-8')
 	}
 
-	async exists(path: string): Promise<boolean> {
+	async exists(path: string) {
 		try {
 			await access(path, constants.F_OK)
 			return true
@@ -27,9 +27,9 @@ class NodeAdapter implements RuntimeAdapter {
 	async serve(options: ServeOptions): Promise<Server> {
 		const server = createServer(async (req, res) => {
 			const url = new URL(req.url ?? '', `http://${req.headers.host}`)
-			
+
 			let body: BodyInit | null = null
-      
+
 			if (req.method !== 'GET' && req.method !== 'HEAD') {
 				const chunks: Buffer[] = []
 				for await (const chunk of req) {
@@ -56,7 +56,7 @@ class NodeAdapter implements RuntimeAdapter {
 					const reader = response.body.getReader()
 					const pump = async () => {
 						const { done, value } = await reader.read()
-						
+
 						if (done) {
 							res.end()
 							return

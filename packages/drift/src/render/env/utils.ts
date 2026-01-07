@@ -11,9 +11,8 @@ export function getKnownDigest(err: unknown) {
 		typeof err.digest === 'string'
 	) {
 		for (const p of possibilities) {
-			if (err.digest.startsWith(p)) {
-				return err.digest
-			}
+			if (!err.digest.startsWith(p)) continue
+			return err.digest
 		}
 	}
 

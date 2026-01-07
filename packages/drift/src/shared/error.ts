@@ -82,7 +82,7 @@ export type StatusCode = LooseNumber<Code>
  * @param opts.payload - the payload
  * @param opts.cause - the cause
  */
-export class HTTPException extends Error {
+export class HttpException extends Error {
 	status: StatusCode
 	payload?: Payload
 	digest?: string
@@ -97,11 +97,28 @@ export class HTTPException extends Error {
 export const HTTP_EXCEPTION_DIGEST_PREFIX = 'http_exception'
 
 /**
+ * Check if an error is an HTTPException
+ * @description uses the digest property to work across server/client boundaries
+ * @param err - the error to check
+ * @returns true if the error is an HTTPException, false otherwise
+ */
+export function isHttpException(err: unknown) {
+	return (
+		typeof err === 'object' &&
+		err !== null &&
+		'digest' in err &&
+		typeof err.digest === 'string' &&
+		err.digest.startsWith(HTTP_EXCEPTION_DIGEST_PREFIX)
+	)
+}
+
+/**
  * Throw an HTTPException
  * @param message - the message
  * @param status - the status code of the error
  * @param opts - the options
  * @param opts.payload - the payload
+ * @param opts.cause - the cause
  * @throws a HTTPException with the given status and options
  */
 export function error(
@@ -112,7 +129,7 @@ export function error(
 		cause?: unknown
 	},
 ): never {
-	const h = new HTTPException(message, status, {
+	const h = new HttpException(message, status, {
 		payload: opts?.payload,
 		cause: opts?.cause,
 	})

@@ -2,7 +2,7 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildContext, Endpoint, HTTPMethod, Page, PluginConfig } from '../types'
+import type { BuildContext, Endpoint, HTTPMethod, PluginConfig, Segment } from '../types'
 
 import { APP_DIR, EntryKind, GENERATED_DIR } from '../config'
 
@@ -13,12 +13,19 @@ import {
 } from '../server/prerender'
 
 export type ScanResult = {
-	pages: {
-		page: string
+	segments: {
+		// directory path that defines this segment
+		dir: string
+		// optional page file at this segment
+		page?: string
+		// layout chain from shell to this segment
 		layouts: (string | null)[]
+		// shell (root layout)
 		shell: string
-		errors?: (string | null)[]
-		loaders?: (string | null)[]
+		// error boundary chain
+		errors: (string | null)[]
+		// loading component chain
+		loaders: (string | null)[]
 	}[]
 	endpoints: string[]
 }
@@ -135,11 +142,11 @@ export class RouteProcessor {
 	 * @param dir - the directory to scan
 	 * @param res - the result object to populate
 	 * @param prev - the previous layout, error and loading results
-	 * @returns a result object containing page and API routes
+	 * @returns a result object containing segments and API routes
 	 */
 	async #scan(
 		dir: string,
-		res: ScanResult = { pages: [], endpoints: [] },
+		res: ScanResult = { segments: [], endpoints: [] },
 		prev: {
 			layouts: (string | null)[]
 			errors: (string | null)[]
@@ -203,15 +210,36 @@ export class RouteProcessor {
 				return 0
 			})
 
-			// current layout, error, and loader files
+			// current layout, error, loader, and page files for this segment
 			let currentLayout: string | undefined
 			let currentError: string | undefined
 			let currentLoader: string | undefined
+			let currentPage: string | undefined
 
 			for (const file of files) {
 				const route = path.join(dir, file.name)
 
 				if (file.isDirectory()) {
+					// before recursing, create segment for current dir if it
+					// has a layout (defines a wrapper for child routes)
+					if (!currentPage && currentLayout) {
+						const layouts = [...prev.layouts, currentLayout]
+						const errors = [...prev.errors, currentError ?? null]
+						const loaders = [...prev.loaders, currentLoader ?? null]
+						const shell = layouts[0]
+
+						if (shell) {
+							res.segments.push({
+								dir,
+								page: undefined,
+								errors,
+								loaders,
+								layouts: layouts.length > 1 ? layouts.slice(1) : [],
+								shell,
+							})
+						}
+					}
+
 					const next = {
 						layouts: [...prev.layouts, currentLayout ?? null],
 						errors: [...prev.errors, currentError ?? null],
@@ -232,6 +260,7 @@ export class RouteProcessor {
 					} else if (validFiles[TYPES.endpoint].has(base)) {
 						res.endpoints.push(relative)
 					} else if (validFiles[TYPES.page].has(base)) {
+						currentPage = relative
 						const layouts = [...prev.layouts, currentLayout ?? null]
 						const errors = [...prev.errors, currentError ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
@@ -239,7 +268,8 @@ export class RouteProcessor {
 
 						if (!shell) throw new Error('Missing app shell')
 
-						res.pages.push({
+						res.segments.push({
+							dir,
 							page: relative,
 							errors,
 							loaders,
@@ -250,12 +280,39 @@ export class RouteProcessor {
 				}
 			}
 
+			// warn if segment has error/loading but no page or layout
+			if (!currentPage && !currentLayout && (currentError || currentLoader)) {
+				this.ctx?.logger.warn(
+					`[#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
+				)
+			}
+
+			// create segment if we have a layout but no page and
+			// haven't created one yet (no subdirectories triggered it)
+			if (!currentPage && currentLayout && !res.segments.some(s => s.dir === dir)) {
+				const layouts = [...prev.layouts, currentLayout]
+				const errors = [...prev.errors, currentError ?? null]
+				const loaders = [...prev.loaders, currentLoader ?? null]
+				const shell = layouts[0]
+
+				if (shell) {
+					res.segments.push({
+						dir,
+						page: undefined,
+						errors,
+						loaders,
+						layouts: layouts.length > 1 ? layouts.slice(1) : [],
+						shell,
+					})
+				}
+			}
+
 			return res satisfies ScanResult
 		} catch (err) {
 			this.ctx?.logger.error(`[#scan]: Failed to compose manifest from ${dir}`, err)
 
 			return {
-				pages: [],
+				segments: [],
 				endpoints: [],
 			} satisfies ScanResult
 		}
@@ -270,7 +327,7 @@ export class RouteProcessor {
 		const processed = new Set<string>()
 		const prerenderableRoutes = new Set<string>()
 
-		const manifest: Record<string, Page | Endpoint | (Page | Endpoint)[]> = {}
+		const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
 		// imports for endpoints and components
 		const imports: Imports = {
@@ -281,14 +338,17 @@ export class RouteProcessor {
 		const modules: Modules = {}
 		const prerenderableCache = new Map<string, boolean>()
 
-		for (const file of res.pages) {
+		for (const segment of res.segments) {
 			try {
 				if (!this.ctx || !this.config) continue
 
-				const { shell, layouts, page, errors = [], loaders = [] } = file
+				const { shell, layouts, page, errors, loaders, dir } = segment
 
-				const route = RouteProcessor.toCanonicalRoute(page)
-				const params = RouteProcessor.getParams(page)
+				// route is derived from dir path, not page
+				const route = RouteProcessor.toCanonicalRoute(
+					page ?? `${dir.replace(/\\/g, '/')}/+page.tsx`,
+				)
+				const params = RouteProcessor.getParams(dir)
 				const depth = RouteProcessor.getDepth(route)
 
 				const isDynamic = route.includes(':')
@@ -389,47 +449,58 @@ export class RouteProcessor {
 					}
 				}
 
-				const pageImport = RouteProcessor.getImportPath(page)
-				const pageId = `${EntryKind.PAGE}${Bun.hash(pageImport)}`
-				const shouldPrerender =
-					hasInheritedPrerender ||
-					this.config?.prerender === 'full' ||
-					(await isPrerenderable(page, this.ctx))
+				// generate entry ID based on page if exists, otherwise dir
+				const entryId = page
+					? `${EntryKind.PAGE}${Bun.hash(RouteProcessor.getImportPath(page))}`
+					: `${EntryKind.PAGE}${Bun.hash(route)}`
 
-				if (shouldPrerender) {
-					if (!isDynamic && !isCatchAll) {
-						prerenderableRoutes.add(route)
-					} else {
-						const paramsList = await getPrerenderParamsList(
-							path.resolve(process.cwd(), page),
-							this.ctx,
-						)
+				let shouldPrerender = false
 
-						if (!paramsList?.length) {
-							this.ctx?.logger.warn(
-								'[process]',
-								`No prerenderable params found for ${page}, skipping prerendering`,
-							)
-						}
+				if (page) {
+					const pageImport = RouteProcessor.getImportPath(page)
+					shouldPrerender =
+						hasInheritedPrerender ||
+						this.config?.prerender === 'full' ||
+						(await isPrerenderable(page, this.ctx))
 
-						const dynamicPrerenderableRoutes = createPrerenderRoutesFromParamsList(
-							route,
-							paramsList,
-						)
-
-						if (!dynamicPrerenderableRoutes?.length) {
-							this.ctx?.logger.warn(
-								'[process]',
-								`No prerenderable routes found for ${page}, skipping prerendering`,
-							)
+					if (shouldPrerender) {
+						if (!isDynamic && !isCatchAll) {
+							prerenderableRoutes.add(route)
 						} else {
-							for (const r of dynamicPrerenderableRoutes) prerenderableRoutes.add(r)
+							const paramsList = await getPrerenderParamsList(
+								path.resolve(process.cwd(), page),
+								this.ctx,
+							)
+
+							if (!paramsList?.length) {
+								this.ctx?.logger.warn(
+									'[process]',
+									`No prerenderable params found for ${page}, skipping prerendering`,
+								)
+							}
+
+							const dynamicPrerenderableRoutes = createPrerenderRoutesFromParamsList(
+								route,
+								paramsList,
+							)
+
+							if (!dynamicPrerenderableRoutes?.length) {
+								this.ctx?.logger.warn(
+									'[process]',
+									`No prerenderable routes found for ${page}, skipping prerendering`,
+								)
+							} else {
+								for (const r of dynamicPrerenderableRoutes) prerenderableRoutes.add(r)
+							}
 						}
 					}
+
+					imports.components.dynamic.set(entryId, pageImport)
+					processed.add(page)
 				}
 
-				const entry = {
-					__id: pageId,
+				const entry: Segment = {
+					__id: entryId,
 					__path: route,
 					__params: params,
 					__kind: EntryKind.PAGE,
@@ -441,6 +512,7 @@ export class RouteProcessor {
 						),
 						errors: errors.map(e => (e ? RouteProcessor.getImportPath(e) : null)),
 						loaders: loaders.map(l => (l ? RouteProcessor.getImportPath(l) : null)),
+						page: page ? RouteProcessor.getImportPath(page) : null,
 					},
 					prerender: shouldPrerender,
 					dynamic: isDynamic,
@@ -457,11 +529,15 @@ export class RouteProcessor {
 					manifest[route] = entry
 				}
 
-				imports.components.dynamic.set(pageId, pageImport)
-				modules[pageId] = { shellId, layoutIds, pageId, errorIds, loadingIds }
-				processed.add(page)
+				modules[entryId] = {
+					shellId,
+					layoutIds,
+					pageId: page ? entryId : undefined,
+					errorIds,
+					loadingIds,
+				}
 			} catch (err) {
-				this.ctx?.logger.error('[process]: failed to process page', err)
+				this.ctx?.logger.error('[process]: failed to process segment', err)
 			}
 		}
 

@@ -4,8 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bunx --bun vite",
-		"build": "bunx --bun vite build --mode client && bunx --bun vite build --ssr",
-		"preview": "bun --env-file=.env.preview --port=8787 --inspect --no-cache \"dist/index.js\""
+		"build": "bunx --bun vite build",
+		"preview": "bunx --env-file=.env.preview --bun vite preview"
 	},
 	"dependencies": {
 		"@jk2908/drift": "workspace:*"

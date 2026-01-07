@@ -1,6 +1,6 @@
 import { NAME } from '../config'
 
-import { HTTPException } from './error'
+import { HttpException } from './error'
 
 const LEVELS = {
 	debug: 0,
@@ -18,7 +18,7 @@ type LogEntry = {
 	message: string
 	error?:
 		| Error
-		| HTTPException
+		| HttpException
 		| {
 				message: string
 				stack?: string
@@ -61,7 +61,7 @@ export class Logger {
 		}
 
 		if (level === 'error' || level === 'fatal') {
-			entry.error = error ? new Error(message, { cause: error }) : new Error(message)
+			entry.error = error ? Logger.toError(error) : new Error(message)
 		}
 
 		console.log(
@@ -99,8 +99,8 @@ export class Logger {
 	 * @param message - the error message
 	 * @param error - the error object
 	 */
-	error(messages: string, error?: unknown) {
-		this.log('error', messages, Logger.toError(error))
+	error(message: string, error?: unknown) {
+		this.log('error', message, Logger.toError(error))
 	}
 
 	/**
@@ -124,10 +124,10 @@ export class Logger {
 	/**
 	 * Stringify the error for logging
 	 * @param err - the error to print
-	 * @returns the printed error 
+	 * @returns the printed error
 	 */
 	static print(err: unknown) {
-		if (err instanceof Error || err instanceof HTTPException) {
+		if (err instanceof Error || err instanceof HttpException) {
 			return err.message + (err.stack ? `\n${err.stack}` : '')
 		}
 

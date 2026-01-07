@@ -16,8 +16,7 @@ export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 					}
 				}
 
-				// only catch redirects
-				throw err
+				return null
 			}}>
 			{children}
 		</ErrorBoundary>

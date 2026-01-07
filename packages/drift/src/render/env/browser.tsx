@@ -79,8 +79,8 @@ export async function browser() {
 		setPayload(payload)
 
 		const { ok, data } = payload.returnValue ?? {}
-
 		if (!ok) throw data
+
 		return data
 	})
 

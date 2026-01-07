@@ -2,7 +2,7 @@ import type { Manifest } from '../types'
 
 import { PKG_NAME } from '../config'
 
-import { AUTO_GEN_MSG } from './utils'
+import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the code to create an exported manifest object
@@ -11,7 +11,7 @@ import { AUTO_GEN_MSG } from './utils'
  */
 export function writeManifest(manifest: Manifest) {
 	return `
-    ${AUTO_GEN_MSG}
+    ${AUTOGEN_MSG}
 
     import type { Manifest } from '${PKG_NAME}'
 

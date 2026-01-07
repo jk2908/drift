@@ -2,7 +2,7 @@ import { EntryKind, PKG_NAME } from '../config'
 
 import type { Imports, Modules } from '../build/route-processor'
 
-import { AUTO_GEN_MSG } from './utils'
+import { AUTOGEN_MSG } from './utils'
 
 const q = (s: string) => `'${s.replace(/'/g, "\\'")}'`
 const key = (s: string) => JSON.stringify(s)
@@ -57,7 +57,7 @@ export function writeMaps(imports: Imports, modules: Modules) {
 			.filter(([k]) => k.startsWith(EntryKind.SHELL))
 			.map(([k, v]) => `${key(v)}: ${k}`),
 		...[...imports.components.dynamic.entries()]
-			.filter(([k]) => k.startsWith(EntryKind.LAYOUT))
+			.filter(([k]) => k.startsWith(EntryKind.LAYOUT) && !k.startsWith(EntryKind.LOADING))
 			.map(([k, v]) => `${key(v)}: ${k}`),
 	]
 
@@ -92,7 +92,7 @@ export function writeMaps(imports: Imports, modules: Modules) {
 	)
 
 	return `
-	  ${AUTO_GEN_MSG}
+	  ${AUTOGEN_MSG}
 
 		import type { ImportMap, PathMap } from '${PKG_NAME}'
 

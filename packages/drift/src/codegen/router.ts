@@ -1,10 +1,10 @@
-import type { Endpoint, Manifest, Page } from '../types'
+import type { Endpoint, Manifest, Segment } from '../types'
 
 import { EntryKind } from '../config'
 
 import type { Imports } from '../build/route-processor'
 
-import { AUTO_GEN_MSG } from './utils'
+import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the exported server-side code for creating the Hono app
@@ -17,7 +17,7 @@ export function writeRouter(manifest: Manifest, imports: Imports) {
 	const handlers = createHandlerGroups(manifest)
 
 	return `
-    ${AUTO_GEN_MSG}
+    ${AUTOGEN_MSG}
 
     /// <reference types="bun" />
 
@@ -98,7 +98,7 @@ export function writeRouter(manifest: Manifest, imports: Imports) {
 function createHandlerGroups(manifest: Manifest) {
 	return Object.values(manifest)
 		.flat()
-		.reduce<Map<string, Page | Endpoint | (Page | Endpoint)[]>>((acc, entry) => {
+		.reduce<Map<string, Segment | Endpoint | (Segment | Endpoint)[]>>((acc, entry) => {
 			const key = `${entry.method}/${entry.__path}`
 			const existing = acc.get(key)
 

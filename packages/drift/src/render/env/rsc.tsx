@@ -8,7 +8,6 @@ import {
 	loadServerAction,
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
-import * as devalue from 'devalue'
 
 import type { ImportMap, Manifest, Metadata } from '../../types'
 
@@ -28,19 +27,8 @@ export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
-	driftPayload?: string
 	metadata?: Promise<Metadata>
 }
-
-export type DriftPayload = {
-	entry: {
-		__path?: string
-		params?: Record<string, string>
-		error?: HTTPException | Error
-	}
-}
-
-export type UnparsedDriftPayload = string
 
 /**
  * RSC handler - returns a ReadableStream response for RSC requests
@@ -78,9 +66,9 @@ export async function rsc(
 					<head>
 						<meta charSet="UTF-8" />
 						<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-						<title>{title}</title>
-
 						<meta name="robots" content="noindex,nofollow" />
+
+						<title>{title}</title>
 					</head>
 
 					<body>
@@ -102,7 +90,7 @@ export async function rsc(
 					const digest = getKnownDigest(err)
 					if (digest) return digest
 
-					logger.error('rsc', err)
+					logger.error('[rsc]', err)
 				},
 			}),
 			status: 404,
@@ -116,17 +104,6 @@ export async function rsc(
 		.then(m =>
 			collection.add(...m.filter(r => r.status !== 'rejected').map(r => r.value)).run(),
 		)
-
-	const driftPayload = devalue.stringify(
-		{
-			entry: {
-				__path: match?.__path,
-				params: match?.params,
-				error: match?.error,
-			},
-		},
-		driftPayloadReducer,
-	)
 
 	const rscPayload: RSCPayload = {
 		root: (
@@ -142,7 +119,6 @@ export async function rsc(
 		),
 		returnValue,
 		formState,
-		driftPayload,
 		metadata,
 	}
 
@@ -165,6 +141,14 @@ export async function rsc(
 		// shell failed to render - return minimal fallback
 		logger.error('rsc shell', err)
 
+		const title =
+			err instanceof Error
+				? 'status' in err
+					? `${err.status} - ${err.message}`
+					: `500 - ${err.message}`
+				: '500 - Unknown server error'
+		const message = err instanceof Error ? err.message : 'Unknown server error'
+
 		return {
 			stream: renderToReadableStream(
 				{
@@ -173,14 +157,14 @@ export async function rsc(
 							<head>
 								<meta charSet="UTF-8" />
 								<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-								<title>500 - Server error</title>
-
 								<meta name="robots" content="noindex,nofollow" />
+
+								<title>{title}</title>
 							</head>
 
 							<body>
-								<h1>500 - Server error</h1>
-								<p>{err instanceof Error ? err.message : 'Unknown error'}</p>
+								<h1>{title}</h1>
+								<p>{message}</p>
 
 								{err instanceof Error && err.stack && <pre>{err.stack}</pre>}
 							</body>

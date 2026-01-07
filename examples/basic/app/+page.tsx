@@ -22,6 +22,10 @@ export default async function Page() {
 			</Suspense>
 			<Link href="/profile">Go to Profile</Link>
 			<Link href="/?foo=bar&baz=qux">Go to Home with Search Params</Link>
+			<Link href="to-dead-end">Go to Dead End (404)</Link>
+			<Link href="/posts/to-dead-end-with-nested-error">
+				Go to Dead End with Nested Error (404)
+			</Link>
 			<Red />
 		</div>
 	)

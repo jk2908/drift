@@ -5,8 +5,6 @@ import { renderToReadableStream } from 'react-dom/server.edge'
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
 
-import { DRIFT_PAYLOAD_ID } from '../../config'
-
 import { Logger } from '../../shared/logger'
 import { Metadata } from '../../shared/metadata'
 
@@ -61,121 +59,13 @@ export async function ssr(
 			const digest = getKnownDigest(err)
 			if (digest) return digest
 
-			logger.error('ssr', err)
+			logger.error('[ssr]', err)
 		},
 	})
 
-	return htmlStream.pipeThrough(injectDriftPayload(payloadPromise)).pipeThrough(
+	return htmlStream.pipeThrough(
 		injectRSCPayload(s2, {
 			nonce,
 		}),
 	)
-}
-
-function injectDriftPayload(payloadPromise: Promise<RSCPayload>) {
-	const encoder = new TextEncoder()
-	const decoder = new TextDecoder()
-	const TM = 25
-
-	let buf = ''
-	let timeout: ReturnType<typeof setTimeout> | null = null
-	let done = false
-
-	const emptyPayload = { driftPayload: '' } satisfies Partial<RSCPayload>
-
-	return new TransformStream<Uint8Array, Uint8Array>({
-		start() {},
-
-		transform(chunk, controller) {
-			buf += decoder.decode(chunk, { stream: true })
-
-			if (timeout) return
-
-			timeout = setTimeout(async () => {
-				try {
-					const idx = buf.indexOf('</head>')
-
-					if (idx !== -1 && !done) {
-						const before = buf.slice(0, idx)
-						const after = buf.slice(idx)
-
-						const payload = await Promise.race<
-							[Promise<RSCPayload>, Promise<Partial<RSCPayload>>]
-						>([
-							payloadPromise,
-							new Promise(res => setTimeout(() => res(emptyPayload), TM)),
-						])
-
-						const content = payload.driftPayload ?? ''
-						const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
-
-						controller.enqueue(encoder.encode(before + tag + after))
-						buf = ''
-						done ||= !!payload.driftPayload
-					} else {
-						controller.enqueue(encoder.encode(buf))
-						buf = ''
-					}
-				} catch (err) {
-					controller.error(err)
-				} finally {
-					if (timeout) {
-						clearTimeout(timeout)
-						timeout = null
-					}
-				}
-			}, 0)
-		},
-
-		async flush(controller) {
-			if (timeout) {
-				clearTimeout(timeout)
-				timeout = null
-			}
-
-			if (buf.length > 0) {
-				const payload = await Promise.race<
-					[Promise<RSCPayload>, Promise<Partial<RSCPayload>>]
-				>([payloadPromise, new Promise(res => setTimeout(() => res(emptyPayload), 100))])
-
-				const content = payload.driftPayload ?? ''
-
-				if (!done && content) {
-					const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
-
-					controller.enqueue(encoder.encode(buf + tag))
-					done = true
-				} else {
-					controller.enqueue(encoder.encode(buf))
-				}
-
-				buf = ''
-				return
-			}
-
-			if (!done) {
-				let payload: Partial<RSCPayload>
-
-				try {
-					payload = await payloadPromise
-				} catch {
-					payload = emptyPayload
-				}
-
-				const content = payload.driftPayload ?? ''
-
-				if (payload && content) {
-					const tag = `<script id="${DRIFT_PAYLOAD_ID}" type="application/json">${escapeScript(content)}</script>`
-
-					controller.enqueue(encoder.encode(tag))
-					done = true
-				}
-			}
-		},
-	})
-}
-
-// from rsc-html-stream
-function escapeScript(script: string) {
-	return script.replace(/<!--/g, '<\\!--').replace(/<\/(script)/gi, '</\\$1')
 }

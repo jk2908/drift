@@ -1,6 +1,6 @@
 import { PKG_NAME } from '../config'
 
-import { AUTO_GEN_MSG } from './utils'
+import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the RSC entry code
@@ -8,7 +8,7 @@ import { AUTO_GEN_MSG } from './utils'
  */
 export function writeRSCEntry() {
 	return `
-    ${AUTO_GEN_MSG}
+    ${AUTOGEN_MSG}
 
     import type { ReactFormState } from 'react-dom/client'
 
@@ -82,7 +82,7 @@ export function writeRSCEntry() {
  */
 export function writeSSREntry() {
 	return `
-    ${AUTO_GEN_MSG}
+    ${AUTOGEN_MSG}
     
     export { ssr } from '${PKG_NAME}/render/env/ssr'
   `.trim()
@@ -94,7 +94,7 @@ export function writeSSREntry() {
  */
 export function writeBrowserEntry() {
 	return `
-    ${AUTO_GEN_MSG}
+    ${AUTOGEN_MSG}
 
     import { browser } from '${PKG_NAME}/render/env/browser'
 

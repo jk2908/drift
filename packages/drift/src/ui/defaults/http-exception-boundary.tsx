@@ -1,40 +1,38 @@
 'use client'
 
-import { HTTPException } from '../../shared/error'
+import { HttpException, isHttpException } from '../../shared/error'
 
 import { ErrorBoundary } from '../components/error-boundary'
-import DefaultErrorComponent from './+error'
 
-export function HTTPExceptionBoundary({
-	children,
-	path,
-}: {
-	children: React.ReactNode
-	path?: string | null
-}) {
-	return (
-		<ErrorBoundary
-			fallback={err => {
-				if (
-					typeof err === 'object' &&
-					err !== null &&
-					'digest' in err &&
-					typeof err.digest === 'string'
-				) {
-					const [type, ...rest] = err.digest.split(':')
+export class HttpExceptionBoundary extends ErrorBoundary {
+	componentDidCatch(error: Error) {
+		if (!isHttpException(error)) throw error
 
-					if (type === 'http_exception') {
-						const [message, status] = rest
-						const error = new HTTPException(message, Number(status))
+		super.componentDidCatch(error)
+	}
 
-						return <DefaultErrorComponent error={error} />
-					}
-				}
+	render() {
+		const { error } = this.state
+		if (!error) return this.props.children
 
-				// re-throw other errors
-				throw err
-			}}>
-			{children}
-		</ErrorBoundary>
-	)
+		if (
+			typeof error === 'object' &&
+			error !== null &&
+			'digest' in error &&
+			typeof error.digest === 'string'
+		) {
+			const [type, ...rest] = error.digest.split(':')
+
+			if (type === 'http_exception') {
+				const [message, status] = rest
+				const httpError = new HttpException(message, Number(status))
+
+				return typeof this.props.fallback === 'function'
+					? this.props.fallback(httpError, this.reset)
+					: this.props.fallback
+			}
+		}
+
+		return null
+	}
 }

@@ -20,6 +20,22 @@ export class Redirect extends Error {
 export const REDIRECT_DIGEST_PREFIX = 'redirect'
 
 /**
+ * Check if an error is a Redirect error
+ * @description uses the digest property to work across server/client boundaries
+ * @param err - the error to check
+ * @returns true if the error is a Redirect error, false otherwise
+ */
+export function isRedirect(err: unknown) {
+	return (
+		typeof err === 'object' &&
+		err !== null &&
+		'digest' in err &&
+		typeof err.digest === 'string' &&
+		err.digest.startsWith(REDIRECT_DIGEST_PREFIX)
+	)
+}
+
+/**
  * Throws a Redirect exception to signal a redirect
  * @param url - the URL to redirect to
  * @param status - the HTTP status code for the redirect, defaults to 307

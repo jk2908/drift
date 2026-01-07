@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 
-import DefaultErrorComponent from 'src/ui/defaults/+error'
-import { HTTPExceptionBoundary } from 'src/ui/defaults/http-exception-boundary'
-
 import type { EnhancedMatch } from '../types'
+
+import DefaultErrorComponent from '../ui/defaults/+error'
+import { HttpExceptionBoundary } from '../ui/defaults/http-exception-boundary'
 
 type Match = NonNullable<EnhancedMatch>
 
@@ -14,7 +14,6 @@ type Match = NonNullable<EnhancedMatch>
  * - everything inside the shell is wrapped in Suspense so it can stream
  * - error boundaries wrap Suspense so they can catch streaming errors
  *
- * Result:
  * <HTTPExceptionBoundary>           ← catches shell errors
  *   <Shell>                         ← renders immediately
  *     <Suspense fallback={...}>     ← inner inner can stream
@@ -84,9 +83,7 @@ export function Tree({
 
 		// wrap in error boundary (outside suspense to catch streaming errors)
 		if (Err) {
-			inner = (
-				<HTTPExceptionBoundary path={paths.errors?.[idx]}>{inner}</HTTPExceptionBoundary>
-			)
+			inner = <HttpExceptionBoundary>{inner}</HttpExceptionBoundary>
 		}
 	}
 
@@ -96,10 +93,10 @@ export function Tree({
 	const ShellErr = errors[0]
 
 	return (
-		<HTTPExceptionBoundary path={ShellErr ? paths.errors?.[0] : undefined}>
+		<HttpExceptionBoundary>
 			<Shell params={params}>
 				<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>{inner}</Suspense>
 			</Shell>
-		</HTTPExceptionBoundary>
+		</HttpExceptionBoundary>
 	)
 }
