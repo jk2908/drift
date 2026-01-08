@@ -13,7 +13,7 @@ export const EntryKind = {
 	SHELL: '$S',
 	LAYOUT: '$L',
 	PAGE: '$P',
-	ERROR: '$ERR',
+	404: '$404',
 	LOADING: '$LOAD',
 	ENDPOINT: '$E',
 } as const

@@ -13,7 +13,7 @@ export const PRIORITY: Record<MetadataSource, number> = {
 	[EntryKind.SHELL]: 10,
 	[EntryKind.LAYOUT]: 20,
 	[EntryKind.PAGE]: 30,
-	[EntryKind.ERROR]: 40,
+	[EntryKind[404]]: 40,
 	[EntryKind.LOADING]: 50,
 } as const
 
@@ -186,8 +186,9 @@ export class MetadataCollection {
 
 export function Metadata({ metadata: m }: { metadata?: Promise<TMetadata> }) {
 	if (!m) return null
+
 	// @todo; handle errors
-	const metadata = use(m)
+	const metadata = use(m.catch(() => ({} as TMetadata)))
 
 	return (
 		<>

@@ -274,7 +274,7 @@ export class Router {
 			ui: {
 				layouts: [],
 				Page: null,
-				errors: [],
+				'404s': [],
 				loaders: [],
 			},
 			...match,
@@ -285,7 +285,7 @@ export class Router {
 			enhanced.ui.layouts = [entry.shell.default as EnhancedMatch['ui']['layouts'][0]]
 		}
 
-		if (entry.layouts) {
+		if (entry.layouts?.length) {
 			const dynamicLayouts = entry.layouts.map(l =>
 				l ? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l) : null,
 			)
@@ -298,10 +298,10 @@ export class Router {
 			)
 		}
 
-		// load error boundaries
-		if (entry.errors) {
-			enhanced.ui.errors = entry.errors.map(e =>
-				e ? Router.#view<NonNullable<EnhancedMatch['ui']['errors'][number]>>(e) : null,
+		// load 404 boundaries
+		if (entry['404s']?.length) {
+			enhanced.ui['404s'] = entry['404s'].map(e =>
+				e ? Router.#view<NonNullable<EnhancedMatch['ui']['404s'][number]>>(e) : null,
 			)
 		}
 
@@ -426,8 +426,8 @@ export class Router {
 				}
 			}
 
-			if (entry.errors && error) {
-				for (const errLoader of entry.errors) {
+			if (entry['404s'] && error) {
+				for (const errLoader of entry['404s']) {
 					if (!errLoader) continue
 					const e = Router.#load(errLoader)
 
@@ -441,12 +441,12 @@ export class Router {
 										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
 										return {}
 									}),
-									priority: PRIORITY[EntryKind.ERROR],
+									priority: PRIORITY[EntryKind[404]],
 								})
 							} else if (typeof metadata === 'object') {
 								tasks.push({
 									task: Promise.resolve(metadata),
-									priority: PRIORITY[EntryKind.ERROR],
+									priority: PRIORITY[EntryKind[404]],
 								})
 							}
 						}
@@ -465,7 +465,7 @@ export class Router {
 									return metadata
 								}
 							}),
-							priority: PRIORITY[EntryKind.ERROR],
+							priority: PRIORITY[EntryKind[404]],
 						})
 					}
 				}
@@ -557,8 +557,8 @@ export class Router {
 
 		if (imports.page) loads.push(Router.#load(imports.page).promise)
 
-		if (imports.errors) {
-			for (const err of imports.errors) {
+		if (imports['404s']) {
+			for (const err of imports['404s']) {
 				if (!err) continue
 				loads.push(Router.#load(err).promise)
 			}

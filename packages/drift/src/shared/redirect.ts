@@ -17,7 +17,7 @@ export class Redirect extends Error {
 	}
 }
 
-export const REDIRECT_DIGEST_PREFIX = 'redirect'
+export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
 
 /**
  * Check if an error is a Redirect error

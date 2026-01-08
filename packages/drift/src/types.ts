@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 
 import type { EntryKind } from './config'
 
-import type { HTTPException } from './shared/error'
+import type { HttpException } from './shared/error'
 import type { Logger, LogLevel } from './shared/logger'
 import type { PRIORITY } from './shared/metadata'
 import type { Router } from './shared/router'
@@ -75,11 +75,11 @@ export type Segment = {
 	method: 'get'
 	paths: {
 		layouts: (string | null)[]
-		errors?: (string | null)[]
+		'404s': (string | null)[]
 		loaders: (string | null)[]
 		page?: string | null
 	}
-	error?: HTTPException | Error
+	error?: HttpException | Error
 	prerender: boolean
 	dynamic: boolean
 	catch_all: boolean
@@ -115,9 +115,8 @@ export type EnhancedMatch = Match & {
 			children?: React.ReactNode
 			params?: Params
 		}> | null
-		errors: (View<{
+		'404s': (View<{
 			children?: React.ReactNode
-			error?: HTTPException | Error
 		}> | null)[]
 		loaders: (View<{
 			children?: React.ReactNode
@@ -139,7 +138,7 @@ export type MapEntry = {
 	shell?: StaticImport
 	page?: DynamicImport
 	layouts?: readonly (DynamicImport | null)[]
-	errors?: readonly (DynamicImport | null)[]
+	'404s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
 	endpoint?: (c?: Context) => unknown
 }
@@ -149,7 +148,7 @@ export type ImportMap = Record<string, MapEntry>
 export type PathMap = {
 	layouts: Record<string, StaticImport | DynamicImport>
 	pages: Record<string, DynamicImport>
-	errors: Record<string, DynamicImport>
+	'404s': Record<string, DynamicImport>
 	loaders: Record<string, DynamicImport>
 	endpoints: Partial<
 		Record<

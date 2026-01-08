@@ -2,7 +2,7 @@ import type { LooseNumber } from '../types'
 
 export type Payload = string | Record<string, unknown>
 
-type HTTPExceptionOptions = {
+type HttpExceptionOptions = {
 	payload?: Payload
 	cause?: unknown
 }
@@ -87,14 +87,14 @@ export class HttpException extends Error {
 	payload?: Payload
 	digest?: string
 
-	constructor(message: string, status: StatusCode, opts?: HTTPExceptionOptions) {
+	constructor(message: string, status: StatusCode, opts?: HttpExceptionOptions) {
 		super(message, { cause: opts?.cause })
 		this.status = status
 		this.payload = opts?.payload
 	}
 }
 
-export const HTTP_EXCEPTION_DIGEST_PREFIX = 'http_exception'
+export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 
 /**
  * Check if an error is an HTTPException

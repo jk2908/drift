@@ -22,8 +22,8 @@ export type ScanResult = {
 		layouts: (string | null)[]
 		// shell (root layout)
 		shell: string
-		// error boundary chain
-		errors: (string | null)[]
+		// 404 boundary chain
+		'404s': (string | null)[]
 		// loading component chain
 		loaders: (string | null)[]
 	}[]
@@ -36,15 +36,15 @@ export type Imports = {
 }
 
 export type Modules = Record<
-	string,
-	{
-		shellId?: string
-		layoutIds?: (string | null)[]
-		pageId?: string
-		errorIds?: (string | null)[]
-		loadingIds?: (string | null)[]
-		endpointId?: string
-	}
+       string,
+       {
+	       shellId?: string
+	       layoutIds?: (string | null)[]
+	       pageId?: string
+	       '404Ids'?: (string | null)[]
+	       loadingIds?: (string | null)[]
+	       endpointId?: string
+       }
 >
 
 const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
@@ -149,11 +149,11 @@ export class RouteProcessor {
 		res: ScanResult = { segments: [], endpoints: [] },
 		prev: {
 			layouts: (string | null)[]
-			errors: (string | null)[]
+			'404s': (string | null)[]
 			loaders: (string | null)[]
 		} = {
 			layouts: [],
-			errors: [],
+			'404s': [],
 			loaders: [],
 		},
 	) {
@@ -210,9 +210,9 @@ export class RouteProcessor {
 				return 0
 			})
 
-			// current layout, error, loader, and page files for this segment
+			// current layout, 404, loader, and page files for this segment
 			let currentLayout: string | undefined
-			let currentError: string | undefined
+			let current404: string | undefined
 			let currentLoader: string | undefined
 			let currentPage: string | undefined
 
@@ -224,7 +224,7 @@ export class RouteProcessor {
 					// has a layout (defines a wrapper for child routes)
 					if (!currentPage && currentLayout) {
 						const layouts = [...prev.layouts, currentLayout]
-						const errors = [...prev.errors, currentError ?? null]
+						const _404s = [...prev['404s'], current404 ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts[0]
 
@@ -232,7 +232,7 @@ export class RouteProcessor {
 							res.segments.push({
 								dir,
 								page: undefined,
-								errors,
+								'404s': _404s,
 								loaders,
 								layouts: layouts.length > 1 ? layouts.slice(1) : [],
 								shell,
@@ -242,7 +242,7 @@ export class RouteProcessor {
 
 					const next = {
 						layouts: [...prev.layouts, currentLayout ?? null],
-						errors: [...prev.errors, currentError ?? null],
+						'404s': [...prev['404s'], current404 ?? null],
 						loaders: [...prev.loaders, currentLoader ?? null],
 					}
 
@@ -254,7 +254,7 @@ export class RouteProcessor {
 					if (validFiles[TYPES.layout].has(base)) {
 						currentLayout = relative
 					} else if (validFiles[TYPES.error].has(base)) {
-						currentError = relative
+						current404 = relative
 					} else if (validFiles[TYPES.loading].has(base)) {
 						currentLoader = relative
 					} else if (validFiles[TYPES.endpoint].has(base)) {
@@ -262,7 +262,7 @@ export class RouteProcessor {
 					} else if (validFiles[TYPES.page].has(base)) {
 						currentPage = relative
 						const layouts = [...prev.layouts, currentLayout ?? null]
-						const errors = [...prev.errors, currentError ?? null]
+						const _404s = [...prev['404s'], current404 ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts?.[0]
 
@@ -271,7 +271,7 @@ export class RouteProcessor {
 						res.segments.push({
 							dir,
 							page: relative,
-							errors,
+							'404s': _404s,
 							loaders,
 							layouts: layouts.length > 1 ? layouts.slice(1) : [],
 							shell,
@@ -280,8 +280,8 @@ export class RouteProcessor {
 				}
 			}
 
-			// warn if segment has error/loading but no page or layout
-			if (!currentPage && !currentLayout && (currentError || currentLoader)) {
+			// warn if segment has 404/loading but no page or layout
+			if (!currentPage && !currentLayout && (current404 || currentLoader)) {
 				this.ctx?.logger.warn(
 					`[#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
 				)
@@ -291,7 +291,7 @@ export class RouteProcessor {
 			// haven't created one yet (no subdirectories triggered it)
 			if (!currentPage && currentLayout && !res.segments.some(s => s.dir === dir)) {
 				const layouts = [...prev.layouts, currentLayout]
-				const errors = [...prev.errors, currentError ?? null]
+				const notFounds = [...prev['404s'], current404 ?? null]
 				const loaders = [...prev.loaders, currentLoader ?? null]
 				const shell = layouts[0]
 
@@ -299,7 +299,7 @@ export class RouteProcessor {
 					res.segments.push({
 						dir,
 						page: undefined,
-						errors,
+						'404s': notFounds,
 						loaders,
 						layouts: layouts.length > 1 ? layouts.slice(1) : [],
 						shell,
@@ -342,7 +342,7 @@ export class RouteProcessor {
 			try {
 				if (!this.ctx || !this.config) continue
 
-				const { shell, layouts, page, errors, loaders, dir } = segment
+				const { shell, layouts, page, '404s': notFounds, loaders, dir } = segment
 
 				// route is derived from dir path, not page
 				const route = RouteProcessor.toCanonicalRoute(
@@ -361,7 +361,7 @@ export class RouteProcessor {
 
 				const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 				const layoutIds: (string | null)[] = []
-				const errorIds: (string | null)[] = []
+				const notFoundIds: (string | null)[] = []
 				const loadingIds: (string | null)[] = []
 
 				// if shell not processed yet
@@ -409,23 +409,23 @@ export class RouteProcessor {
 					}
 				}
 
-				for (const error of errors) {
-					// hole if level does not declare an error boundary.
+				for (const notFound of notFounds) {
+					// hole if level does not declare a 404 boundary.
 					// Keep slot so indices match layouts
-					if (!error) {
-						errorIds.push(null)
+					if (!notFound) {
+						notFoundIds.push(null)
 						continue
 					}
 
-					const errorImport = RouteProcessor.getImportPath(error)
-					const errorId = `${EntryKind.ERROR}${Bun.hash(errorImport)}`
+					const notFoundImport = RouteProcessor.getImportPath(notFound)
+					const notFoundId = `${EntryKind[404]}${Bun.hash(notFoundImport)}`
 
-					errorIds.push(errorId)
+					notFoundIds.push(notFoundId)
 
 					// dedupe imports but still assign the slot for this route
-					if (!processed.has(error)) {
-						imports.components.dynamic.set(errorId, errorImport)
-						processed.add(error)
+					if (!processed.has(notFound)) {
+						imports.components.dynamic.set(notFoundId, notFoundImport)
+						processed.add(notFound)
 					}
 				}
 
@@ -510,7 +510,7 @@ export class RouteProcessor {
 						layouts: [shell, ...layouts].map(l =>
 							l ? RouteProcessor.getImportPath(l) : null,
 						),
-						errors: errors.map(e => (e ? RouteProcessor.getImportPath(e) : null)),
+						'404s': notFounds.map(e => (e ? RouteProcessor.getImportPath(e) : null)),
 						loaders: loaders.map(l => (l ? RouteProcessor.getImportPath(l) : null)),
 						page: page ? RouteProcessor.getImportPath(page) : null,
 					},
@@ -533,7 +533,7 @@ export class RouteProcessor {
 					shellId,
 					layoutIds,
 					pageId: page ? entryId : undefined,
-					errorIds,
+					'404Ids': notFoundIds,
 					loadingIds,
 				}
 			} catch (err) {

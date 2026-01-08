@@ -15,19 +15,19 @@ type Match = NonNullable<EnhancedMatch>
  * - error boundaries wrap Suspense so they can catch streaming errors
  *
  * @example
- * <HTTPExceptionBoundary>           ← catches shell errors
+ * <HttpExceptionBoundary>           ← catches shell errors
  *   <Shell>                         ← renders immediately
  *     <Suspense fallback={...}>     ← inner inner can stream
- *       <HTTPExceptionBoundary>     ← catches inner errors
+ *       <HttpExceptionBoundary>     ← catches inner errors
  *         <Layout>
  *           <Suspense>
  *             <Page />
  *           </Suspense>
  *         </Layout>
- *       </HTTPExceptionBoundary>
+ *       </HttpExceptionBoundary>
  *     </Suspense>
  *   </Shell>
- * </HTTPExceptionBoundary>
+ * </HttpExceptionBoundary>
  */
 export function Tree({
 	depth,
@@ -40,7 +40,7 @@ export function Tree({
 	error: Match['error']
 	ui: Match['ui']
 }) {
-	const { layouts, Page, errors, loaders } = ui
+	const { layouts, Page, '404s': notFounds, loaders } = ui
 
 	const Shell = layouts[0]
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
@@ -54,7 +54,7 @@ export function Tree({
 		// error boundary in the tree. So findLast should
 		// always succeed
 		const Err =
-			errors.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorComponent
+			notFounds.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorComponent
 		inner = <Err error={error} />
 	} else if (Page) {
 		inner = <Page params={params} />
