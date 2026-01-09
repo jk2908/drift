@@ -188,7 +188,7 @@ export function Metadata({ metadata: m }: { metadata?: Promise<TMetadata> }) {
 	if (!m) return null
 
 	// @todo; handle errors
-	const metadata = use(m.catch(() => ({} as TMetadata)))
+	const metadata = use(m)
 
 	return (
 		<>

@@ -64,7 +64,7 @@ export function Tree({
 	for (let idx = layouts.length - 1; idx >= 1; idx--) {
 		const Layout = layouts[idx]
 		const Loading = loaders[idx]
-		const Err = errors[idx]
+		const Err = notFounds[idx]
 
 		// wrap in layout
 		if (Layout) {
@@ -89,7 +89,7 @@ export function Tree({
 	// now wrap with shell structure: shell renders immediately,
 	// inner streams inside Suspense
 	const ShellLoading = loaders[0]
-	const ShellErr = errors[0]
+	const ShellErr = notFounds[0]
 
 	return (
 		<HttpExceptionBoundary>

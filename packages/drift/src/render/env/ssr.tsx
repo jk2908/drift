@@ -10,6 +10,7 @@ import { Metadata } from '../../shared/metadata'
 
 import { RouterProvider } from '../../client/router'
 
+import { ErrorBoundary } from '../../ui/components/error-boundary'
 import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
 
 import type { RSCPayload } from './rsc'
@@ -37,9 +38,13 @@ export async function ssr(
 		return (
 			<RedirectBoundary>
 				<RouterProvider>
-					<Suspense fallback={null}>
-						<Metadata metadata={payload.metadata} />
-					</Suspense>
+					<ErrorBoundary
+						fallback={null}
+						onError={err => logger.error('[ssr:metadata]', err)}>
+						<Suspense fallback={null}>
+							<Metadata metadata={payload.metadata} />
+						</Suspense>
+					</ErrorBoundary>
 
 					{payload.root}
 				</RouterProvider>
