@@ -2,8 +2,10 @@ import { Suspense } from 'react'
 
 import type { EnhancedMatch } from '../types'
 
-import DefaultErrorComponent from '../ui/defaults/+error'
+import DefaultNotFound from '../ui/defaults/+404'
 import { HttpExceptionBoundary } from '../ui/defaults/http-exception-boundary'
+
+import { HttpException, isHttpException } from './http-exception'
 
 type Match = NonNullable<EnhancedMatch>
 
@@ -14,20 +16,36 @@ type Match = NonNullable<EnhancedMatch>
  * - everything inside the shell is wrapped in Suspense so it can stream
  * - error boundaries wrap Suspense so they can catch streaming errors
  *
+ * @param depth - current match depth
+ * @param params - route params
+ * @param error - error object, if any
+ * @param ui - UI components for this route
+ * @returns the rendered route tree
+ *
  * @example
- * <HttpExceptionBoundary>           ← catches shell errors
- *   <Shell>                         ← renders immediately
- *     <Suspense fallback={...}>     ← inner inner can stream
- *       <HttpExceptionBoundary>     ← catches inner errors
- *         <Layout>
- *           <Suspense>
- *             <Page />
- *           </Suspense>
- *         </Layout>
- *       </HttpExceptionBoundary>
- *     </Suspense>
- *   </Shell>
- * </HttpExceptionBoundary>
+ *
+ * <Shell>
+ *   <Suspense>
+ *     <ErrorBoundary>
+ *       <Layout[1]>
+ *         <Suspense>
+ *           <ErrorBoundary>
+ *             ...
+ *               <Layout[n]>
+ *                 <Suspense>
+ *                   <ErrorBoundary>
+ *                     <Page />
+ *                   </ErrorBoundary>
+ *                 </Suspense>
+ *               </Layout[n]>
+ *             ...
+ *           </ErrorBoundary>
+ *         </Suspense>
+ *       </Layout[1]>
+ *     </ErrorBoundary>
+ *   </Suspense>
+ * </Shell>
+ *
  */
 export function Tree({
 	depth,
@@ -48,14 +66,28 @@ export function Tree({
 	// build the inner inner (everything after shell)
 	let inner: React.ReactNode = null
 
-	if (error) {
-		// find the nearest error boundary at or above this depth
-		// @note: error should only be present if there's an
-		// error boundary in the tree. So findLast should
-		// always succeed
-		const Err =
-			notFounds.slice(0, depth + 1).findLast(e => e !== null) ?? DefaultErrorComponent
-		inner = <Err error={error} />
+	// map http status codes to exception components
+	const httpExceptionMap: Record<
+		number,
+		(React.ComponentType<{
+			children?: React.ReactNode
+			error?: HttpException | undefined
+		}> | null)[]
+	> = {
+		404: notFounds,
+	}
+
+	if (error && isHttpException(error)) {
+		const Exception =
+			httpExceptionMap[error.status].slice(0, depth + 1).findLast(e => e !== null) ??
+			DefaultNotFound
+
+		inner = (
+			<>
+				<meta name="robots" content="noindex,nofollow" />
+				<Exception error={error} />
+			</>
+		)
 	} else if (Page) {
 		inner = <Page params={params} />
 	}
@@ -64,7 +96,7 @@ export function Tree({
 	for (let idx = layouts.length - 1; idx >= 1; idx--) {
 		const Layout = layouts[idx]
 		const Loading = loaders[idx]
-		const Err = notFounds[idx]
+		const NotFound = notFounds[idx]
 
 		// wrap in layout
 		if (Layout) {
@@ -80,22 +112,28 @@ export function Tree({
 			inner = <Suspense fallback={<Loading />}>{inner}</Suspense>
 		}
 
-		// wrap in error boundary (outside suspense to catch streaming errors)
-		if (Err) {
-			inner = <HttpExceptionBoundary>{inner}</HttpExceptionBoundary>
+		// wrap in not found boundary if it exists at this level.
+		// Catches exceptions() thrown in render
+		if (NotFound) {
+			inner = (
+				<HttpExceptionBoundary
+					components={{ 404: <NotFound error={new HttpException(404, 'Not found')} /> }}>
+					{inner}
+				</HttpExceptionBoundary>
+			)
 		}
 	}
 
 	// now wrap with shell structure: shell renders immediately,
 	// inner streams inside Suspense
 	const ShellLoading = loaders[0]
-	const ShellErr = notFounds[0]
+	const ShellNotFound = notFounds[0]
 
 	return (
-		<HttpExceptionBoundary>
-			<Shell params={params}>
-				<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>{inner}</Suspense>
-			</Shell>
+		<HttpExceptionBoundary components={{ 404: ShellNotFound ? <ShellNotFound /> : null }}>
+			<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
+				<Shell params={params}>{inner}</Shell>
+			</Suspense>
 		</HttpExceptionBoundary>
 	)
 }

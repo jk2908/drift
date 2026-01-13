@@ -36,15 +36,15 @@ export type Imports = {
 }
 
 export type Modules = Record<
-       string,
-       {
-	       shellId?: string
-	       layoutIds?: (string | null)[]
-	       pageId?: string
-	       '404Ids'?: (string | null)[]
-	       loadingIds?: (string | null)[]
-	       endpointId?: string
-       }
+	string,
+	{
+		shellId?: string
+		layoutIds?: (string | null)[]
+		pageId?: string
+		'404Ids'?: (string | null)[]
+		loadingIds?: (string | null)[]
+		endpointId?: string
+	}
 >
 
 const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
@@ -167,7 +167,7 @@ export class RouteProcessor {
 			// define route file types
 			const TYPES = {
 				page: '+page',
-				error: '+error',
+				'404': '+404',
 				layout: '+layout',
 				loading: '+loading',
 				endpoint: '+endpoint',
@@ -176,7 +176,7 @@ export class RouteProcessor {
 			// map of valid files for each type
 			const validFiles = {
 				[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
-				[TYPES.error]: new Set(EXTENSIONS.page.map(ext => `${TYPES.error}.${ext}`)),
+				[TYPES['404']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['404']}.${ext}`)),
 				[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
 				[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
 				[TYPES.endpoint]: new Set(EXTENSIONS.api.map(ext => `${TYPES.endpoint}.${ext}`)),
@@ -196,7 +196,7 @@ export class RouteProcessor {
 						const base = path.basename(d.name)
 
 						if (validFiles[TYPES.layout].has(base)) return 0
-						if (validFiles[TYPES.error].has(base)) return 1
+						if (validFiles[TYPES['404']].has(base)) return 1
 						if (validFiles[TYPES.loading].has(base)) return 2
 						if (validFiles[TYPES.page].has(base)) return 3
 						if (validFiles[TYPES.endpoint].has(base)) return 4
@@ -224,7 +224,7 @@ export class RouteProcessor {
 					// has a layout (defines a wrapper for child routes)
 					if (!currentPage && currentLayout) {
 						const layouts = [...prev.layouts, currentLayout]
-						const _404s = [...prev['404s'], current404 ?? null]
+						const notFounds = [...prev['404s'], current404 ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts[0]
 
@@ -232,7 +232,7 @@ export class RouteProcessor {
 							res.segments.push({
 								dir,
 								page: undefined,
-								'404s': _404s,
+								'404s': notFounds,
 								loaders,
 								layouts: layouts.length > 1 ? layouts.slice(1) : [],
 								shell,
@@ -253,7 +253,7 @@ export class RouteProcessor {
 
 					if (validFiles[TYPES.layout].has(base)) {
 						currentLayout = relative
-					} else if (validFiles[TYPES.error].has(base)) {
+					} else if (validFiles[TYPES['404']].has(base)) {
 						current404 = relative
 					} else if (validFiles[TYPES.loading].has(base)) {
 						currentLoader = relative
@@ -262,7 +262,7 @@ export class RouteProcessor {
 					} else if (validFiles[TYPES.page].has(base)) {
 						currentPage = relative
 						const layouts = [...prev.layouts, currentLayout ?? null]
-						const _404s = [...prev['404s'], current404 ?? null]
+						const notFounds = [...prev['404s'], current404 ?? null]
 						const loaders = [...prev.loaders, currentLoader ?? null]
 						const shell = layouts?.[0]
 
@@ -271,7 +271,7 @@ export class RouteProcessor {
 						res.segments.push({
 							dir,
 							page: relative,
-							'404s': _404s,
+							'404s': notFounds,
 							loaders,
 							layouts: layouts.length > 1 ? layouts.slice(1) : [],
 							shell,
@@ -418,7 +418,7 @@ export class RouteProcessor {
 					}
 
 					const notFoundImport = RouteProcessor.getImportPath(notFound)
-					const notFoundId = `${EntryKind[404]}${Bun.hash(notFoundImport)}`
+					const notFoundId = `${EntryKind['404']}${Bun.hash(notFoundImport)}`
 
 					notFoundIds.push(notFoundId)
 

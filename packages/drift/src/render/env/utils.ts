@@ -1,4 +1,4 @@
-import { HTTP_EXCEPTION_DIGEST_PREFIX } from '../../shared/error'
+import { HTTP_EXCEPTION_DIGEST_PREFIX } from '../../shared/http-exception'
 import { REDIRECT_DIGEST_PREFIX } from '../../shared/redirect'
 
 const possibilities = [HTTP_EXCEPTION_DIGEST_PREFIX, REDIRECT_DIGEST_PREFIX]

@@ -64,9 +64,9 @@
 			"types": "./dist/shared/redirect.d.ts",
 			"default": "./dist/shared/redirect.js"
 		},
-		"./shared/error": {
-			"types": "./dist/shared/error.d.ts",
-			"default": "./dist/shared/error.js"
+		"./shared/http-exception": {
+			"types": "./dist/shared/http-exception.d.ts",
+			"default": "./dist/shared/http-exception.js"
 		},
 		"./shared/metadata": {
 			"types": "./dist/shared/metadata.d.ts",

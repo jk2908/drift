@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 
 import type { EntryKind } from './config'
 
-import type { HttpException } from './shared/error'
+import type { HttpException } from './shared/http-exception'
 import type { Logger, LogLevel } from './shared/logger'
 import type { PRIORITY } from './shared/metadata'
 import type { Router } from './shared/router'
@@ -117,6 +117,7 @@ export type EnhancedMatch = Match & {
 		}> | null
 		'404s': (View<{
 			children?: React.ReactNode
+			error?: HttpException
 		}> | null)[]
 		loaders: (View<{
 			children?: React.ReactNode

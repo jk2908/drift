@@ -14,6 +14,7 @@ export class Redirect extends Error {
 		this.name = 'Redirect'
 		this.url = url
 		this.status = status
+		this.digest = `${REDIRECT_DIGEST_PREFIX}:${status}:${url}`
 	}
 }
 
@@ -41,8 +42,5 @@ export function isRedirect(err: unknown) {
  * @param status - the HTTP status code for the redirect, defaults to 307
  */
 export function redirect(url: string, status: RedirectStatusCode = 307): never {
-	const r = new Redirect(url, status)
-	r.digest = `${REDIRECT_DIGEST_PREFIX}:${url}:${status}`
-
-	throw r
+	throw new Redirect(url, status)
 }

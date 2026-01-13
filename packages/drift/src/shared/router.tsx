@@ -20,7 +20,7 @@ import type {
 
 import { EntryKind } from '../config'
 
-import { HttpException } from './error'
+import { HttpException } from './http-exception'
 import { Logger } from './logger'
 import { PRIORITY } from './metadata'
 
@@ -232,13 +232,13 @@ export class Router {
 
 		// @note: if there's no match we'll traverse backwards
 		// to find the closest user supplied error boundary
-		const entry = this.closest(path, 'paths.errors')
+		const entry = this.closest(path, 'paths.404s')
 
 		if (entry) {
 			return {
 				...entry,
 				params: {},
-				error: new HttpException('Not found', 404),
+				error: new HttpException(404, 'Not found'),
 			}
 		}
 

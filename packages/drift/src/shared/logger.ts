@@ -1,6 +1,6 @@
 import { NAME } from '../config'
 
-import { HttpException } from './error'
+import { HttpException } from './http-exception'
 
 const LEVELS = {
 	debug: 0,

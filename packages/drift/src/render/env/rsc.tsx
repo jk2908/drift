@@ -14,8 +14,8 @@ import type { ImportMap, Manifest, Metadata } from '../../types'
 import {
 	HttpException,
 	type Payload as HttpExceptionPayload,
-	type StatusCode,
-} from '../../shared/error'
+	type HttpExceptionStatusCode,
+} from '../../shared/http-exception'
 import { Logger } from '../../shared/logger'
 import { MetadataCollection } from '../../shared/metadata'
 import { Router } from '../../shared/router'
@@ -57,7 +57,7 @@ export async function rsc(
 	const match = router.enhance(router.match(url.pathname))
 
 	if (!match) {
-		const error = new HttpException('Not found', 404)
+		const error = new HttpException(404, 'Not found')
 		const title = `${error.status} - ${error.message}`
 
 		const rscPayload: RSCPayload = {
@@ -237,11 +237,11 @@ export const driftPayloadReviver = {
 		string,
 		unknown,
 		string | undefined,
-		StatusCode | undefined,
+		HttpExceptionStatusCode | undefined,
 		HttpExceptionPayload | undefined,
 	]) => {
 		if (name === 'HttpException' && status !== undefined) {
-			const error = new HttpException(message, status, { payload, cause })
+			const error = new HttpException(status, message, { payload, cause })
 			if (stack) error.stack = stack
 
 			return error
