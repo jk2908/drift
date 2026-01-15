@@ -1,4 +1,4 @@
-import { PKG_NAME } from '../config'
+import { Config } from '../config'
 
 import type { Imports, Modules } from '../build/route-processor'
 
@@ -51,7 +51,7 @@ export function writeMaps(imports: Imports, modules: Modules) {
 	return `
 	  ${AUTOGEN_MSG}
 
-		import type { ImportMap } from '${PKG_NAME}'
+		import type { ImportMap } from '${Config.PKG_NAME}'
 
 	  ${statics.join('\n')}
 		

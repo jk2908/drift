@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import type { BuildContext, Endpoint, HTTPMethod, PluginConfig, Segment } from '../types'
 
-import { APP_DIR, EntryKind, GENERATED_DIR } from '../config'
+import { Config } from '../config'
 
 import {
 	createPrerenderRoutesFromParamsList,
@@ -49,17 +49,23 @@ export type Modules = Record<
 
 const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
 
+export const EntryKind = {
+	SHELL: '$S',
+	LAYOUT: '$L',
+	PAGE: '$P',
+	404: '$404',
+	LOADING: '$LOAD',
+	ENDPOINT: '$E',
+} as const
+
 /**
  * RouteProcessor class to process application routes
  */
 export class RouteProcessor {
-	ctx: BuildContext | null = null
-	config: PluginConfig | null = null
-
-	constructor(ctx: BuildContext, config: PluginConfig) {
-		this.ctx = ctx
-		this.config = config
-	}
+	constructor(
+		public readonly ctx: BuildContext,
+		public readonly config: PluginConfig,
+	) {}
 
 	/**
 	 * Extracts dynamic parameter names from a file path
@@ -89,7 +95,7 @@ export class RouteProcessor {
 	 */
 	static toCanonicalRoute(file: string) {
 		const route = file
-			.replace(new RegExp(`^${APP_DIR}`), '')
+			.replace(new RegExp(`^${Config.APP_DIR}`), '')
 			.replace(/\/\+page\.(j|t)sx?$/, '')
 			.replace(/\/\+endpoint\.(j|t)sx?$/, '')
 			.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
@@ -110,7 +116,7 @@ export class RouteProcessor {
 	 */
 	static getImportPath(file: string) {
 		const cwd = process.cwd()
-		const generatedDir = path.join(cwd, GENERATED_DIR)
+		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
 
 		return path
 			.relative(generatedDir, path.resolve(cwd, file))
@@ -130,7 +136,7 @@ export class RouteProcessor {
 	 */
 	async run() {
 		try {
-			return await this.process(await this.#scan(APP_DIR))
+			return await this.process(await this.#scan(Config.APP_DIR))
 		} catch (err) {
 			this.ctx?.logger.error('[run]: failed to build manifest', err)
 			throw err

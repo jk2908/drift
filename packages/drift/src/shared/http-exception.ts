@@ -16,18 +16,16 @@ export type HttpExceptionStatusCode = 404 | (number & {})
  * @param opts.cause - the cause
  */
 export class HttpException extends Error {
-	status: HttpExceptionStatusCode
 	payload?: Payload
 	digest?: string
 
 	constructor(
-		status: HttpExceptionStatusCode,
-		message: string,
+		public readonly status: HttpExceptionStatusCode,
+		public override readonly message: string,
 		opts?: HttpExceptionOptions,
 	) {
 		super(message, { cause: opts?.cause })
 
-		this.status = status
 		this.payload = opts?.payload
 		this.digest = `${HTTP_EXCEPTION_DIGEST_PREFIX}:${status}:${message}`
 	}
@@ -53,14 +51,14 @@ export function isHttpException(err: unknown): err is HttpException {
 
 /**
  * Throw an HTTPException
- * @param message - the message
  * @param status - the status code of the error
+ * @param message - the message
  * @param opts - the options
  * @param opts.payload - the payload
  * @param opts.cause - the cause
  * @throws a HTTPException with the given status and options
  */
-export function exception(
+export function abort(
 	status: 404,
 	message: string,
 	opts?: {

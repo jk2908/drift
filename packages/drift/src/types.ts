@@ -1,13 +1,11 @@
 import type { Context } from 'hono'
 
-import type { EntryKind } from './config'
-
 import type { HttpException } from './shared/http-exception'
 import type { Logger, LogLevel } from './shared/logger'
 import type { PRIORITY } from './shared/metadata'
 import type { Router } from './shared/router'
 
-import type { RouteProcessor } from './build/route-processor'
+import type { EntryKind, RouteProcessor } from './build/route-processor'
 
 export type PluginConfig = {
 	app?: {

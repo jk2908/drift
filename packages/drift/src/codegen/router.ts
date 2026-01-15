@@ -1,8 +1,6 @@
 import type { Endpoint, Manifest, Segment } from '../types'
 
-import { EntryKind } from '../config'
-
-import type { Imports } from '../build/route-processor'
+import { EntryKind, type Imports } from '../build/route-processor'
 
 import { AUTOGEN_MSG } from './utils'
 
