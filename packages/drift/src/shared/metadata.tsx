@@ -2,7 +2,7 @@ import { use } from 'react'
 
 import type { LinkTag, MetaTag, Metadata as TMetadata } from '../types'
 
-import { EntryKind } from '../config'
+import { EntryKind } from '../build/route-processor'
 
 type TEntryKind = typeof EntryKind
 type MetadataSource = Exclude<TEntryKind[keyof TEntryKind], typeof EntryKind.ENDPOINT>

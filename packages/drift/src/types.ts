@@ -1,4 +1,4 @@
-import type { Context } from 'hono'
+type BunRequest = Request & { params: Record<string, string> }
 
 import type { HttpException } from './shared/http-exception'
 import type { Logger, LogLevel } from './shared/logger'
@@ -121,7 +121,7 @@ export type EnhancedMatch = Match & {
 			children?: React.ReactNode
 		}> | null)[]
 	}
-	endpoint?: (c: Context) => unknown
+	endpoint?: (req: BunRequest) => unknown
 	metadata?: ({ params, error }: { params?: Params; error?: Error }) => Promise<
 		PromiseSettledResult<{
 			task: Promise<Metadata>
@@ -139,7 +139,7 @@ export type MapEntry = {
 	layouts?: readonly (DynamicImport | null)[]
 	'404s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
-	endpoint?: (c?: Context) => unknown
+	endpoint?: (req?: BunRequest) => unknown
 }
 
 export type ImportMap = Record<string, MapEntry>
@@ -152,7 +152,7 @@ export type PathMap = {
 	endpoints: Partial<
 		Record<
 			Lowercase<HTTPMethod>,
-			Record<string, (c?: Context) => Response | Promise<Response>>
+			Record<string, (req?: BunRequest) => Response | Promise<Response>>
 		>
 	>
 }

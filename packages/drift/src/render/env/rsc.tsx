@@ -54,7 +54,11 @@ export async function rsc(
 	const router = new Router(manifest, importMap)
 	const logger = new Logger()
 	const url = new URL(req.url)
-	const match = router.enhance(router.match(url.pathname))
+	const pathname =
+		url.pathname.endsWith('/') && url.pathname !== '/'
+			? url.pathname.slice(0, -1)
+			: url.pathname
+	const match = router.enhance(router.match(pathname))
 
 	if (!match) {
 		const error = new HttpException(404, 'Not found')

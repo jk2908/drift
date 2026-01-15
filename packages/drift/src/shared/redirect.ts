@@ -1,4 +1,4 @@
-import type { RedirectStatusCode } from 'hono/utils/http-status'
+export type RedirectStatusCode = 301 | 302 | 303 | 307 | 308
 
 /**
  * Redirect exception class to signal a redirect

@@ -1,9 +1,5 @@
 import { lazy } from 'react'
 
-import { RegExpRouter } from 'hono/router/reg-exp-router'
-import { SmartRouter } from 'hono/router/smart-router'
-import { TrieRouter } from 'hono/router/trie-router'
-
 import type {
 	DynamicImport,
 	EnhancedMatch,
@@ -18,7 +14,7 @@ import type {
 	View,
 } from '../types'
 
-import { EntryKind } from '../config'
+import { EntryKind } from '../build/route-processor'
 
 import { HttpException } from './http-exception'
 import { Logger } from './logger'
@@ -63,12 +59,16 @@ export class Router {
 	#manifest: Manifest = {}
 	#importMap: ImportMap = {}
 
-	/**
-	 * @see: https://hono.dev/docs/concepts/routers
-	 */
-	#router: SmartRouter<Segment> = new SmartRouter({
-		routers: [new RegExpRouter(), new TrieRouter()],
-	})
+	#routes: Array<{
+		entry: Segment
+		segments: string[]
+		score: number
+	}> = []
+	#staticRoutes = new Map<string, Segment>()
+	#routesByLength = new Map<
+		number,
+		Array<{ entry: Segment; segments: string[]; score: number }>
+	>()
 
 	constructor(manifest: Manifest, importMap: ImportMap) {
 		this.#manifest = manifest
@@ -82,7 +82,15 @@ export class Router {
 			if (Array.isArray(entry)) {
 				for (const e of entry) {
 					if (e.__kind !== EntryKind.PAGE) continue
-					this.#router.add('GET', path, e)
+					const route = Router.#createRouteEntry(e)
+					this.#routes.push(route)
+					if (!e.__path.includes(':') && !e.__path.includes('*')) {
+						this.#staticRoutes.set(e.__path, e)
+					} else {
+						const bucket = this.#routesByLength.get(route.segments.length) ?? []
+						bucket.push(route)
+						this.#routesByLength.set(route.segments.length, bucket)
+					}
 				}
 
 				continue
@@ -90,7 +98,15 @@ export class Router {
 
 			// single entry - only register if it's a page
 			if (entry.__kind !== EntryKind.PAGE) continue
-			this.#router.add('GET', path, entry)
+			const route = Router.#createRouteEntry(entry)
+			this.#routes.push(route)
+			if (!entry.__path.includes(':') && !entry.__path.includes('*')) {
+				this.#staticRoutes.set(entry.__path, entry)
+			} else {
+				const bucket = this.#routesByLength.get(route.segments.length) ?? []
+				bucket.push(route)
+				this.#routesByLength.set(route.segments.length, bucket)
+			}
 		}
 	}
 
@@ -180,53 +196,96 @@ export class Router {
 		return entry.Component
 	}
 
+	static #createRouteEntry(entry: Segment) {
+		const segments = entry.__path.split('/').filter(Boolean)
+
+		const score = segments.reduce((score, segment) => {
+			if (segment === '*') return score
+			if (segment.startsWith(':')) return score + 1
+			return score + 2
+		}, 0)
+
+		return {
+			entry,
+			segments,
+			score,
+		}
+	}
+
+	static #matchEntry(
+		route: { entry: Segment; segments: string[] },
+		pathSegments: string[],
+	) {
+		const { entry, segments } = route
+
+		if (entry.catch_all) {
+			if (pathSegments.length < segments.length - 1) return null
+		} else if (segments.length !== pathSegments.length) {
+			return null
+		}
+
+		const params: Params = {}
+
+		for (let index = 0; index < segments.length; index += 1) {
+			const pattern = segments[index]
+			const value = pathSegments[index]
+
+			if (pattern === '*') {
+				const name = entry.__params[0]
+				params[name] = pathSegments.slice(index).join('/')
+				return params
+			}
+
+			if (pattern.startsWith(':')) {
+				if (!value) return null
+
+				const name = pattern.slice(1)
+				params[name] = value
+				continue
+			}
+
+			if (pattern !== value) return null
+		}
+
+		return params
+	}
+
 	/**
-	 * Match a route against the registered routes using Hono's engine
+	 * Match a route against the registered routes
 	 * @param path - the path to match against the routes
 	 * @returns the matched route or the closest parent for a 404.
 	 */
 	match(path: string) {
-		const result = this.#router.match('GET', path)
+		const normalized = path === '/' ? path : path.replace(/\/$/, '')
+		const directMatch = this.#staticRoutes.get(normalized)
 
-		if (result) {
-			const [handlers, paramStash] = result
-			const entry = handlers?.[0]?.[0]
+		if (directMatch) {
+			return {
+				...directMatch,
+				params: {},
+			}
+		}
 
-			// a match is valid if we have a handler. Params are optional
-			if (entry) {
-				const params: Params = {}
+		const pathSegments = normalized.split('/').filter(Boolean)
+		const candidates = this.#routesByLength.get(pathSegments.length) ?? this.#routes
 
-				// only process parameters if the router returned any
-				if (paramStash?.length) {
-					if (entry.catch_all) {
-						// for a catch all, we use the __path property on the matched entry.
-						// Neccessary because Hono doesn't expose wildcard params so we need
-						// to grab them from here. Derive the value by removing the
-						// static part of the pattern from the full path that was
-						// matched by the router
-						const staticPart = entry.__path.substring(0, entry.__path.indexOf('*'))
-						const value = paramStash[0].substring(staticPart.length)
-						params[entry.__params[0]] = value
-					} else {
-						// for dynamic routes, values are in paramStash starting at index 1
-						const paramValues = paramStash.slice(1)
+		let best: { entry: Segment; params: Params } | null = null
+		let bestScore = -1
 
-						// loop through the params and assign values to match.params
-						for (let i = 0; i < entry.__params.length; i++) {
-							const name = entry.__params[i]
-							const value = paramValues[i]
+		for (const route of candidates) {
+			const match = Router.#matchEntry(route, pathSegments)
+			if (!match) continue
 
-							if (value === undefined) continue
+			if (route.score > bestScore) {
+				best = { entry: route.entry, params: match }
+				bestScore = route.score
+			}
+		}
 
-							params[name] = value
-						}
-					}
-				}
-
-				return {
-					...entry,
-					params,
-				}
+		if (best) {
+			return {
+				...best.entry,
+				params: best.params,
 			}
 		}
 
