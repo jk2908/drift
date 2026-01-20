@@ -1,6 +1,18 @@
 import type { Endpoint, Manifest, Segment } from '../types'
 
+<<<<<<< Updated upstream
 import { Build } from '../build'
+=======
+<<<<<<< Updated upstream
+import { EntryKind } from '../config'
+
+import type { Imports } from '../build/route-processor'
+=======
+import { Config } from '../config'
+
+import { Build } from '../build'
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -22,9 +34,25 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 
     /// <reference types="bun" />
 
+<<<<<<< Updated upstream
     import type { Server } from 'bun'
 
     import { Router } from '@jk2908/drift/server/router'
+=======
+<<<<<<< Updated upstream
+    import {
+      Hono,
+      hc,
+      serveStatic,
+      trimTrailingSlash,
+      appendTrailingSlash,
+    } from '@jk2908/drift/_internal/hono'
+=======
+    import type { Server } from 'bun'
+
+    import { Router } from '${Config.PKG_NAME}/server'
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'

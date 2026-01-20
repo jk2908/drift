@@ -1,10 +1,18 @@
 import { Config } from '../config'
 
+<<<<<<< Updated upstream
 import type { Imports, Modules } from '../build'
+=======
+<<<<<<< Updated upstream
+import type { Imports, Modules } from '../build/route-processor'
+=======
+import type { Build } from '../build'
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 import { AUTOGEN_MSG } from './utils'
 
-export function writeMaps(imports: Imports, modules: Modules) {
+export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	const statics = [
 		...imports.endpoints.static.entries().map(([k, v]) => {
 			const [, method] = k.split('_')
