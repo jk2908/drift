@@ -1,6 +1,6 @@
 import { Config } from '../config'
 
-import type { Imports, Modules } from '../build/route-processor'
+import type { Imports, Modules } from '../build'
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -14,6 +14,9 @@ export function writeMaps(imports: Imports, modules: Modules) {
 		...imports.components.static
 			.entries()
 			.map(([k, v]) => `import * as ${k} from ${JSON.stringify(v)}`.trim()),
+		...imports.middlewares.static
+			.entries()
+			.map(([k, v]) => `import { middleware as ${k} } from ${JSON.stringify(v)}`.trim()),
 	]
 
 	const dynamics = [
@@ -43,6 +46,11 @@ export function writeMaps(imports: Imports, modules: Modules) {
 		if (m.loadingIds?.length) {
 			const loaders = m.loadingIds.map(id => (id === null ? 'null' : id)).join(', ')
 			parts.push(`loaders: [${loaders}]`)
+		}
+
+		if (m.middlewareIds?.length) {
+			const middleware = m.middlewareIds.map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`middlewares: [${middleware}]`)
 		}
 
 		return `${JSON.stringify(id)}: { ${parts.join(', ')} }`

@@ -22,7 +22,7 @@ import { Compress } from './server/compress'
 import { prerender } from './server/prerender'
 import { format } from './server/utils'
 
-import { RouteProcessor } from './build/route-processor'
+import { Build } from './build'
 
 import { debounce } from './utils'
 
@@ -85,7 +85,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			fs.mkdir(generatedDir, { recursive: true }),
 		])
 
-		const processor = new RouteProcessor(buildContext, config)
+		const processor = new Build.RouteProcessor(buildContext, config)
 		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
 
 		// set prerenderable routes in context for use in closeBundle

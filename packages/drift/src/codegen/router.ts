@@ -1,18 +1,21 @@
 import type { Endpoint, Manifest, Segment } from '../types'
 
-import { EntryKind, type Imports } from '../build/route-processor'
+import { Build } from '../build'
 
 import { AUTOGEN_MSG } from './utils'
 
 /**
- * Generates the exported server-side code for creating the Bun router
+ * Generates the exported server-side code for creating the router
  * with all the routes and handlers defined in the manifest
  * @param manifest - the application manifest
  * @param imports - the imported modules
  * @returns the stringified code
  */
-export function writeRouter(manifest: Manifest, imports: Imports) {
+export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 	const handlers = createHandlerGroups(manifest)
+	const middlewareByPath = new Map(
+		[...imports.middlewares.static.entries()].map(([id, path]) => [path, id]),
+	)
 
 	return `
     ${AUTOGEN_MSG}
@@ -21,133 +24,93 @@ export function writeRouter(manifest: Manifest, imports: Imports) {
 
     import type { Server } from 'bun'
 
+    import { Router } from '@jk2908/drift/server/router'
+
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
 			.map(([key, value]) => {
-				const [, method] = key.split('_')
-
-				return `import { ${method.toUpperCase()} as ${key}} from '${value}'`
+				const [, method = 'get'] = key.split('_')
+				return `import { ${method.toUpperCase()} as ${key} } from ${JSON.stringify(value)}`
 			})
 			.join('\n')}
 
-    function normalizePath(pathname: string) {
-      if (!config.trailingSlash) {
-        return pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
-      }
-
-      if (pathname === '/') return pathname
-
-      return pathname.endsWith('/') ? pathname : pathname + '/'
-    }
+    ${[...imports.middlewares.static.entries()]
+			.map(
+				([key, value]) => `import { middleware as ${key} } from ${JSON.stringify(value)}`,
+			)
+			.join('\n')}
 
     export function createRouter() {
-      const routes = {
-        '/assets/*': async (req: Request) => {
-          if (req.method !== 'GET' && req.method !== 'HEAD') {
-            return new Response('Not Found', { status: 404 })
-          }
-
-          const pathname = new URL(req.url).pathname
-          const assetPath = pathname.startsWith('/assets/') ? pathname.slice(8) : pathname
-          const outDir = config.outDir.endsWith('/') ? config.outDir.slice(0, -1) : config.outDir
-          const filePath = outDir + '/' + assetPath
-          const brotliFile =
-            config.precompress && (req.headers.get('accept-encoding') ?? '').includes('br')
-              ? Bun.file(filePath + '.br')
-              : null
-          const file = brotliFile && (await brotliFile.exists()) ? brotliFile : Bun.file(filePath)
-
-          if (!(await file.exists())) {
-            return new Response('Not Found', { status: 404 })
-          }
-
-          const res = new Response(file)
-          res.headers.set('Cache-Control', 'public, immutable, max-age=31536000')
-
-          if (brotliFile && file === brotliFile) {
-            res.headers.set('Content-Encoding', 'br')
-          }
-
-          return res
-        },
+      return new Router({
+        trailingSlash: config.trailingSlash,
+      })
+        .add('/assets/*', 'GET', Router.serveStatic(config))
         ${[...handlers.entries()]
 					.map(([, group]) => {
 						if (!Array.isArray(group)) {
-							if (group.__kind === EntryKind.ENDPOINT && group.method !== 'get') {
-								return ''
-							}
+							const method = group.method.toUpperCase()
+							const params = JSON.stringify(group.__params ?? [])
+							const middlewareIds =
+								group.__kind === Build.EntryKind.PAGE
+									? ((group as Segment).paths.middlewares ?? [])
+									: ((group as Endpoint).middlewares ?? [])
+							const middleware = middlewareIds
+								.map((id: string | null) =>
+									id ? (middlewareByPath.get(id) ?? null) : null,
+								)
+								.filter(Boolean)
+							const middlewareArg = middleware.length
+								? `[${middleware.join(', ')}]`
+								: '[]'
 
-							return group.__kind === EntryKind.PAGE
-								? `'${group.__path}': (req: Request) => rsc(req)`
-								: `'${group.__path}': (req: Request) => ${group.__id}(req)`
+							return group.__kind === Build.EntryKind.PAGE
+								? `.add('${group.__path}', '${method}', req => rsc(req), ${params}, ${middlewareArg})`
+								: `.add('${group.__path}', '${method}', req => ${group.__id}(req), ${params}, ${middlewareArg})`
 						}
 
 						if (group.length > 2) throw new Error('Unexpected group length')
 
-						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
+						const id = group.find(e => e.__kind === Build.EntryKind.ENDPOINT)?.__id
 						const path = group[0].__path
+						const params = JSON.stringify(group[0].__params ?? [])
+						const middlewareIds =
+							(
+								group.find(entry => entry.__kind === Build.EntryKind.PAGE) as
+									| Segment
+									| undefined
+							)?.paths.middlewares ??
+							(group[0] as Endpoint).middlewares ??
+							[]
+						const middleware = middlewareIds
+							.map((id: string | null) =>
+								id ? (middlewareByPath.get(id) ?? null) : null,
+							)
+							.filter(Boolean)
+						const middlewareArg = middleware.length ? `[${middleware.join(', ')}]` : '[]'
 
-						return `'${path}': async (req: Request) => {
-              const accept = req.headers.get('accept') ?? ''
+						return `.add('${path}', 'GET', async req => {
+          		const accept = req.headers.get('accept') ?? ''
 
-              if (accept.includes('text/html') || accept.includes('text/x-component')) {
-                return rsc(req)
-              }
+						if (accept.includes('text/html') || accept.includes('text/x-component')) {
+							return rsc(req)
+						}
 
-              if (!${id}) {
-                throw new Error('Unified handler missing implementation')
-              }
+						if (!${id}) {
+							throw new Error('Unified handler missing implementation')
+						}
 
-              return ${id}(req)
-            }`
+						// @ts-ignore
+						return ${id}(req)
+					}, ${params}, ${middlewareArg})`
 					})
-					.filter(Boolean)
-					.join(',\n        ')}
-      } satisfies Record<string, (req: Request) => Response | Promise<Response>>
+					.join('\n      ')}
+        .error((err, req) => rsc(req, err))
 
-      const router = {
-        routes,
-        fetch(req: Request) {
-          const url = new URL(req.url)
-          const normalized = normalizePath(url.pathname)
-
-          if (normalized !== url.pathname) {
-            url.pathname = normalized
-            req = new Request(url.toString(), req)
-          }
-
-          const handler = routes[normalized]
-          if (handler && req.method === 'GET') {
-            return handler(req)
-          }
-
-          ${[...handlers.entries()]
-						.map(([, group]) => {
-							if (Array.isArray(group)) {
-								return ''
-							}
-
-							if (group.__kind === EntryKind.ENDPOINT && group.method !== 'get') {
-								return `if (normalized === '${group.__path}' && req.method === '${group.method.toUpperCase()}') return ${group.__id}(req)`
-							}
-
-							return ''
-						})
-						.filter(Boolean)
-						.join('\n          ')}
-
-          return rsc(req)
-        },
-      }
-
-      return router
     }
 
-
-
-    export type App = Server
+    export type App = Server<ReturnType<typeof createRouter>>
   `.trim()
 }
 

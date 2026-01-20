@@ -1,6 +1,6 @@
 import type { HttpException } from '../../shared/http-exception'
 
-export default function NotFound({ error }: { error: HttpException }) {
+export default function Err({ error }: { error: HttpException | Error }) {
 	const title =
 		'status' in error ? `${error.status} - ${error.message}` : '404 - Not found'
 

@@ -50,9 +50,13 @@
 			"types": "./dist/env/render/browser.d.ts",
 			"default": "./dist/render/env/browser.js"
 		},
-		"./shared/router": {
-			"types": "./dist/shared/router.d.ts",
-			"default": "./dist/shared/router.js"
+		"./server/router": {
+			"types": "./dist/server/router.d.ts",
+			"default": "./dist/server/router.js"
+		},
+		"./server/matcher": {
+			"types": "./dist/server/matcher.d.ts",
+			"default": "./dist/server/matcher.js"
 		},
 		"./shared/redirect": {
 			"types": "./dist/shared/redirect.d.ts",
