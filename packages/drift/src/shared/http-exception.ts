@@ -64,7 +64,7 @@ export function isHttpException(err: unknown): err is HttpException {
  * @throws a HTTPException with the given status and options
  */
 export function abort(
-	status: 404,
+	status: HttpExceptionStatusCode,
 	message: string,
 	opts?: {
 		payload?: Payload

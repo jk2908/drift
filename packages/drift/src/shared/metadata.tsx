@@ -1,12 +1,12 @@
 import { Build } from '../build'
 
-type TEntryKind = typeof Build.EntryKind
+type EntryKind = typeof Build.EntryKind
 
 const TITLE_TEMPLATE_STR = '%s'
 
 export namespace Metadata {
 	type Source = Exclude<
-		TEntryKind[keyof TEntryKind],
+		EntryKind[keyof EntryKind],
 		typeof Build.EntryKind.ENDPOINT | typeof Build.EntryKind.MIDDLEWARE
 	>
 
