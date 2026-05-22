@@ -99,19 +99,25 @@ export class ExportReader {
 	 * The export must be in the form of `export const|let|var name = <literal>`
 	 */
 	async literal<T>(filePath: string, name: string, validate?: ExportReader.Validator<T>) {
-		const code = await this.raw(filePath)
+		if (!(await this.has(filePath, name))) return
+
+		// transpile first so comments and type-only syntax do not confuse the
+		// literal matcher with exports that do not actually exist at runtime
+		const code = this.#getTranspiler(filePath).transformSync(await this.raw(filePath))
 
 		// build the matcher from escaped plain-text pieces so arbitrary export names
 		// cannot change the regex shape
 		const source =
-			// match: `export const|let|var `
-			'\\bexport\\s+(?:const|let|var)\\s+' +
+			// match: `export const|let|var ` at statement boundaries
+			'(?:^|[;\\n])\\s*export\\s+(?:const|let|var)\\s+' +
 			// treat export name as plain text in regex
 			name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
 			// capture one supported literal value (string, number, boolean, null)
 			'\\s*=\\s*(?<value>(?:"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|\\x60(?:[^\\x60\\\\]|\\\\.)*\\x60|true|false|null|-?\\d+(?:\\.\\d+)?))(?=\\s|;|$)'
 
-		const text = code.match(new RegExp(source))?.groups?.value
+		// multiline mode lets ^ match the start of each transpiled line, so the
+		// export regex stays anchored to a real statement boundary instead of the file start
+		const text = code.match(new RegExp(source, 'm'))?.groups?.value
 		if (!text) return
 
 		// only support cheap literal parsing here. Anything richer should go through

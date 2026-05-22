@@ -20,6 +20,7 @@ import {
 	toHttpException,
 	toHttpExceptionLike,
 } from '../navigation/http-exception.js'
+import { isRedirect, toRedirect } from '../navigation/redirect.js'
 import { Prerender } from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
@@ -328,26 +329,90 @@ export function createHandler(
 		const lookupPath = normalisePathname(pathname, prerenderPathMode)
 		const runtimePpr = !import.meta.env.DEV && ppr
 
+		async function tryErrorRecovery(err: unknown) {
+			if (isRedirect(err)) {
+				const redirect = toRedirect(err)
+				const location = redirect.url.startsWith('/')
+					? new URL(BasePath.apply(redirect.url, BASE_PATH), req.url).toString()
+					: redirect.url
+
+				return Response.redirect(location, redirect.status)
+			}
+
+			if (req[Solas.Config.REQUEST_META_KEY].error || !isHttpException(err)) {
+				return null
+			}
+
+			// retry once with the surfaced HttpException attached so createPayload can
+			// rebuild the route through the nearest matching status boundary
+			req[Solas.Config.REQUEST_META_KEY].error = toHttpException(err)
+
+			try {
+				const { stream: retriedRscStream, status: retriedStatus } = await createPayload(
+					req,
+					manifest,
+					importMap,
+					config.metadata,
+					opts.returnValue,
+					opts.formState,
+					opts.temporaryReferences,
+				)
+
+				const retriedStream = await retriedRscStream
+
+				return {
+					retriedStatus,
+					retriedStream,
+				}
+			} finally {
+				req[Solas.Config.REQUEST_META_KEY].error = undefined
+			}
+		}
+
 		// prerender artifact requests bypass the normal document path so the cli
 		// gets structured JSON instead of a rendered html response
 		if (
 			req.headers.get(`x-${Solas.Config.SLUG}-prerender`) === '1' &&
 			req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) === '1'
 		) {
-			const artifact = await mod.prerender(stream, {
-				formState: opts.formState,
-				ppr: runtimePpr,
-				route: pathname,
-			})
+			try {
+				const artifact = await mod.prerender(stream, {
+					formState: opts.formState,
+					ppr: runtimePpr,
+					route: pathname,
+				})
 
-			return new Response(JSON.stringify(artifact), {
-				headers: {
-					'Cache-Control': 'private, no-store',
-					'Content-Type': 'application/json; charset=utf-8',
-					Vary: 'accept',
-				},
-				status,
-			})
+				return new Response(JSON.stringify(artifact), {
+					headers: {
+						'Cache-Control': 'private, no-store',
+						'Content-Type': 'application/json; charset=utf-8',
+						Vary: 'accept',
+					},
+					status,
+				})
+			} catch (err) {
+				const recovered = await tryErrorRecovery(err)
+				if (recovered instanceof Response) return recovered
+
+				if (recovered) {
+					const artifact = await mod.prerender(recovered.retriedStream, {
+						formState: opts.formState,
+						ppr: false,
+						route: pathname,
+					})
+
+					return new Response(JSON.stringify(artifact), {
+						headers: {
+							'Cache-Control': 'private, no-store',
+							'Content-Type': 'application/json; charset=utf-8',
+							Vary: 'accept',
+						},
+						status: recovered.retriedStatus,
+					})
+				}
+
+				throw err
+			}
 		}
 
 		try {
@@ -406,45 +471,23 @@ export function createHandler(
 				status,
 			})
 		} catch (err) {
-			// resume/ssr can be the first place React surfaces an HttpException from abort(...),
-			// after the initial RSC pass was streamed without request error state. Rerun once
-			// with that error attached so createPayload rebuilds the same route through its
-			// nearest matching HttpExceptionBoundary. If request meta already has an error
-			// or the error is not an HttpException, then this is a real failure
-			if (!req[Solas.Config.REQUEST_META_KEY].error && isHttpException(err)) {
-				// normalise the surfaced digest error before attaching it, since tree/boundary lookup
-				// relies on error.status - the guard above only tells us this came back with an
-				// HttpException digest
-				req[Solas.Config.REQUEST_META_KEY].error = toHttpException(err)
+			const recovered = await tryErrorRecovery(err)
+			if (recovered instanceof Response) return recovered
 
-				try {
-					const { stream: retriedRscStream, status: retriedStatus } = await createPayload(
-						req,
-						manifest,
-						importMap,
-						config.metadata,
-						opts.returnValue,
-						opts.formState,
-						opts.temporaryReferences,
-					)
+			if (recovered) {
+				const retriedHtmlStream = await mod.ssr(recovered.retriedStream, {
+					formState: opts.formState,
+					ppr: false,
+				})
 
-					const retriedStream = await retriedRscStream
-					const retriedHtmlStream = await mod.ssr(retriedStream, {
-						formState: opts.formState,
-						ppr: false,
-					})
-
-					return new Response(retriedHtmlStream, {
-						headers: {
-							'Cache-Control': 'private, no-store',
-							'Content-Type': 'text/html',
-							Vary: 'accept',
-						},
-						status: retriedStatus,
-					})
-				} finally {
-					req[Solas.Config.REQUEST_META_KEY].error = undefined
-				}
+				return new Response(retriedHtmlStream, {
+					headers: {
+						'Cache-Control': 'private, no-store',
+						'Content-Type': 'text/html',
+						Vary: 'accept',
+					},
+					status: recovered.retriedStatus,
+				})
 			}
 
 			throw err

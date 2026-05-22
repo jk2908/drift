@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 - 2026-05-22
+
+- Fixed redirect recovery during prerender and production HTML rendering, so redirecting routes now resolve as redirects instead of failing as generic Server Components render errors.
+- Fixed build-time route export detection to ignore commented-out exports and transpile-only syntax before reading literal values, so stale commented `prerender` exports no longer change prerender mode.
+
 ## 0.4.0 - 2026-05-11
 
 - Added CSRF protection for server actions and `+endpoint` handlers, plus a new `trustedOrigins` config option for tightly scoped cross-origin browser submissions. The checks are proxy-aware and use browser request headers when available.

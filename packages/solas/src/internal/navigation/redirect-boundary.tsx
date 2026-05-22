@@ -3,7 +3,7 @@
 import { Component } from 'react'
 
 import type { BoundaryError } from '../../types.js'
-import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect.js'
+import { isRedirect, toRedirect } from './redirect.js'
 
 export type Props = {
 	fallback: ((error: BoundaryError) => React.ReactNode) | React.ReactNode
@@ -47,18 +47,7 @@ export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 			fallback={err => {
 				if (!isRedirect(err)) throw err
 
-				if ('digest' in err && typeof err.digest === 'string') {
-					// rejoin after status so urls with colons (https://...) stay intact
-					const [type, , ...parts] = err.digest.split(':')
-
-					if (type === REDIRECT_DIGEST_PREFIX) {
-						const url = parts.join(':')
-
-						if (url) return <meta httpEquiv="refresh" content={`0;url=${url}`} />
-					}
-				}
-
-				return null
+				return <meta httpEquiv="refresh" content={`0;url=${toRedirect(err).url}`} />
 			}}>
 			{children}
 		</Boundary>

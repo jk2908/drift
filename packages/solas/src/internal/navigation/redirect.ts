@@ -2,6 +2,13 @@ import { Solas } from '../../solas.js'
 
 export type RedirectStatusCode = 301 | 302 | 307 | 308
 
+export type RedirectLike = Pick<Error, 'name' | 'message' | 'stack'> &
+	Partial<Pick<Redirect, 'digest' | 'status' | 'url'>>
+
+function isRedirectStatusCode(value: unknown): value is RedirectStatusCode {
+	return value === 301 || value === 302 || value === 307 || value === 308
+}
+
 /**
  * Redirect exception class to signal a redirect
  */
@@ -73,6 +80,66 @@ export function isRedirect(err: unknown): err is Redirect {
 		typeof err.digest === 'string' &&
 		err.digest.startsWith(REDIRECT_DIGEST_PREFIX)
 	)
+}
+
+export function toRedirect(err: unknown): Redirect {
+	if (err instanceof Redirect) return err
+
+	let digestStatus: RedirectStatusCode | undefined
+	let digestUrl: string | undefined
+
+	if (
+		typeof err === 'object' &&
+		err !== null &&
+		'digest' in err &&
+		typeof err.digest === 'string'
+	) {
+		const [type, rawStatus, ...rawUrlParts] = err.digest.split(':')
+		const status = Number(rawStatus)
+
+		if (type === REDIRECT_DIGEST_PREFIX && isRedirectStatusCode(status)) {
+			digestStatus = status
+			digestUrl = rawUrlParts.join(':')
+		}
+	}
+
+	const status =
+		digestStatus ??
+		(typeof err === 'object' &&
+		err !== null &&
+		'status' in err &&
+		isRedirectStatusCode(err.status)
+			? err.status
+			: 307)
+
+	const url =
+		digestUrl ||
+		(typeof err === 'object' &&
+		err !== null &&
+		'url' in err &&
+		typeof err.url === 'string'
+			? err.url
+			: undefined)
+
+	if (!url) {
+		throw new TypeError(`[${Solas.Config.NAME}] failed to reconstruct redirect`)
+	}
+
+	return new Redirect(url, status)
+}
+
+export function toRedirectLike(error: Redirect | Error): RedirectLike {
+	return {
+		name: error.name,
+		message: error.message,
+		...('digest' in error && typeof error.digest === 'string'
+			? { digest: error.digest }
+			: {}),
+		...('url' in error && typeof error.url === 'string' ? { url: error.url } : {}),
+		...('status' in error && isRedirectStatusCode(error.status)
+			? { status: error.status }
+			: {}),
+	}
 }
 
 /**
