@@ -116,21 +116,6 @@ export async function postbuild(cwd: string = process.cwd()) {
 									: ['metadata', 'prelude'],
 						}
 
-						logger.info(
-							'[prerender:artifacts]',
-							JSON.stringify({
-								route,
-								prelude: artifact.html,
-								postponed: artifact.postponed ?? null,
-								metadata: {
-									schema: artifact.schema,
-									route: artifact.route,
-									createdAt: artifact.createdAt,
-									mode: artifact.mode,
-								},
-							}),
-						)
-
 						logger.info('[prerender]', `${route} (ppr)`)
 						return
 					}
@@ -207,7 +192,32 @@ export async function postbuild(cwd: string = process.cwd()) {
 		logger.info('[precompress]', 'compressing assets...')
 
 		for await (const { input, compressed } of Compress.run(outDir, {
-			filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
+			filter: filePath => {
+				const relativePath = path.relative(outDir, filePath)
+
+				if (
+					relativePath.length === 0 ||
+					relativePath.startsWith('..') ||
+					path.isAbsolute(relativePath)
+				) {
+					return false
+				}
+
+				const normalisedPath = relativePath.split(path.sep).join('/')
+
+				// only browser-served client/public files benefit from generic precompression
+				if (normalisedPath.startsWith('client/')) {
+					return /\.(js|css|html|svg|json|txt)$/.test(normalisedPath)
+				}
+
+				// full prerendered html is served straight from disk, but internal ppr
+				// support files like prelude/metadata/postponed are read by the server
+
+				return (
+					normalisedPath.startsWith(`${Solas.Config.GENERATED_DIR}/ppr/`) &&
+					normalisedPath.endsWith(`/${Prerender.Artifact.FULL_PRERENDER_FILENAME}`)
+				)
+			},
 		})) {
 			await Bun.write(`${input}.br`, compressed)
 			logger.info('[precompress]', `${path.basename(input)}.br`)

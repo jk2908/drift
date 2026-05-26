@@ -33,7 +33,7 @@ import { collect as collectPublicFiles } from './internal/public-files.js'
 import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
-	precompress: true,
+	precompress: false,
 	prerender: false,
 	trustedOrigins: [],
 	trailingSlash: 'never',

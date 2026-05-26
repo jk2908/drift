@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 - 2026-05-22
+
+- Changed `precompress` to default to `false`, so Solas no longer emits precompressed build output unless you opt in.
+- Narrowed precompression to browser-served client assets and full prerendered HTML, so enabling `precompress` no longer writes `.br` files for internal `.solas` support artifacts.
+
 ## 0.4.1 - 2026-05-22
 
 - Fixed redirect recovery during prerender and production HTML rendering, so redirecting routes now resolve as redirects instead of failing as generic Server Components render errors.
