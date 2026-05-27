@@ -166,10 +166,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 		publicFiles: manifest.publicFiles,
 	}
 
-	await Bun.write(
-		Solas.Runtime.getManifestPath(outDir),
-		JSON.stringify(runtimeManifest),
-	)
+	await Bun.write(Solas.Runtime.getManifestPath(outDir), JSON.stringify(runtimeManifest))
 
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')

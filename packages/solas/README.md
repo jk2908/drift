@@ -2,7 +2,7 @@
 
 Solas is a minimal React meta-framework powered by Vite, created for experimenting with routing, streaming, and prerendering with React Server Components.
 
-It has not been rigorously tested yet (there are currently no automated tests) ... and broken behaviour should be expected.
+Solas is experimental and currently has no automated test suite, so expect rough edges.
 
 Solas currently requires Bun 1.2+ on your `PATH`. You can still manage dependencies with `npm`, `pnpm`, or `yarn`, but the Solas CLI and Vite plugin runtime use Bun APIs directly.
 
@@ -56,7 +56,7 @@ Use these filename conventions:
 
 - `+layout.tsx`: shared layout for a route branch.
 - `+page.tsx`: page component for a route.
-- `+endpoint.ts`: request handler for non-page routes.
+- `+endpoint.ts`: request handler. Can be placed in any folder and responds to all HTTP methods for its route path.
 - `+middleware.ts`: middleware that runs for the current route branch and is inherited by child routes. Parent and child middleware stack together.
 - `+loading.tsx`: loading fallback inherited by child routes.
 - `+401.tsx`: boundary for unauthorised responses in the current route branch and its children.
@@ -67,6 +67,13 @@ Use these filename conventions:
 Nested folders create nested routes. Dynamic segments use `[param]`, and catch-all segments use `[...param]`.
 
 Status boundaries follow the same override pattern as layouts: a child route uses the nearest matching boundary file above it, and a more specific boundary replaces a parent one.
+
+If a route has both `+page.tsx` and `+endpoint.ts`, Solas selects the GET handler by `Accept` header:
+
+- `Accept: text/html` or `text/x-component`: render `+page.tsx`
+- other GET requests (for example `application/json`): run `+endpoint.ts` `GET`
+
+Non-GET methods (`POST`, `PUT`, `PATCH`, `DELETE`) always run `+endpoint.ts`.
 
 ## Config
 
@@ -81,14 +88,9 @@ Solas resolves it in this order:
 - the `url` option passed to `solas()`
 - `VITE_APP_URL`
 
-Current behaviour:
+Solas exposes the resolved value as `import.meta.env.VITE_APP_URL`. If `url` is set, prerender also uses it as the request origin for build-time renders.
 
-- Solas reads that value during plugin configuration.
-- Solas exposes the resolved value as `import.meta.env.VITE_APP_URL`.
-- If `url` is set, prerender uses it as the request origin for build-time renders.
-- The runtime router does not otherwise require `config.url` for routing to work.
-
-In practice, you only need `url` if your app code wants to read the public origin from `import.meta.env.VITE_APP_URL`, or if your prerendered output needs a real public origin.
+In practice, you only need `url` if your app reads `import.meta.env.VITE_APP_URL` or your prerendered output needs a real public origin.
 
 If you do want to set it explicitly, this is the shape:
 
@@ -208,7 +210,7 @@ export default function Page() {
 }
 
 async function Ts() {
-	dynamic()
+	await dynamic()
 	return <div>{Date.now()}</div>
 }
 ```
@@ -294,11 +296,9 @@ Use `trustedOrigins` to allow specific origins to make cross-origin browser subm
 
 Default: `[]`
 
-Solas protects server actions and `+endpoint` handlers against CSRF.
-
-Server actions are always `POST` requests. `+endpoint` handlers are protected on `POST`, `PUT`, `PATCH`, and `DELETE` requests.
-
 By default, only same-origin browser requests are allowed. Add a trusted origin when a third-party service needs to submit through the user's browser, such as a payment gateway or identity provider.
+
+This setting controls which cross-origin browser sources are allowed for unsafe requests. See Security > CSRF for enforcement details.
 
 Each value must be a complete origin including protocol:
 
@@ -312,7 +312,7 @@ export default defineConfig({
 })
 ```
 
-Only add origins you completely trust. These origins are treated as allowed browser sources for unsafe requests.
+Only add origins you completely trust.
 
 ### `sitemap`
 

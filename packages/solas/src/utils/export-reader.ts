@@ -116,7 +116,8 @@ export class ExportReader {
 			'\\s*=\\s*(?<value>(?:"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|\\x60(?:[^\\x60\\\\]|\\\\.)*\\x60|true|false|null|-?\\d+(?:\\.\\d+)?))(?=\\s|;|$)'
 
 		// multiline mode lets ^ match the start of each transpiled line, so the
-		// export regex stays anchored to a real statement boundary instead of the file start
+		// export regex stays anchored to a real statement boundary instead of 
+		// the file start
 		const text = code.match(new RegExp(source, 'm'))?.groups?.value
 		if (!text) return
 
