@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 - 2026-05-27
+
+- Updated README docs to show that `dynamic()` must be awaited in request-time deferred `ppr` usage examples.
+- Clarified route docs for `+endpoint.ts`, including that endpoint files can be placed anywhere in `app/` and how GET requests are resolved when `+page.tsx` and `+endpoint.ts` share a route.
+- Tightened README language around experimental status, `url`, and `trustedOrigins`/CSRF guidance.
+
 ## 0.4.2 - 2026-05-22
 
 - Changed `precompress` to default to `false`, so Solas no longer emits precompressed build output unless you opt in.

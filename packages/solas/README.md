@@ -128,9 +128,9 @@ export default defineConfig({
 
 ### `precompress`
 
-Use `precompress` to control whether Solas writes compressed build assets.
+Use `precompress` to control whether Solas writes compressed browser-served build assets (like `.js`, `.css`, etc.).
 
-Default: `true`
+Default: `false`
 
 ```ts
 export default defineConfig({
