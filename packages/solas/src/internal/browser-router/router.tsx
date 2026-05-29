@@ -15,7 +15,7 @@ export { BrowserRouter } from './shared.js'
 export const BrowserRouterContext = createContext<{
 	go: BrowserRouter.Go
 	prefetch: (path: string) => void
-	refresh: () => void
+	refresh: BrowserRouter.Refresh
 	isNavigating: boolean
 	url: {
 		pathname?: string
@@ -24,7 +24,7 @@ export const BrowserRouterContext = createContext<{
 }>({
 	go: async () => '',
 	prefetch: () => {},
-	refresh: () => {},
+	refresh: async () => '',
 	isNavigating: false,
 	url: {},
 })
@@ -184,7 +184,7 @@ export function BrowserRouterProvider({
 		const currentPath = window.location.pathname + window.location.search
 		const key = ResponseCache.toCacheKey(currentPath, window.location.origin)
 
-		if (!key) return
+		if (!key) return Promise.resolve(currentPath)
 		if (responseCache.has(key)) responseCache.remove(key)
 
 		return go(currentPath, {

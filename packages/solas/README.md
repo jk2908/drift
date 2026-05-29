@@ -100,6 +100,24 @@ That gives you:
 - rejected params for static routes that do not accept them
 - typed query and navigation options on `router.go(...)`
 
+If you already have a concrete path, you can pass that directly instead of using route params:
+
+```tsx
+;<Link href={`/p/${post.id}`} />
+
+await router.go(`/p/${post.id}`)
+```
+
+In that form the path is already resolved, so `params` are not used. Typed `Link` and `router.go(...)` only allow `params` when you pass a route pattern like `/p/:id`.
+
+If the target already contains a query string and you also pass `query`, Solas merges them. Existing query entries are kept unless you override the same key in `query`, and explicit `query` values win:
+
+```tsx
+<Link href={`/p/${post.id}?tab=summary`} query={{ draft: true, tab: 'full' }} />
+```
+
+That resolves to `/p/${post.id}?tab=full&draft=true`.
+
 Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 ```tsx
@@ -123,7 +141,7 @@ export function Controls() {
 
 	return (
 		<>
-			<button type="button" onClick={() => void router.go('/posts')}>
+			<button type="button" onClick={() => router.go('/posts')}>
 				Go to posts
 			</button>
 
@@ -131,13 +149,25 @@ export function Controls() {
 				Prefetch posts
 			</button>
 
-			<button type="button" onClick={() => void router.refresh()}>
+			<button type="button" onClick={() => router.refresh()}>
 				Refresh current route
 			</button>
 		</>
 	)
 }
 ```
+
+`router.go(...)` and `router.refresh()` both return promises, so you can `await` either of them when you need to sequence work after navigation completes:
+
+```tsx
+const finalPath = await router.go('/posts')
+```
+
+```tsx
+await router.refresh()
+```
+
+`router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 
 `router.go(...)` accepts route params and query values using the same typed route rules as `Link`:
 

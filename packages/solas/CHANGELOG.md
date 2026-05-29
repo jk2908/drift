@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5 - 2026-05-29
+
+- Documented concrete `href` and `router.go(...)` usage in the README, including how explicit `query` values merge with an existing query string and take precedence for duplicate keys.
+- Clarified in the README that `router.go(...)` and `router.refresh()` are awaitable, and that `router.refresh()` always refreshes the current browser location at call time.
+- Fixed browser-router typing so `refresh` is exposed as a promise-returning method, matching the runtime implementation.
+
 ## 0.4.4 - 2026-05-29
 
 - Added `router.refresh()` to the browser router, and made it clear that it clears the current route cache before fetching a fresh RSC payload.

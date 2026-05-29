@@ -199,6 +199,8 @@ export namespace BrowserRouter {
 		): Promise<string>
 	}
 
+	export type Refresh = () => Promise<string>
+
 	/**
 	 * Convert a route pattern and params into a real path string. This is used internally
 	 * to implement <Link /> and router.go
@@ -206,6 +208,7 @@ export namespace BrowserRouter {
 	export function toTarget(path: string, params?: Record<string, string>, query?: Query) {
 		const used = new Set<string>()
 
+		// first, replace all the :param parts with the corresponding params
 		let to = path.replaceAll(/:([A-Za-z0-9_]+)/g, (_, key: string) => {
 			const value = params?.[key]
 
