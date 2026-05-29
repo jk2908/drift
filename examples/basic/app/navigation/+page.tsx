@@ -6,6 +6,7 @@ export default function Page() {
 			<h1>Navigation</h1>
 			<p>This is the navigation page.</p>
 			<Link href="/navigation/next">Go to navigating</Link>
+			<Link href="/navigation/refresh">Go to refresh demo</Link>
 		</div>
 	)
 }

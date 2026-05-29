@@ -75,6 +75,100 @@ If a route has both `+page.tsx` and `+endpoint.ts`, Solas selects the GET handle
 
 Non-GET methods (`POST`, `PUT`, `PATCH`, `DELETE`) always run `+endpoint.ts`.
 
+## Client Routing
+
+Import client navigation helpers from `@jk2908/solas/router`.
+
+```tsx
+import { Link, useRouter } from '@jk2908/solas/router'
+```
+
+Solas generates route types for your app. `Link` and `router.go(...)` use those generated route types for autocomplete and type checking:
+
+```tsx
+<Link href="/posts" />
+<Link href="/p/:id" params={{ id: 'post-1' }} />
+
+await router.go('/posts')
+await router.go('/p/:id', { params: { id: 'post-1' } })
+```
+
+That gives you:
+
+- autocomplete for known route paths
+- required params for dynamic routes like `/p/:id`
+- rejected params for static routes that do not accept them
+- typed query and navigation options on `router.go(...)`
+
+Use `Link` for same-origin app navigation. Prefetching is opt-in:
+
+```tsx
+<Link href="/posts">Posts</Link>
+<Link href="/posts" prefetch="intent">Prefetch on focus or touch</Link>
+<Link href="/posts" prefetch="hover">Prefetch on hover</Link>
+<Link href="/p/:id" params={{ id: 'post-1' }}>Typed params</Link>
+```
+
+`prefetch="none"` is the default. Solas does not automatically prefetch routes unless you opt in with `Link` or call `router.prefetch(...)` yourself.
+
+Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
+
+```tsx
+'use client'
+
+import { useRouter } from '@jk2908/solas/router'
+
+export function Controls() {
+	const router = useRouter()
+
+	return (
+		<>
+			<button type="button" onClick={() => void router.go('/posts')}>
+				Go to posts
+			</button>
+
+			<button type="button" onMouseEnter={() => router.prefetch('/posts')}>
+				Prefetch posts
+			</button>
+
+			<button type="button" onClick={() => void router.refresh()}>
+				Refresh current route
+			</button>
+		</>
+	)
+}
+```
+
+`router.go(...)` accepts route params and query values using the same typed route rules as `Link`:
+
+```tsx
+await router.go('/p/:id', {
+	params: { id: 'post-2' },
+	query: { draft: true },
+})
+```
+
+Those same generated route types can also be reused outside navigation helpers when you want route params to stay typed in page exports:
+
+```tsx
+import type { Route, Solas } from '@jk2908/solas'
+
+export const metadata: Route.Metadata<Solas.Routes['/writing/:slug']> = ({ params }) => {
+	const post = allPosts?.find(p => p.__mdsrc.slug === params?.slug)
+
+	return {
+		title: post?.title ?? 'Post not found',
+	}
+}
+
+export const params: Route.StaticParams<Solas.Routes['/writing/:slug']> = () =>
+	allPosts?.map(p => ({ slug: p.__mdsrc.slug })) ?? []
+```
+
+That keeps your route params aligned across links, imperative navigation, metadata, and static params.
+
+`router.refresh()` clears the cached RSC response for the current path and fetches a fresh payload, so it is most useful for routes that render request-time data. `router.isNavigating` exposes pending client-side navigation state.
+
 ## Config
 
 All Solas options are passed to `solas()` inside `defineConfig`.

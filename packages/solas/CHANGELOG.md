@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4 - 2026-05-29
+
+- Added `router.refresh()` to the browser router, and made it clear that it clears the current route cache before fetching a fresh RSC payload.
+- Reworked browser-router response caching so prefetched RSC responses can be reused by later navigations without a second fetch.
+- Documented client routing and generated route typing in the README, including `useRouter()`, `router.go()`, `router.prefetch()`, `router.refresh()`, `Link` prefetch behaviour, and typed `Route.Metadata`/`Route.StaticParams` usage.
+- Added a refresh demo route to the basic example app for manual regression testing.
+
 ## 0.4.3 - 2026-05-27
 
 - Updated README docs to show that `dynamic()` must be awaited in request-time deferred `ppr` usage examples.

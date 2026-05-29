@@ -7,7 +7,7 @@ import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'
 import { Solas } from '../../solas.js'
-import { Prefetcher } from '../prefetcher.js'
+import { ResponseCache } from './response-cache.js'
 import { BrowserRouter } from './shared.js'
 
 export { BrowserRouter } from './shared.js'
@@ -15,6 +15,7 @@ export { BrowserRouter } from './shared.js'
 export const BrowserRouterContext = createContext<{
 	go: BrowserRouter.Go
 	prefetch: (path: string) => void
+	refresh: () => void
 	isNavigating: boolean
 	url: {
 		pathname?: string
@@ -23,6 +24,7 @@ export const BrowserRouterContext = createContext<{
 }>({
 	go: async () => '',
 	prefetch: () => {},
+	refresh: () => {},
 	isNavigating: false,
 	url: {},
 })
@@ -32,7 +34,7 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
-const prefetcher = new Prefetcher()
+const responseCache = new ResponseCache()
 
 export function BrowserRouterProvider({
 	children,
@@ -51,6 +53,14 @@ export function BrowserRouterProvider({
 	const id = useRef(0)
 	const controller = useRef<AbortController | null>(null)
 
+	/**
+	 * Navigates to a given path
+	 *
+	 * @param to - the target path to navigate to, which can be a route pattern with params or an external URL
+	 * @param opts - options for navigation, including whether to replace the current history entry and pass query
+	 * and route params
+	 * @returns the final path navigated to after any redirects, or the original path if navigation failed
+	 */
 	const go: BrowserRouter.Go = useCallback(
 		async (to: string, opts: BrowserRouter.GoOptions = {}) => {
 			id.current += 1
@@ -73,7 +83,7 @@ export function BrowserRouterProvider({
 				}
 
 				const url = new URL(target, window.location.origin)
-				const key = Prefetcher.key(url.toString(), window.location.origin)
+				const key = ResponseCache.toCacheKey(url.toString(), window.location.origin)
 				if (!key) throw new Error('Invalid navigation url')
 
 				path = key
@@ -86,7 +96,7 @@ export function BrowserRouterProvider({
 					}
 				}
 
-				let promise = prefetcher.get(path)
+				let promise = responseCache.get(path)
 				existing = promise !== undefined
 
 				if (!promise) {
@@ -98,7 +108,7 @@ export function BrowserRouterProvider({
 						signal: ctrl.signal,
 					})
 
-					prefetcher.set(path, promise)
+					responseCache.set(path, promise)
 				}
 
 				if (navigationId !== id.current) return path
@@ -107,7 +117,8 @@ export function BrowserRouterProvider({
 					promise,
 					createFromFetch<RscPayload>(promise),
 				])
-				const resolvedPath = Prefetcher.key(res.url, window.location.origin) ?? path
+				const resolvedPath =
+					ResponseCache.toCacheKey(res.url, window.location.origin) ?? path
 
 				if (navigationId !== id.current) return resolvedPath
 
@@ -141,10 +152,7 @@ export function BrowserRouterProvider({
 				logger.error('[navigation] failed', err)
 			} finally {
 				if (navigationId === id.current) controller.current = null
-
-				if (!existing) {
-					prefetcher.remove(path)
-				}
+				if (!existing) responseCache.remove(path)
 			}
 
 			return path
@@ -152,13 +160,37 @@ export function BrowserRouterProvider({
 		[setPayload],
 	)
 
+	/**
+	 * Prefetches the RSC response for a given path and caches it for later navigation.
+	 * Does nothing if a cached response already exists for the path
+	 *
+	 * @param path - the target path to prefetch
+	 * @returns void
+	 */
 	const prefetch = useCallback((path: string) => {
-		const key = Prefetcher.key(path, window.location.origin)
+		const key = ResponseCache.toCacheKey(path, window.location.origin)
 		if (!key) return
 
-		if (prefetcher.has(key)) return
-		prefetcher.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
+		if (responseCache.has(key)) return
+		responseCache.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
 	}, [])
+
+	/**
+	 * Refreshes the current page by re-fetching the RSC response for the current path and updating the
+	 * payload. It also clears any cached response for the current path to ensure that the latest
+	 * version is fetched
+	 */
+	const refresh = useCallback(() => {
+		const currentPath = window.location.pathname + window.location.search
+		const key = ResponseCache.toCacheKey(currentPath, window.location.origin)
+
+		if (!key) return
+		if (responseCache.has(key)) responseCache.remove(key)
+
+		return go(currentPath, {
+			replace: true,
+		})
+	}, [go])
 
 	useEffect(() => {
 		const handler = () =>
@@ -180,13 +212,14 @@ export function BrowserRouterProvider({
 		() => ({
 			go,
 			prefetch,
+			refresh,
 			isNavigating,
 			url: {
 				pathname: url?.pathname,
 				search: url?.search,
 			},
 		}),
-		[go, prefetch, isNavigating, url],
+		[go, prefetch, refresh, isNavigating, url],
 	)
 
 	return <BrowserRouterContext value={value}>{children}</BrowserRouterContext>

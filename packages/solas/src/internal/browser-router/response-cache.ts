@@ -1,12 +1,19 @@
-export namespace Prefetcher {
+export namespace ResponseCache {
 	export type Entry = {
 		promise: Promise<Response>
 		timeoutId: ReturnType<typeof setTimeout>
 	}
 }
 
-export class Prefetcher {
-	#cache = new Map<string, Prefetcher.Entry>()
+/**
+ * A simple in-memory cache for RSC response promises used by the BrowserRouter.
+ * It lets a later navigation reuse a prefetched response for the same path,
+ * and helps avoid issuing a second fetch when navigation follows shortly
+ * after prefetch. Entries are stored by normalised path with TTL and
+ * max size eviction
+ */
+export class ResponseCache {
+	#cache = new Map<string, ResponseCache.Entry>()
 
 	ttl = 60_000
 	maxSize = 32
@@ -20,7 +27,7 @@ export class Prefetcher {
 	 * Converts a url path to a cache key by normalising it
 	 * against a base url
 	 */
-	static key(path: string, base: string) {
+	static toCacheKey(path: string, base: string) {
 		try {
 			const url = new URL(path, base)
 			// hash is client-only and never sent to the server, so exclude it
@@ -53,8 +60,8 @@ export class Prefetcher {
 	}
 
 	/**
-	 * Retrieves a fresh response promise for the given path if it exists
-	 * by cloning the cached response so each consumer gets an unread stream
+	 * Retrieves a fresh response promise for the given path if it exists by
+	 * cloning the cached response so each consumer gets an unread stream
 	 */
 	get(path: string) {
 		const promise = this.#cache.get(path)?.promise
