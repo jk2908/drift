@@ -63,8 +63,8 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 		}
 
 		if (m['401Ids']?.length) {
-			const unauthorized = toIdentifierList(m['401Ids'], `401s for ${moduleId}`)
-			parts.push(`'401s': [${unauthorized}]`)
+			const unauthorised = toIdentifierList(m['401Ids'], `401s for ${moduleId}`)
+			parts.push(`'401s': [${unauthorised}]`)
 		}
 
 		if (m['403Ids']?.length) {
@@ -104,15 +104,17 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 		${AUTOGEN_MSG}
 
 		import type { ImportMap } from '${Solas.Config.PKG_NAME}'
-${
-	importLines
-		? `
-${importLines}`
-		: ''
-}
+		
+		${
+			importLines
+				? `
+			${importLines}
+		`
+				: ''
+		}
 
 		export const importMap = {
-${entries}
+			${entries}
 		} as const satisfies ImportMap
 	`
 }

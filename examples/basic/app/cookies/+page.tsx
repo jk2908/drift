@@ -1,7 +1,7 @@
 import { cookies } from '@jk2908/solas/server'
 
-export default function Page() {
-	const c = cookies()
+export default async function Page() {
+	const c = await cookies()
 	const entries = Array.from(c.entries())
 
 	return (

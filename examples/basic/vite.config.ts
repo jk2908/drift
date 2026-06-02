@@ -14,7 +14,7 @@ export default defineConfig(() => {
 		plugins: [
 			solas({
 				url: 'http://localhost:8787',
-				prerender: false,
+				prerender: 'full',
 				sitemap: {
 					async routes(existing) {
 						return [...existing, '/extra-sitemap-route']

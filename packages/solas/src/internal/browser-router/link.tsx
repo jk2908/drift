@@ -42,6 +42,8 @@ export function Link({
 	const { go, prefetch: prefetcher } = useRouter()
 
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	// track whether the link is meant to be handled by the router, to avoid
+	// unnecessary prefetching and event handling for external links
 	const handled = useRef(false)
 
 	const target = BrowserRouter.toTarget(href, params, query)
