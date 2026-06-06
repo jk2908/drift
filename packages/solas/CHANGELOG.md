@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3 - 2026-06-06
+
+- Ensured `createRuntime(...)` is exported from `@jk2908/solas/env/rsc` for generated RSC entry compatibility.
+- Clarified hotfix packaging so generated environment code can always import `createRuntime` from the public `env/rsc` export path.
+
 ## 0.5.2 - 2026-06-06
 
 - Fixed browser bundling regressions caused by exposing runtime creation through `Solas.Runtime.create(...)` in the shared `$` export path.
