@@ -16,6 +16,7 @@ import type {
 import { Solas } from '../solas.js'
 import { normalisePathname } from './http-router/utils.js'
 import { Prerender } from './prerender.js'
+import { Runtime } from './runtimes/runtime.js'
 
 /**
  * Types, constants, and the Finder class for route discovery and manifest generation.
@@ -488,7 +489,7 @@ export namespace Build {
 
 					const shellImport = Finder.getImportPath(shellPath)
 
-					const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
+					const shellId = `${EntryKind.SHELL}${Runtime.hash(shellImport)}`
 					const layoutIds: (string | null)[] = []
 					const unauthorisedIds: (string | null)[] = []
 					const forbiddenIds: (string | null)[] = []
@@ -517,7 +518,7 @@ export namespace Build {
 						}
 
 						const layoutImport = Finder.getImportPath(layoutPath)
-						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
+						const layoutId = `${EntryKind.LAYOUT}${Runtime.hash(layoutImport)}`
 
 						if (!processed.has(layoutPath)) {
 							prerenderCache.set(
@@ -540,7 +541,7 @@ export namespace Build {
 						}
 
 						const unauthorisedImport = Finder.getImportPath(unauthorisedPath)
-						const unauthorisedId = `${EntryKind['401']}${Bun.hash(unauthorisedImport)}`
+						const unauthorisedId = `${EntryKind['401']}${Runtime.hash(unauthorisedImport)}`
 
 						unauthorisedIds.push(unauthorisedId)
 
@@ -557,7 +558,7 @@ export namespace Build {
 						}
 
 						const forbiddenImport = Finder.getImportPath(forbiddenPath)
-						const forbiddenId = `${EntryKind['403']}${Bun.hash(forbiddenImport)}`
+						const forbiddenId = `${EntryKind['403']}${Runtime.hash(forbiddenImport)}`
 
 						forbiddenIds.push(forbiddenId)
 
@@ -576,7 +577,7 @@ export namespace Build {
 						}
 
 						const notFoundImport = Finder.getImportPath(notFoundPath)
-						const notFoundId = `${EntryKind['404']}${Bun.hash(notFoundImport)}`
+						const notFoundId = `${EntryKind['404']}${Runtime.hash(notFoundImport)}`
 
 						notFoundIds.push(notFoundId)
 
@@ -594,7 +595,7 @@ export namespace Build {
 						}
 
 						const serverErrorImport = Finder.getImportPath(serverErrorPath)
-						const serverErrorId = `${EntryKind['500']}${Bun.hash(serverErrorImport)}`
+						const serverErrorId = `${EntryKind['500']}${Runtime.hash(serverErrorImport)}`
 
 						serverErrorIds.push(serverErrorId)
 
@@ -613,7 +614,7 @@ export namespace Build {
 						}
 
 						const loaderImport = Finder.getImportPath(loaderPath)
-						const loaderId = `${EntryKind.LOADING}${Bun.hash(loaderImport)}`
+						const loaderId = `${EntryKind.LOADING}${Runtime.hash(loaderImport)}`
 
 						loadingIds.push(loaderId)
 
@@ -631,7 +632,7 @@ export namespace Build {
 						}
 
 						const middlewareImport = Finder.getImportPath(middlewarePath)
-						const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
+						const middlewareId = `${EntryKind.MIDDLEWARE}${Runtime.hash(middlewareImport)}`
 
 						middlewareIds.push(middlewareId)
 
@@ -651,8 +652,8 @@ export namespace Build {
 
 					// generate entry id based on page if exists, otherwise dir
 					const entryId = pagePath
-						? `${EntryKind.PAGE}${Bun.hash(Finder.getImportPath(pagePath))}`
-						: `${EntryKind.PAGE}${Bun.hash(route)}`
+						? `${EntryKind.PAGE}${Runtime.hash(Finder.getImportPath(pagePath))}`
+						: `${EntryKind.PAGE}${Runtime.hash(route)}`
 
 					if (pagePath) {
 						const pagePrerender = await Prerender.Build.getStaticFlag(
@@ -796,14 +797,14 @@ export namespace Build {
 						}
 
 						const m = method.toLowerCase() as Lowercase<HttpMethod>
-						const endpointId = `${EntryKind.ENDPOINT}${Bun.hash(Finder.getImportPath(endpointFilePath))}_${m}`
+						const endpointId = `${EntryKind.ENDPOINT}${Runtime.hash(Finder.getImportPath(endpointFilePath))}_${m}`
 
 						const middlewareIds = await Promise.all(
 							endpointMiddlewarePaths.map(async middlewarePath => {
 								if (!middlewarePath) return null
 
 								const middlewareImport = Finder.getImportPath(middlewarePath)
-								const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
+								const middlewareId = `${EntryKind.MIDDLEWARE}${Runtime.hash(middlewareImport)}`
 
 								if (!processed.has(middlewarePath)) {
 									// endpoint middleware discovery gives us file paths, not proof
@@ -854,7 +855,7 @@ export namespace Build {
 							...(modules[route] ?? {}),
 							middlewareIds: endpointMiddlewarePaths.map(middlewarePath =>
 								middlewarePath
-									? `${EntryKind.MIDDLEWARE}${Bun.hash(Finder.getImportPath(middlewarePath))}`
+									? `${EntryKind.MIDDLEWARE}${Runtime.hash(Finder.getImportPath(middlewarePath))}`
 									: null,
 							),
 						}

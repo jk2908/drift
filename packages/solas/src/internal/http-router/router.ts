@@ -5,6 +5,7 @@ import { BasePath } from '../../utils/base-path.js'
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
 import { Solas } from '../../solas.js'
 import { HttpException } from '../navigation/http-exception.js'
+import { Runtime } from '../runtimes/runtime.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
@@ -393,29 +394,29 @@ export class HttpRouter {
 	) {
 		const accept = req.headers.get('accept-encoding') ?? ''
 
-		let file = Bun.file(filePath)
+		let resolvedPath = filePath
 		let encoding: string | null = null
 
 		if (precompress) {
 			// prefer a precompressed variant when the client accepts it and one was emitted
 			if (accept.includes('br')) {
-				const brotli = Bun.file(`${filePath}.br`)
+				const brotliPath = `${filePath}.br`
 
-				if (await brotli.exists()) {
-					file = brotli
+				if (await Runtime.exists(brotliPath)) {
+					resolvedPath = brotliPath
 					encoding = 'br'
 				}
 			}
 		}
 
-		if (!(await file.exists())) {
+		if (!(await Runtime.exists(resolvedPath))) {
 			return new Response('Not found', { status: 404 })
 		}
 
 		// get mime type from original path, not compressed variant
-		const mimeType = Bun.file(filePath).type
+		const mimeType = Runtime.mimeType(filePath)
 
-		const res = new Response(file, {
+		const res = new Response(await Runtime.readBuffer(resolvedPath), {
 			headers: {
 				'Content-Type': headers['Content-Type'] ?? mimeType,
 			},

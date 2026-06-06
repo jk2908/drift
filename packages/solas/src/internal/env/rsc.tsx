@@ -29,6 +29,8 @@ import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
+export { Runtime } from '../runtimes/runtime.js'
+
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState

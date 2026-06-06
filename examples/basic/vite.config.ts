@@ -13,6 +13,7 @@ export default defineConfig(() => {
 	return {
 		plugins: [
 			solas({
+				runtime: 'bun',
 				url: 'http://localhost:8787',
 				prerender: 'full',
 				sitemap: {

@@ -17,7 +17,7 @@ import { ExportReader } from './utils/export-reader.js'
 import { Logger } from './utils/logger.js'
 import { Time } from './utils/time.js'
 
-import type { BuildContext, PluginConfig } from './types.js'
+import type { BuildContext, ConfiguredPluginConfig, PluginConfig } from './types.js'
 import { Build } from './internal/build.js'
 import { writeConfig } from './internal/codegen/config.js'
 import {
@@ -30,9 +30,11 @@ import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
 import { postbuild } from './internal/postbuild.js'
 import { collect as collectPublicFiles } from './internal/public-files.js'
+import { Runtime } from './internal/runtimes/runtime.js'
 import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
+	runtime: 'auto',
 	precompress: false,
 	prerender: false,
 	trustedOrigins: [],
@@ -40,11 +42,17 @@ const DEFAULT_CONFIG = {
 } as const satisfies Partial<PluginConfig>
 
 function solas(c?: PluginConfig): PluginOption[] {
-	const config = Solas.Config.validate({
-		...DEFAULT_CONFIG,
+	const validatedConfig = Solas.Config.validate({
 		...c,
 		url: c?.url ?? process.env.VITE_APP_URL?.toString(),
 	})
+	const config: ConfiguredPluginConfig = {
+		...DEFAULT_CONFIG,
+		...validatedConfig,
+		runtime: validatedConfig.runtime ?? DEFAULT_CONFIG.runtime,
+	}
+
+	Runtime.runtime = Solas.Runtime.create(config.runtime)
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
 
@@ -66,11 +74,11 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 			if (cached === content) {
 				// if content is unchanged and file exists, skip write
-				if (await Bun.file(filePath).exists()) return null
+				if (await Runtime.exists(filePath)) return null
 
 				// else, file is missing but cached content is the same as
 				// last time we saw it, write it
-				await Bun.write(filePath, content)
+				await Runtime.write(filePath, content)
 				fileCache.set(filePath, content)
 
 				return path.relative(process.cwd(), filePath)
@@ -83,7 +91,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			if (curr === content) return null
 
 			try {
-				await Bun.write(filePath, content)
+				await Runtime.write(filePath, content)
 				fileCache.set(filePath, content)
 
 				return path.relative(process.cwd(), filePath)
@@ -95,7 +103,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			// file doesn't exist, write it
 			if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
 				try {
-					await Bun.write(filePath, content)
+					await Runtime.write(filePath, content)
 					fileCache.set(filePath, content)
 
 					return path.relative(process.cwd(), filePath)
@@ -133,7 +141,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			['manifest.ts', writeManifest(manifest)],
 			['maps.ts', writeMaps(imports, modules)],
 			[`${Solas.Config.SLUG}.d.ts`, writeTypes(manifest)],
-			[Solas.Config.ENTRY_RSC, writeRSCEntry()],
+			[Solas.Config.ENTRY_RSC, writeRSCEntry(config)],
 			[Solas.Config.ENTRY_SSR, writeSSREntry()],
 			[Solas.Config.ENTRY_BROWSER, writeBrowserEntry()],
 		]
@@ -330,7 +338,6 @@ function solas(c?: PluginConfig): PluginOption[] {
 		},
 		configResolved(resolvedConfig: ResolvedConfig) {
 			resolvedViteConfig = resolvedConfig
-
 			buildContext.command = resolvedConfig.command
 		},
 		configureServer(server: ViteDevServer) {
@@ -383,7 +390,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			// write build manifest
 			const generatedDir = path.join(process.cwd(), Solas.Config.GENERATED_DIR)
 
-			await Bun.write(
+			await Runtime.write(
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
 					base: resolvedViteConfig?.base ?? '/',

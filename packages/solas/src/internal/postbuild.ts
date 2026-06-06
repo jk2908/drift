@@ -7,6 +7,7 @@ import { Logger } from '../utils/logger.js'
 import type { BuildManifest } from '../types.js'
 import { Solas } from '../solas.js'
 import { Prerender } from './prerender.js'
+import { Runtime } from './runtimes/runtime.js'
 
 const logger = new Logger()
 
@@ -84,9 +85,9 @@ export async function postbuild(cwd: string = process.cwd()) {
 					if (artifact.mode === 'ppr') {
 						await fs.mkdir(artifactDir, { recursive: true })
 
-						const writes: Promise<number>[] = [
-							Bun.write(path.join(artifactDir, 'prelude.html'), artifact.html),
-							Bun.write(
+						const writes: Promise<void>[] = [
+							Runtime.write(path.join(artifactDir, 'prelude.html'), artifact.html),
+							Runtime.write(
 								path.join(artifactDir, 'metadata.json'),
 								JSON.stringify({
 									schema: artifact.schema,
@@ -99,7 +100,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 						if (artifact.postponed !== undefined) {
 							writes.push(
-								Bun.write(
+								Runtime.write(
 									path.join(artifactDir, 'postponed.json'),
 									JSON.stringify(artifact.postponed),
 								),
@@ -123,7 +124,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 					await fs.mkdir(artifactDir, { recursive: true })
 
 					await Promise.all([
-						Bun.write(
+						Runtime.write(
 							path.join(artifactDir, 'metadata.json'),
 							JSON.stringify({
 								schema: artifact.schema,
@@ -132,7 +133,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 								mode: artifact.mode,
 							}),
 						),
-						Bun.write(
+						Runtime.write(
 							Prerender.Artifact.getFilePath(
 								outDir,
 								route,
@@ -166,7 +167,10 @@ export async function postbuild(cwd: string = process.cwd()) {
 		publicFiles: manifest.publicFiles,
 	}
 
-	await Bun.write(Solas.Runtime.getManifestPath(outDir), JSON.stringify(runtimeManifest))
+	await Runtime.write(
+		Solas.Runtime.getManifestPath(outDir),
+		JSON.stringify(runtimeManifest),
+	)
 
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')
@@ -181,7 +185,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 			'</urlset>',
 		].join('\n')
 
-		await Bun.write(path.join(outDir, 'sitemap.xml'), sitemap)
+		await Runtime.write(path.join(outDir, 'sitemap.xml'), sitemap)
 		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
 	}
 
@@ -216,7 +220,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 				)
 			},
 		})) {
-			await Bun.write(`${input}.br`, compressed)
+			await Runtime.write(`${input}.br`, compressed)
 			logger.info('[precompress]', `${path.basename(input)}.br`)
 		}
 	}

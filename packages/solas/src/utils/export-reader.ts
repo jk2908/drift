@@ -1,17 +1,39 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { ViteDevServer } from 'vite'
 
-export class ExportReader {
-	readonly #transpilers = new Map<
-		ExportReader.LoaderType,
-		InstanceType<typeof Bun.Transpiler>
-	>()
+import {
+	parseSync,
+	type Program,
+	type StaticExport,
+	type StaticExportEntry,
+} from 'oxc-parser'
 
+type LiteralValue = string | number | boolean | null
+
+type LiteralNode = {
+	type: 'Literal'
+	value: LiteralValue
+}
+
+type TemplateLiteralNode = {
+	type: 'TemplateLiteral'
+	expressions: unknown[]
+	quasis: Array<{ value?: { cooked?: string | null } }>
+}
+
+type UnaryExpressionNode = {
+	type: 'UnaryExpression'
+	operator: '-'
+	argument: LiteralNode
+}
+
+export class ExportReader {
 	#loadModule: ViteDevServer['ssrLoadModule'] | null = null
 
 	/**
-	 * Pick the Bun loader type that matches the source file extension
+	 * Pick the parser language that matches the source file extension
 	 */
 	static #getLoaderType(filePath: string): ExportReader.LoaderType {
 		const ext = path.extname(filePath).toLowerCase()
@@ -25,30 +47,6 @@ export class ExportReader {
 	}
 
 	/**
-	 * Parse a literal value from a string
-	 */
-	static #parse(value: string) {
-		const trimmed = value.trim()
-
-		// keep quoted literals as strings without evaluating the
-		// source text
-		if (
-			(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-			(trimmed.startsWith("'") && trimmed.endsWith("'")) ||
-			(trimmed.startsWith('`') && trimmed.endsWith('`'))
-		) {
-			return trimmed.slice(1, -1)
-		}
-
-		if (trimmed === 'true') return true
-		if (trimmed === 'false') return false
-		if (trimmed === 'null') return null
-
-		const n = Number(trimmed)
-		if (Number.isFinite(n)) return n
-	}
-
-	/**
 	 * Set the Vite server's SSR module loader so we can execute modules
 	 */
 	set loadModule(l: ViteDevServer['ssrLoadModule']) {
@@ -56,33 +54,49 @@ export class ExportReader {
 	}
 
 	/**
-	 * Reuse one transpiler per supported loader so scans match the module syntax
+	 * Parse a source file as an ESM route module
 	 */
-	#getTranspiler(filePath: string) {
-		const type = ExportReader.#getLoaderType(filePath)
-		const cached = this.#transpilers.get(type)
-		if (cached) return cached
+	async #parse(filePath: string) {
+		const source = await this.raw(filePath)
+		const result = parseSync(filePath, source, {
+			lang: ExportReader.#getLoaderType(filePath),
+			sourceType: 'module',
+			preserveParens: false,
+		})
 
-		const transpiler = new Bun.Transpiler({ loader: type })
-		this.#transpilers.set(type, transpiler)
+		if (result.errors.length > 0) {
+			throw new Error(result.errors[0]?.message ?? `Failed to parse ${filePath}`)
+		}
 
-		return transpiler
+		return result
 	}
 
 	/**
 	 * Read the raw text content of a file
 	 */
 	async raw(filePath: string) {
-		return Bun.file(filePath).text()
+		return fs.readFile(filePath, 'utf-8')
 	}
 
 	/**
 	 * Get the names of all exports from a file
 	 */
 	async exports(filePath: string) {
-		// use Bun's transpiler scan so we can inspect export names
-		// without loading the module
-		return this.#getTranspiler(filePath).scan(await this.raw(filePath)).exports
+		const { module } = await this.#parse(filePath)
+
+		return Array.from(
+			new Set(
+				module.staticExports.flatMap((entry: StaticExport) =>
+					entry.entries
+						.filter((specifier: StaticExportEntry) => !specifier.isType)
+						.map((specifier: StaticExportEntry) => specifier.exportName.name)
+						.filter(
+							(name: string | null): name is string =>
+								typeof name === 'string' && name.length > 0,
+						),
+				),
+			),
+		)
 	}
 
 	/**
@@ -101,29 +115,8 @@ export class ExportReader {
 	async literal<T>(filePath: string, name: string, validate?: ExportReader.Validator<T>) {
 		if (!(await this.has(filePath, name))) return
 
-		// transpile first so comments and type-only syntax do not confuse the
-		// literal matcher with exports that do not actually exist at runtime
-		const code = this.#getTranspiler(filePath).transformSync(await this.raw(filePath))
-
-		// build the matcher from escaped plain-text pieces so arbitrary export names
-		// cannot change the regex shape
-		const source =
-			// match: `export const|let|var ` at statement boundaries
-			'(?:^|[;\\n])\\s*export\\s+(?:const|let|var)\\s+' +
-			// treat export name as plain text in regex
-			name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-			// capture one supported literal value (string, number, boolean, null)
-			'\\s*=\\s*(?<value>(?:"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|\\x60(?:[^\\x60\\\\]|\\\\.)*\\x60|true|false|null|-?\\d+(?:\\.\\d+)?))(?=\\s|;|$)'
-
-		// multiline mode lets ^ match the start of each transpiled line, so the
-		// export regex stays anchored to a real statement boundary instead of
-		// the file start
-		const text = code.match(new RegExp(source, 'm'))?.groups?.value
-		if (!text) return
-
-		// only support cheap literal parsing here. Anything richer should go through
-		// value() so module semantics stay correct
-		const value = ExportReader.#parse(text)
+		const { program } = await this.#parse(filePath)
+		const value = ExportReader.#readLiteralExport(program, name)
 
 		if (value === undefined) return
 		if (!validate || validate(value)) return value as T
@@ -146,6 +139,64 @@ export class ExportReader {
 
 		if (value === undefined) return
 		if (!validate || validate(value)) return value as T
+	}
+
+	static #readLiteralExport(program: Program, name: string) {
+		for (const statement of program.body) {
+			if (statement.type !== 'ExportNamedDeclaration') continue
+
+			const declaration = statement.declaration
+			if (!declaration || declaration.type !== 'VariableDeclaration') continue
+
+			for (const declarator of declaration.declarations) {
+				if (declarator.id.type !== 'Identifier' || declarator.id.name !== name) continue
+
+				return ExportReader.#readLiteralValue(declarator.init)
+			}
+		}
+	}
+
+	static #readLiteralValue(value: unknown) {
+		if (!value || typeof value !== 'object' || !('type' in value)) return
+
+		const node = value as { type: string }
+
+		if (node.type === 'Literal') {
+			const literal = value as LiteralNode
+
+			if (
+				typeof literal.value === 'string' ||
+				typeof literal.value === 'number' ||
+				typeof literal.value === 'boolean' ||
+				literal.value === null
+			) {
+				return literal.value
+			}
+		}
+
+		if (
+			node.type === 'TemplateLiteral' &&
+			Array.isArray((value as TemplateLiteralNode).expressions) &&
+			(value as TemplateLiteralNode).expressions.length === 0 &&
+			Array.isArray((value as TemplateLiteralNode).quasis) &&
+			(value as TemplateLiteralNode).quasis.length === 1
+		) {
+			const quasi = (value as TemplateLiteralNode).quasis[0]
+			if (quasi?.value && typeof quasi.value.cooked === 'string') {
+				return quasi.value.cooked
+			}
+		}
+
+		if (
+			node.type === 'UnaryExpression' &&
+			(value as UnaryExpressionNode).operator === '-' &&
+			(value as UnaryExpressionNode).argument.type === 'Literal' &&
+			(value as UnaryExpressionNode).argument.value !== null &&
+			typeof (value as UnaryExpressionNode).argument.value === 'number'
+		) {
+			const argument = (value as UnaryExpressionNode).argument.value as number
+			return -argument
+		}
 	}
 }
 

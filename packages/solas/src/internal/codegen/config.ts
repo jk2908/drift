@@ -6,14 +6,15 @@ import { AUTOGEN_MSG, source, toSourceLiteral } from './utils.js'
  * Generates the code to create an exported config object
  */
 export function writeConfig(config: PluginConfig) {
+	const { runtime: _runtime, ...runtimeConfig } = config
 	const loggerLevel = config.logger?.level
 	const importLines = [
-		`import type { PluginConfig } from '${Solas.Config.PKG_NAME}'`,
+		`import type { RuntimeConfig } from '${Solas.Config.PKG_NAME}'`,
 		loggerLevel ? `import { Logger } from '${Solas.Config.PKG_NAME}/utils/logger'` : '',
 	]
 		.filter(Boolean)
 		.join('\n')
-	const configStatement = `const config = ${toSourceLiteral(config)} as const satisfies PluginConfig`
+	const configStatement = `const config = ${toSourceLiteral(runtimeConfig)} as const satisfies RuntimeConfig`
 	const loggerStatement = loggerLevel
 		? `Logger.defaultLevel = ${toSourceLiteral(loggerLevel)}`
 		: ''

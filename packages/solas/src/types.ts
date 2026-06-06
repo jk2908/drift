@@ -10,10 +10,12 @@ import type { HttpException } from './internal/navigation/http-exception.js'
 import { Solas } from './solas.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
+export type Runtime = (typeof Solas.Config.RUNTIMES)[number]
 
 type Origin = `http://${string}` | `https://${string}`
 
 type PluginConfigBase = {
+	runtime?: Runtime
 	port?: number
 	precompress?: boolean
 	prerender?: Route.Prerender
@@ -41,7 +43,11 @@ export type PluginConfig = PluginConfigBase &
 		  }
 	)
 
-export type RuntimeConfig = PluginConfig & {
+export type ConfiguredPluginConfig = PluginConfig & {
+	runtime: Runtime
+}
+
+export type RuntimeConfig = Omit<PluginConfig, 'runtime'> & {
 	precompress: NonNullable<PluginConfig['precompress']>
 	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
 	trustedOrigins: NonNullable<PluginConfig['trustedOrigins']>

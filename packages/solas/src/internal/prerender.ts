@@ -8,6 +8,7 @@ import { Logger } from '../utils/logger.js'
 import type { BuildContext } from '../types.js'
 import { Solas } from '../solas.js'
 import { toPathPattern } from './http-router/utils.js'
+import { Runtime as AdapterRuntime } from './runtimes/runtime.js'
 
 const logger = new Logger()
 
@@ -92,10 +93,10 @@ export namespace Prerender {
 		 * Load the postponed state for a given route from the file system, if it exists
 		 */
 		export async function loadPostponedState(outDir: string, pathname: string) {
-			let file: Bun.BunFile
+			let filePath: string
 
 			try {
-				file = Bun.file(path.join(getPath(outDir, pathname), 'postponed.json'))
+				filePath = path.join(getPath(outDir, pathname), 'postponed.json')
 			} catch (err) {
 				logger.warn(
 					`[prerender:artifacts] rejected postponed state path for ${pathname}`,
@@ -104,10 +105,10 @@ export namespace Prerender {
 				return null
 			}
 
-			if (!(await file.exists())) return null
+			if (!(await AdapterRuntime.exists(filePath))) return null
 
 			try {
-				return JSON.parse(await file.text())
+				return JSON.parse(await AdapterRuntime.readText(filePath))
 			} catch {
 				return null
 			}
@@ -117,10 +118,10 @@ export namespace Prerender {
 		 * Load the prelude HTML for a given route from the file system, if it exists
 		 */
 		export async function loadPrelude(outDir: string, pathname: string) {
-			let file: Bun.BunFile
+			let filePath: string
 
 			try {
-				file = Bun.file(path.join(getPath(outDir, pathname), 'prelude.html'))
+				filePath = path.join(getPath(outDir, pathname), 'prelude.html')
 			} catch (err) {
 				logger.warn(
 					`[prerender:artifacts] rejected prelude path for ${pathname}`,
@@ -129,10 +130,10 @@ export namespace Prerender {
 				return null
 			}
 
-			if (!(await file.exists())) return null
+			if (!(await AdapterRuntime.exists(filePath))) return null
 
 			try {
-				return await file.text()
+				return await AdapterRuntime.readText(filePath)
 			} catch {
 				return null
 			}
@@ -142,10 +143,10 @@ export namespace Prerender {
 		 * Load the prerender artifact metadata for a given route from the file system, if it exists and is valid
 		 */
 		export async function loadMetadata(outDir: string, pathname: string) {
-			let file: Bun.BunFile
+			let filePath: string
 
 			try {
-				file = Bun.file(path.join(getPath(outDir, pathname), 'metadata.json'))
+				filePath = path.join(getPath(outDir, pathname), 'metadata.json')
 			} catch (err) {
 				logger.warn(
 					`[prerender:artifacts] rejected metadata path for ${pathname}`,
@@ -154,10 +155,10 @@ export namespace Prerender {
 				return null
 			}
 
-			if (!(await file.exists())) return null
+			if (!(await AdapterRuntime.exists(filePath))) return null
 
 			try {
-				const value = JSON.parse(await file.text())
+				const value = JSON.parse(await AdapterRuntime.readText(filePath))
 				if (!value || typeof value !== 'object') return null
 
 				const schema = (value as { schema?: unknown }).schema
@@ -350,7 +351,7 @@ export namespace Prerender {
 
 			if (!params) return []
 
-			const resolved = await Promise.try(() => params())
+			const resolved = await Promise.resolve().then(() => params())
 
 			if (!Array.isArray(resolved)) return []
 

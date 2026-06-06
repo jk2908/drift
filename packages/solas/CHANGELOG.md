@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 - 2026-06-06
+
+- Added runtime selection via `runtime: 'auto' | 'node' | 'bun'`, with `auto` choosing Bun when available and falling back to Node otherwise.
+- Removed the default Bun runtime requirement from the documented workflow. Standard `vite dev`, `vite build`, and `vite preview` commands now work on the default Node path, while Bun-backed Vite commands remain available when you want to run Solas in Bun.
+- Added a dedicated `@jk2908/solas/$` runtime-safe export for generated/runtime code so preview and production server bundles no longer need to pull through the package root plugin entry.
+- Fixed prerender static param resolution to stop depending on host support for `Promise.try`, so build-time route processing now works correctly under Node-based Vite runs.
+
 ## 0.4.5 - 2026-05-29
 
 - Documented concrete `href` and `router.go(...)` usage in the README, including how explicit `query` values merge with an existing query string and take precedence for duplicate keys.

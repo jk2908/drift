@@ -1,5 +1,8 @@
 import type { Prerender } from './internal/prerender.js'
-import type { PluginConfig } from './types.js'
+import type { PluginConfig, Runtime } from './types.js'
+import { RuntimeBun } from './internal/runtimes/bun.js'
+import { RuntimeNode } from './internal/runtimes/node.js'
+import { Runtime as InternalRuntime } from './internal/runtimes/runtime.js'
 
 export namespace Solas {
 	export interface Routes {}
@@ -19,11 +22,13 @@ export namespace Solas {
 		export const $ = Symbol(SLUG)
 		export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
 		export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
+		export const RUNTIMES = ['auto', 'node', 'bun'] as const
 		export const PRERENDER_MODES = ['full', 'ppr', false] as const
 		export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 		export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 		const CONFIG_KEYS = new Set([
+			'runtime',
 			'port',
 			'logger',
 			'metadata',
@@ -56,6 +61,14 @@ export namespace Solas {
 				if (!CONFIG_KEYS.has(key)) {
 					errors.push(`Unknown config key: ${key}`)
 				}
+			}
+
+			if (
+				'runtime' in input &&
+				input.runtime !== undefined &&
+				!isRuntime(input.runtime)
+			) {
+				errors.push("config.runtime must be 'auto', 'node', or 'bun'")
 			}
 
 			if ('url' in input && input.url !== undefined) {
@@ -209,6 +222,17 @@ export namespace Solas {
 			publicFiles: ReadonlySet<string>
 		}
 
+		export function create(runtime: Runtime): InternalRuntime.Impl {
+			if (
+				runtime === 'bun' ||
+				(runtime === 'auto' && typeof globalThis.Bun !== 'undefined')
+			) {
+				return new RuntimeBun()
+			}
+
+			return new RuntimeNode()
+		}
+
 		const manifestCache = new Map<string, Manifest | null>()
 
 		export function getManifestPath(outDir: string) {
@@ -227,15 +251,15 @@ export namespace Solas {
 				return manifestCache.get(outDir) ?? null
 			}
 
-			const file = Bun.file(getManifestPath(outDir))
+			const manifestPath = getManifestPath(outDir)
 
-			if (!(await file.exists())) {
+			if (!(await InternalRuntime.exists(manifestPath))) {
 				manifestCache.set(outDir, null)
 				return null
 			}
 
 			try {
-				const value = JSON.parse(await file.text())
+				const value = JSON.parse(await InternalRuntime.readText(manifestPath))
 
 				if (!isRecord(value)) {
 					manifestCache.set(outDir, null)
@@ -295,13 +319,13 @@ export namespace Solas {
 					}
 				}
 
-				const manifest: Manifest = {
+				const runtimeManifest: Manifest = {
 					artifacts: artifacts as Manifest['artifacts'],
 					publicFiles: new Set((publicFiles as string[] | undefined) ?? []),
 				}
 
-				manifestCache.set(outDir, manifest)
-				return manifest
+				manifestCache.set(outDir, runtimeManifest)
+				return runtimeManifest
 			} catch {
 				manifestCache.set(outDir, null)
 				return null
@@ -319,4 +343,8 @@ export namespace Solas {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isRuntime(value: unknown): value is Runtime {
+	return typeof value === 'string' && new Set(Solas.Config.RUNTIMES).has(value as Runtime)
 }

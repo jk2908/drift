@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { brotliCompress } from 'node:zlib'
 
+import { Runtime } from '../internal/runtimes/runtime.js'
+
 export namespace Compress {
 	const DEFAULT_CONCURRENCY = Math.max(1, Math.min(os.cpus().length, 8))
 
@@ -33,8 +35,7 @@ export namespace Compress {
 	}
 
 	async function compress(input: string) {
-		const file = Bun.file(input)
-		const buffer = Buffer.from(await file.arrayBuffer())
+		const buffer = Buffer.from(await Runtime.readBuffer(input))
 
 		const compressed: Buffer = await new Promise((fulfill, reject) => {
 			brotliCompress(buffer, (err, res) => {
