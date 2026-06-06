@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 - 2026-06-06
+
+- Fixed browser bundling regressions caused by exposing runtime creation through `Solas.Runtime.create(...)` in the shared `$` export path.
+- Removed `Solas.Runtime.create(...)` and moved runtime selection to a server-only `createRuntime(...)` helper under internal runtimes.
+- Updated plugin/runtime entry generation to call `createRuntime(...)` from `env/rsc`, keeping browser-reachable modules free of Node runtime imports.
+
 ## 0.5.1 - 2026-06-06
 
 - Fixed production app bundling by removing the `mime-types` package dependency from Solas runtime paths, preventing client bundles from resolving `/node_modules/mime-types/*` imports.

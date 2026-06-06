@@ -1,7 +1,5 @@
 import type { Prerender } from './internal/prerender.js'
 import type { PluginConfig, Runtime } from './types.js'
-import { RuntimeBun } from './internal/runtimes/bun.js'
-import { RuntimeNode } from './internal/runtimes/node.js'
 import { Runtime as InternalRuntime } from './internal/runtimes/runtime.js'
 
 export namespace Solas {
@@ -220,17 +218,6 @@ export namespace Solas {
 		export type Manifest = {
 			artifacts: Prerender.Artifact.Manifest
 			publicFiles: ReadonlySet<string>
-		}
-
-		export function create(runtime: Runtime): InternalRuntime.Impl {
-			if (
-				runtime === 'bun' ||
-				(runtime === 'auto' && typeof globalThis.Bun !== 'undefined')
-			) {
-				return new RuntimeBun()
-			}
-
-			return new RuntimeNode()
 		}
 
 		const manifestCache = new Map<string, Manifest | null>()

@@ -11,14 +11,14 @@ export function writeRSCEntry(config: ConfiguredPluginConfig) {
 	return source`
 		${AUTOGEN_MSG}
 
-		import { createHandler, Runtime } from '${Solas.Config.PKG_NAME}/env/rsc'
+		import { createHandler, createRuntime, Runtime } from '${Solas.Config.PKG_NAME}/env/rsc'
 		import { Solas } from '${Solas.Config.PKG_NAME}/$'
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
 		import { config } from './config.js'
 
-		Runtime.runtime = Solas.Runtime.create(${runtime})
+		Runtime.runtime = createRuntime(${runtime})
 		const runtimeManifest = await Solas.Runtime.loadManifest(Solas.Config.OUT_DIR)
 
 		export default createHandler(config, manifest, importMap, runtimeManifest)
