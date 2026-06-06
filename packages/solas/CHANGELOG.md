@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-06-06
+
+- Fixed production app bundling by removing the `mime-types` package dependency from Solas runtime paths, preventing client bundles from resolving `/node_modules/mime-types/*` imports.
+- Added an internal `getMimeTypeFromPath(...)` helper for Node runtime MIME resolution with a safe `application/octet-stream` fallback for unknown extensions.
+- Removed obsolete `src/adapters/*` runtime adapter files so runtime selection now consistently uses the internal runtime implementations.
+
 ## 0.5.0 - 2026-06-06
 
 - Added runtime selection via `runtime: 'auto' | 'node' | 'bun'`, with `auto` choosing Bun when available and falling back to Node otherwise.

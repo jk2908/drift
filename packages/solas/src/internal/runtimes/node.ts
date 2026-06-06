@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 
-import { lookup } from 'mime-types'
-
+import { getMimeTypeFromPath } from './mime.js'
 import { RuntimeBase } from './runtime.js'
 
 export class RuntimeNode extends RuntimeBase {
@@ -28,7 +27,7 @@ export class RuntimeNode extends RuntimeBase {
 	}
 
 	mimeType(filePath: string) {
-		return lookup(filePath) || 'application/octet-stream'
+		return getMimeTypeFromPath(filePath)
 	}
 
 	async write(filePath: string, content: string | NodeJS.ArrayBufferView) {
