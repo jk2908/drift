@@ -20,6 +20,28 @@ export namespace BrowserRouter {
 		params?: Params
 	}
 
+	export type Context = {
+		go: BrowserRouter.Go
+		prefetch: (path: string) => void
+		refresh: BrowserRouter.Refresh
+		isNavigating: boolean
+		url: {
+			pathname: string
+			search?: string
+			hash?: string
+		}
+		history: {
+			entries: HistoryEntry[]
+			index: number
+		}
+	}
+
+	export type HistoryEntry = {
+		pathname: string
+		search: string
+		hash: string
+	}
+
 	/**
 	 * These targets are used as-is. They are not matched against the route table,
 	 * so this covers normal external URLs and hash-only links
@@ -191,6 +213,7 @@ export namespace BrowserRouter {
 	 * ```
 	 */
 	export type Go = {
+		(to: number): Promise<string>
 		<TTo extends Path>(to: TTo, opts?: PatternConfig<TTo> & Replace): Promise<string>
 		<TTo extends Target>(to: TTo, opts?: TargetConfig & Replace): Promise<string>
 		<TTo extends string>(

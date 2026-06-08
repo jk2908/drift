@@ -37,9 +37,10 @@ export type RscPayload = {
 	formState?: ReactFormState
 	root: React.ReactNode
 	metadata?: Promise<Metadata.Item>
-	url?: {
-		pathname?: string
+	url: {
+		pathname: string
 		search?: string
+		hash?: string
 	}
 }
 
@@ -122,6 +123,7 @@ async function createPayload(
 			url: {
 				pathname: url.pathname,
 				search: url.search,
+				hash: url.hash,
 			},
 		}
 

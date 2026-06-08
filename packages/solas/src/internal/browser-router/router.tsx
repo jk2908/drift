@@ -7,26 +7,26 @@ import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'
 import { Solas } from '../../solas.js'
+import { BrowserRouterHistory } from './history.js'
 import { ResponseCache } from './response-cache.js'
 import { BrowserRouter } from './shared.js'
 
 export { BrowserRouter } from './shared.js'
 
-export const BrowserRouterContext = createContext<{
-	go: BrowserRouter.Go
-	prefetch: (path: string) => void
-	refresh: BrowserRouter.Refresh
-	isNavigating: boolean
-	url: {
-		pathname?: string
-		search?: string
-	}
-}>({
+export const BrowserRouterContext = createContext<BrowserRouter.Context>({
 	go: async () => '',
 	prefetch: () => {},
 	refresh: async () => '',
 	isNavigating: false,
-	url: {},
+	url: {
+		pathname: '',
+		search: '',
+		hash: '',
+	},
+	history: {
+		entries: [],
+		index: -1,
+	},
 })
 
 const DEFAULT_GO_CONFIG = {
@@ -45,13 +45,15 @@ export function BrowserRouterProvider({
 	children: React.ReactNode
 	setPayload?: (payload: RscPayload) => void
 	isNavigating?: boolean
-	url?: {
-		pathname?: string
+	url: {
+		pathname: string
 		search?: string
+		hash?: string
 	}
 }) {
 	const id = useRef(0)
 	const controller = useRef<AbortController | null>(null)
+	const history = useRef(new BrowserRouterHistory(url))
 
 	/**
 	 * Navigates to a given path
@@ -62,12 +64,21 @@ export function BrowserRouterProvider({
 	 * @returns the final path navigated to after any redirects, or the original path if navigation failed
 	 */
 	const go: BrowserRouter.Go = useCallback(
-		async (to: string, opts: BrowserRouter.GoOptions = {}) => {
+		async (to: string | number, opts: BrowserRouter.GoOptions = {}) => {
 			id.current += 1
 			const navigationId = id.current
 
 			const currentPath = window.location.pathname + window.location.search
 			let path = currentPath
+
+			// support numeric relative navigation like router.go(-1) to go back,
+			// or router.go(1) to go forward. Will trigger a popstate event which
+			// is intercepted
+			if (typeof to === 'number') {
+				const entry = history.current.go(to)
+				return `${entry.pathname}${entry.search}`
+			}
+
 			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
 
 			controller.current?.abort()
@@ -90,9 +101,9 @@ export function BrowserRouterProvider({
 
 				if (path !== currentPath) {
 					if (replace) {
-						window.history.replaceState(null, '', path)
+						history.current.replaceState(path)
 					} else {
-						window.history.pushState(null, '', path)
+						history.current.pushState(path)
 					}
 				}
 
@@ -123,7 +134,7 @@ export function BrowserRouterProvider({
 				if (navigationId !== id.current) return resolvedPath
 
 				if (resolvedPath !== path) {
-					window.history.replaceState(null, '', resolvedPath)
+					history.current.replaceState(resolvedPath)
 				}
 
 				setPayload?.(payload)
@@ -193,10 +204,15 @@ export function BrowserRouterProvider({
 	}, [go])
 
 	useEffect(() => {
-		const handler = () =>
-			go(BrowserRouter.toTarget(window.location.pathname + window.location.search), {
+		const h = history.current
+
+		function handler() {
+			h.onPopState()
+
+			void go(BrowserRouter.toTarget(window.location.pathname + window.location.search), {
 				replace: true,
 			})
+		}
 
 		window.addEventListener('popstate', handler)
 
@@ -215,8 +231,13 @@ export function BrowserRouterProvider({
 			refresh,
 			isNavigating,
 			url: {
-				pathname: url?.pathname,
+				pathname: url.pathname,
 				search: url?.search,
+				hash: url?.hash,
+			},
+			history: {
+				entries: history.current.entries,
+				index: history.current.index,
 			},
 		}),
 		[go, prefetch, refresh, isNavigating, url],
