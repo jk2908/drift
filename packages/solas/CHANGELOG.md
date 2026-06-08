@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4 - 2026-06-08
+
+- Add a BrowserRouterHistory API to sync app back/forward navigation with browser navigation.
+- Expose BrowserRouterContext.history for gated use in client components
+
 ## 0.5.3 - 2026-06-06
 
 - Ensured `createRuntime(...)` is exported from `@jk2908/solas/env/rsc` for generated RSC entry compatibility.
