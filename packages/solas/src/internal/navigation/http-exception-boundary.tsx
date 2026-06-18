@@ -2,7 +2,7 @@
 
 import { Component } from 'react'
 
-import type { BoundaryError } from '../../types.js'
+import type { BoundaryError } from '../boundary-error.js'
 import {
 	HTTP_EXCEPTION_DIGEST_PREFIX,
 	type HttpException,

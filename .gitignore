@@ -6,3 +6,5 @@ dist
 benchmarks
 roadmap.md
 stress
+test-results
+*.pid

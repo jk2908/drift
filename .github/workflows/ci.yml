@@ -28,6 +28,11 @@ jobs:
       - name: Format check
         run: bun run format:check
 
+      - name: Tests
+        run: |
+          cd packages/solas
+          bun run test
+
       - name: Package prepublish check
         run: |
           cd packages/solas

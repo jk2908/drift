@@ -177,5 +177,3 @@ export namespace Route {
 
 	export type Prerender = (typeof Solas.Config.PRERENDER_MODES)[number]
 }
-
-export type BoundaryError = Error & { digest?: string }
