@@ -13,7 +13,6 @@ export default defineConfig(() => {
 	return {
 		plugins: [
 			solas({
-				url: 'http://localhost:8787',
 				prerender: false,
 				metadata: {
 					title: '%s - Solas',

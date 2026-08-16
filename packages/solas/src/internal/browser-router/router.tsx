@@ -6,12 +6,12 @@ import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'
-import { Solas } from '../../solas.js'
+import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
 import { ResponseCache } from './response-cache.js'
-import { BrowserRouter } from './shared.js'
+import * as BrowserRouter from './shared.js'
 
-export { BrowserRouter } from './shared.js'
+export * as BrowserRouter from './shared.js'
 
 export const BrowserRouterContext = createContext<BrowserRouter.Context>({
 	go: async () => '',
@@ -140,7 +140,7 @@ export function BrowserRouterProvider({
 				setPayload?.(payload)
 
 				window.dispatchEvent(
-					new CustomEvent(Solas.Events.names.NAVIGATION, {
+					new CustomEvent(Events.names.NAVIGATION, {
 						detail: { path: resolvedPath },
 					}),
 				)
@@ -152,7 +152,7 @@ export function BrowserRouterProvider({
 				}
 
 				window.dispatchEvent(
-					new CustomEvent(Solas.Events.names.NAVIGATION_ERROR, {
+					new CustomEvent(Events.names.NAVIGATION_ERROR, {
 						detail: {
 							path,
 							error: err instanceof Error ? err.message : Logger.print(err),

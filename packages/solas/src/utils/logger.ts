@@ -1,5 +1,5 @@
+import * as Config from '../config.js'
 import { HttpException } from '../internal/navigation/http-exception.js'
-import { Solas } from '../solas.js'
 
 const LEVELS = {
 	debug: 0,
@@ -99,7 +99,7 @@ export class Logger {
 			entry.error = error ? Logger.toError(error) : new Error(message)
 		}
 
-		const line = `[${Solas.Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`
+		const line = `[${Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`
 		const extra = entry.error ? `\n${Logger.print(entry.error)}` : ''
 
 		if (level === 'warn') {

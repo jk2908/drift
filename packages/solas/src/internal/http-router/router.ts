@@ -1,16 +1,16 @@
 import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
-import { BasePath } from '../../utils/base-path.js'
+import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { Runtime } from '../runtimes/runtime.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
 
-const BASE_PATH = BasePath.normalise(import.meta.env.BASE_URL)
+const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
 export namespace HttpRouter {
 	export type Params = Record<string, string | string[]>
@@ -263,7 +263,7 @@ export class HttpRouter {
 	async fetch(req: Request) {
 		const url = new URL(req.url)
 		const trailingSlash = this.opts.trailingSlash ?? 'never'
-		const routedPath = BasePath.strip(url.pathname, BASE_PATH)
+		const routedPath = stripBasePath(url.pathname, BASE_PATH)
 		const path =
 			routedPath == null
 				? null
@@ -275,7 +275,7 @@ export class HttpRouter {
 
 		try {
 			const method = req.method.toUpperCase() as HttpMethod
-			const canonicalPathname = path == null ? null : BasePath.apply(path, BASE_PATH)
+			const canonicalPathname = path == null ? null : applyBasePath(path, BASE_PATH)
 
 			if (
 				canonicalPathname != null &&
@@ -307,7 +307,7 @@ export class HttpRouter {
 					this.#onError?.(
 						error,
 						Object.assign(req, {
-							[Solas.Config.REQUEST_META_KEY]: { match: null, error, action },
+							[Config.REQUEST_META_KEY]: { match: null, error, action },
 						}),
 					) ?? new Response(error.message, { status: error.status })
 				)
@@ -316,7 +316,7 @@ export class HttpRouter {
 			const matched = match
 			// attach route state once so middleware and handlers read the same request data
 			const request: SolasRequest = Object.assign(req, {
-				[Solas.Config.REQUEST_META_KEY]: { match: matched, action, parsedFormData },
+				[Config.REQUEST_META_KEY]: { match: matched, action, parsedFormData },
 			})
 
 			// check csrf before any middleware or handler runs
@@ -335,7 +335,7 @@ export class HttpRouter {
 			// turn unknown throws into Error objects so the error hook sees one shape
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
 			const request = Object.assign(req, {
-				[Solas.Config.REQUEST_META_KEY]: { match, error, action },
+				[Config.REQUEST_META_KEY]: { match, error, action },
 			})
 
 			if (this.#onError) return this.#onError(error, request)

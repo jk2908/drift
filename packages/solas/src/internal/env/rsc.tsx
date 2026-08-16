@@ -4,12 +4,13 @@ import type { ReactFormState } from 'react-dom/client'
 
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
-import { BasePath } from '../../utils/base-path.js'
+import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
 import type { SSRModule } from './ssr.js'
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
+import * as RuntimeManifest from '../../manifest.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
 import { normalisePathname } from '../http-router/utils.js'
@@ -21,7 +22,7 @@ import {
 	toHttpExceptionLike,
 } from '../navigation/http-exception.js'
 import { isRedirect, toRedirect } from '../navigation/redirect.js'
-import { Prerender } from '../prerender.js'
+import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
@@ -31,6 +32,7 @@ import { getKnownDigest, isKnownError } from './utils.js'
 
 export { createRuntime } from '../runtimes/create.js'
 export { Runtime } from '../runtimes/runtime.js'
+export { loadManifest } from '../../manifest.js'
 
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -45,7 +47,7 @@ export type RscPayload = {
 }
 
 const logger = new Logger()
-const BASE_PATH = BasePath.normalise(import.meta.env.BASE_URL)
+const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
 function resolveFilePath(root: string, relativePath: string) {
 	try {
@@ -79,16 +81,16 @@ async function createPayload(
 	temporaryReferences?: unknown,
 ) {
 	const resolver = new Resolver(manifest, importMap)
-	const prerender = req.headers.get(`x-${Solas.Config.SLUG}-prerender`) === '1'
+	const prerender = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
 	const url = new URL(req.url)
-	const routedPath = BasePath.strip(url.pathname, BASE_PATH) ?? url.pathname
+	const routedPath = stripBasePath(url.pathname, BASE_PATH) ?? url.pathname
 	const pathname =
 		routedPath.endsWith('/') && routedPath !== '/' ? routedPath.slice(0, -1) : routedPath
 	const match = resolver.enhance(
 		resolver.reconcile(
 			pathname,
-			req[Solas.Config.REQUEST_META_KEY].match,
-			req[Solas.Config.REQUEST_META_KEY].error,
+			req[Config.REQUEST_META_KEY].match,
+			req[Config.REQUEST_META_KEY].error,
 		),
 	)
 
@@ -97,7 +99,7 @@ async function createPayload(
 	// error screen
 	if (!match) {
 		const error = toHttpExceptionLike(
-			req[Solas.Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found'),
+			req[Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found'),
 		)
 
 		const title = `${error.status ? `${error.status} -` : ''}${error.message}`
@@ -269,13 +271,13 @@ export function createHandler(
 	config: RuntimeConfig,
 	manifest: Manifest,
 	importMap: ImportMap,
-	runtimeManifest: Solas.Runtime.Manifest | null = null,
+	runtimeManifest: RuntimeManifest.Manifest | null = null,
 ) {
-	const CLIENT_OUTPUT_DIR = path.resolve(Solas.Config.OUT_DIR, 'client')
+	const CLIENT_OUTPUT_DIR = path.resolve(Config.OUT_DIR, 'client')
 	// vite emits solas-controlled assets under dist/client/_solas
-	const SOLAS_ASSETS_DIR = path.resolve(CLIENT_OUTPUT_DIR, Solas.Config.ASSETS_DIR)
+	const SOLAS_ASSETS_DIR = path.resolve(CLIENT_OUTPUT_DIR, Config.ASSETS_DIR)
 	// requests for /_solas and /_solas/* are reserved
-	const SOLAS_ASSETS_URL_ROOT = `/${Solas.Config.ASSETS_DIR}`
+	const SOLAS_ASSETS_URL_ROOT = `/${Config.ASSETS_DIR}`
 
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
@@ -295,7 +297,7 @@ export function createHandler(
 			returnValue: undefined,
 		}
 
-		if (req[Solas.Config.REQUEST_META_KEY].action) {
+		if (req[Config.REQUEST_META_KEY].action) {
 			opts = await processActionRequest(req, {
 				trustedOrigins: config.trustedOrigins,
 				url: config.url,
@@ -338,19 +340,19 @@ export function createHandler(
 			if (isRedirect(err)) {
 				const redirect = toRedirect(err)
 				const location = redirect.url.startsWith('/')
-					? new URL(BasePath.apply(redirect.url, BASE_PATH), req.url).toString()
+					? new URL(applyBasePath(redirect.url, BASE_PATH), req.url).toString()
 					: redirect.url
 
 				return Response.redirect(location, redirect.status)
 			}
 
-			if (req[Solas.Config.REQUEST_META_KEY].error || !isHttpException(err)) {
+			if (req[Config.REQUEST_META_KEY].error || !isHttpException(err)) {
 				return null
 			}
 
 			// retry once with the surfaced HttpException attached so createPayload can
 			// rebuild the route through the nearest matching status boundary
-			req[Solas.Config.REQUEST_META_KEY].error = toHttpException(err)
+			req[Config.REQUEST_META_KEY].error = toHttpException(err)
 
 			try {
 				const { stream: retriedRscStream, status: retriedStatus } = await createPayload(
@@ -370,15 +372,15 @@ export function createHandler(
 					retriedStream,
 				}
 			} finally {
-				req[Solas.Config.REQUEST_META_KEY].error = undefined
+				req[Config.REQUEST_META_KEY].error = undefined
 			}
 		}
 
 		// prerender artifact requests bypass the normal document path so the cli
 		// gets structured JSON instead of a rendered html response
 		if (
-			req.headers.get(`x-${Solas.Config.SLUG}-prerender`) === '1' &&
-			req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) === '1'
+			req.headers.get(`x-${Config.SLUG}-prerender`) === '1' &&
+			req.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1'
 		) {
 			try {
 				const artifact = await mod.prerender(stream, {
@@ -428,14 +430,11 @@ export function createHandler(
 			const tryPrelude = artifactEntry?.mode === 'ppr'
 
 			if (tryPrelude) {
-				const postponedState = await Prerender.Artifact.loadPostponedState(
-					Solas.Config.OUT_DIR,
+				const postponedState = await Prerender.loadPostponedState(
+					Config.OUT_DIR,
 					lookupPath,
 				)
-				const prelude = await Prerender.Artifact.loadPrelude(
-					Solas.Config.OUT_DIR,
-					lookupPath,
-				)
+				const prelude = await Prerender.loadPrelude(Config.OUT_DIR, lookupPath)
 
 				// resumable ppr responses splice fresh streamed content into the cached
 				// prelude when postponed state is available for this route
@@ -448,7 +447,7 @@ export function createHandler(
 					})
 
 					const body = prelude
-						? Prerender.Artifact.composePreludeAndResume(prelude, resumeStream)
+						? Prerender.composePreludeAndResume(prelude, resumeStream)
 						: resumeStream
 
 					return new Response(body, {
@@ -511,7 +510,7 @@ export function createHandler(
 			if (method !== 'GET' && method !== 'HEAD') return httpRouter.fetch(req)
 
 			const accept = req.headers.get('accept') ?? ''
-			const routedPath = BasePath.strip(url.pathname, BASE_PATH)
+			const routedPath = stripBasePath(url.pathname, BASE_PATH)
 			const canonicalPath =
 				routedPath == null
 					? null
@@ -519,7 +518,7 @@ export function createHandler(
 						? routedPath
 						: normalisePathname(routedPath, config.trailingSlash)
 			const canonicalPathname =
-				canonicalPath == null ? null : BasePath.apply(canonicalPath, BASE_PATH)
+				canonicalPath == null ? null : applyBasePath(canonicalPath, BASE_PATH)
 
 			if (
 				canonicalPathname != null &&
@@ -567,7 +566,7 @@ export function createHandler(
 				canonicalPath != null &&
 				!import.meta.env.DEV &&
 				accept.includes('text/html') &&
-				req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) !== '1'
+				req.headers.get(`x-${Config.SLUG}-prerender-artifact`) !== '1'
 			) {
 				// turn the request path into the normal route shape we use for artifact lookups
 				const lookupPath = normalisePathname(canonicalPath, prerenderPathMode)
@@ -575,10 +574,10 @@ export function createHandler(
 				// only full prerender routes have a saved html file we can serve directly
 				const prerenderPath =
 					runtimeManifest?.artifacts[lookupPath]?.mode === 'full'
-						? Prerender.Artifact.getFilePath(
-								Solas.Config.OUT_DIR,
+						? Prerender.getArtifactFilePath(
+								Config.OUT_DIR,
 								lookupPath,
-								Prerender.Artifact.FULL_PRERENDER_FILENAME,
+								Prerender.FULL_PRERENDER_FILENAME,
 							)
 						: null
 

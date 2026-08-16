@@ -2,46 +2,38 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import { ExportReader } from './utils/export-reader.js'
 
-import type { BrowserRouter } from './internal/browser-router/shared.js'
-import type { Build } from './internal/build.js'
+import type * as BrowserRouter from './internal/browser-router/shared.js'
 import type { HttpRouter } from './internal/http-router/router.js'
 import type { Metadata } from './internal/metadata.js'
 import type { HttpException } from './internal/navigation/http-exception.js'
-import { Solas } from './solas.js'
+import * as Config from './config.js'
+import * as Build from './internal/build.js'
 
-export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
-export type Runtime = (typeof Solas.Config.RUNTIMES)[number]
+export type LogLevel = (typeof Config.LOG_LEVELS)[number]
+export type Runtime = (typeof Config.RUNTIMES)[number]
 
-type Origin = `http://${string}` | `https://${string}`
+export type Origin = `http://${string}` | `https://${string}`
 
 type PluginConfigBase = {
 	runtime?: Runtime
-	port?: number
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
-	trailingSlash?: (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
+	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly Origin[]
 	readonly logger?: {
 		level?: LogLevel
 	}
 }
 
-export type PluginConfig = PluginConfigBase &
-	(
+export type PluginConfig = PluginConfigBase & {
+	url?: Origin
+	sitemap?:
+		| boolean
 		| {
-				url: Origin
-				sitemap:
-					| true
-					| {
-							routes: (existing: string[]) => string[] | Promise<string[]>
-					  }
+				routes: (existing: string[]) => string[] | Promise<string[]>
 		  }
-		| {
-				url?: Origin
-				sitemap?: false
-		  }
-	)
+}
 
 export type ConfiguredPluginConfig = PluginConfig & {
 	runtime: Runtime
@@ -69,7 +61,7 @@ export type RequestMeta = {
 }
 
 export type SolasRequest = Request & {
-	[Solas.Config.REQUEST_META_KEY]: RequestMeta
+	[Config.REQUEST_META_KEY]: RequestMeta
 }
 
 export type Segment = {
@@ -145,8 +137,8 @@ export type BuildManifest = {
 	prerenderRoutes: string[]
 	sitemapRoutes: string[]
 	precompress: boolean
-	trailingSlash: (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
-	url?: PluginConfig['url']
+	trailingSlash: (typeof Config.TRAILING_SLASH_MODES)[number]
+	url?: Origin
 }
 
 export namespace Route {
@@ -175,5 +167,5 @@ export namespace Route {
 		: { params: ParamsOf<TRoute> }) &
 		ErrorPropsOf<TError>
 
-	export type Prerender = (typeof Solas.Config.PRERENDER_MODES)[number]
+	export type Prerender = (typeof Config.PRERENDER_MODES)[number]
 }

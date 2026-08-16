@@ -8,7 +8,7 @@ import {
 	loadServerAction,
 } from '@vitejs/plugin-rsc/rsc'
 
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { SolasRequest } from '../../types.js'
 import { CsrfConfig, enforce } from './csrf.js'
 
@@ -87,7 +87,7 @@ export async function processActionRequest(req: SolasRequest, csrf: CsrfConfig =
 		// we might have already parsed FormData in the router for multipart action
 		// detection should be attached to the SolasRequest, so we can reuse that
 		// to avoid parsing twice
-		const parsedFormData = req[Solas.Config.REQUEST_META_KEY]?.parsedFormData
+		const parsedFormData = req[Config.REQUEST_META_KEY]?.parsedFormData
 
 		const formData = parsedFormData ?? (await req.formData())
 		const decodedAction = await decodeAction(formData)

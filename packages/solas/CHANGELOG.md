@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.0
+
+### Breaking
+
+- Removed the `Solas` runtime namespace exports (`Solas.Config`, `Solas.Runtime`, `Solas.Events`) from the `@jk2908/solas` entry. Runtime constants now live in dedicated internal modules, and generated code no longer reaches through the namespace.
+- Removed the `@jk2908/solas/$` export path. Generated environment entries now import directly from `@jk2908/solas/env/rsc`.
+- Removed the `port` config option from `solas()`. The development port now comes from Vite's `server.port`. `url` remains available as an optional public origin and now resolves from the `url` option → `VITE_APP_URL` → the Vite dev server `host`/`port`.
+
+### Features
+
+- Generated `.solas` files are formatted with oxfmt before writing, and stale generated files are pruned when the codegen stops emitting them.
+- Added a Vitest test suite covering unit, integration, and browser (React Testing Library) tests.
+
+### Fixes
+
+- Generated `entry.rsc.tsx` now emits valid code (`loadManifest` from `env/rsc`) instead of referencing an undefined `Config` import.
+- Fixed the release pipeline by committing the postbuild measurement script.
+
+### Changed
+
+- Pinned `@vitejs/plugin-rsc` to `0.5.34`.
+- Removed the Playwright e2e suite, fixtures, and scripts for now; unit, integration, and browser tests run through Vitest.
+- Declared `engines.node` (`^20.19.0 || >=22.12.0`).
+
 ## 0.5.4 - 2026-06-08
 
 - Add a BrowserRouterHistory API to sync app back/forward navigation with browser navigation.

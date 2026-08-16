@@ -1,15 +1,27 @@
 # www
 
-To install dependencies:
+The Solas website, built with `@jk2908/solas`.
 
-```bash
+## Install
+
+```sh
 bun install
 ```
 
-To run:
+## Run
 
-```bash
-bun run index.ts
+```sh
+bun run dev
 ```
 
-This project was created using `bun init` in bun v1.3.1. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+## Build
+
+```sh
+bun run build
+```
+
+The production build is written to `dist/`. Preview it locally with `bun run preview`.
+
+## Routes
+
+Source routes live in `app/`. Generated framework files are written to `.solas/` and should not be edited by hand.

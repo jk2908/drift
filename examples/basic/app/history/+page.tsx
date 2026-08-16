@@ -11,8 +11,12 @@ export default function Page() {
 
 			<Link href="/history/history-2">Go</Link>
 
-			<button onClick={() => go(-1)}>Go Back</button>
-			<button onClick={() => go(1)}>Go Forward</button>
+			<button type="button" onClick={() => go(-1)}>
+				Go Back
+			</button>
+			<button type="button" onClick={() => go(1)}>
+				Go Forward
+			</button>
 		</>
 	)
 }

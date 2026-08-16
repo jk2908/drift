@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
-import { Solas } from '../../solas.js'
+import * as Events from '../../events.js'
 import { useRouter } from '../browser-router/use-router.js'
 
 export function useSearchParams() {
@@ -9,11 +9,11 @@ export function useSearchParams() {
 	const search = useSyncExternalStore(
 		fn => {
 			window.addEventListener('popstate', fn)
-			window.addEventListener(Solas.Events.names.NAVIGATION, fn)
+			window.addEventListener(Events.names.NAVIGATION, fn)
 
 			return () => {
 				window.removeEventListener('popstate', fn)
-				window.removeEventListener(Solas.Events.names.NAVIGATION, fn)
+				window.removeEventListener(Events.names.NAVIGATION, fn)
 			}
 		},
 		() => window.location.search,

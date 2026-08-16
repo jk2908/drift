@@ -4,26 +4,24 @@ import { Logger } from './logger.js'
 
 const logger = new Logger()
 
-export namespace Context {
-	export function create<T>(name: string) {
-		const storage = new AsyncLocalStorage<T>()
+export function create<T>(name: string) {
+	const storage = new AsyncLocalStorage<T>()
 
-		return {
-			use() {
-				const r = storage.getStore()
+	return {
+		use() {
+			const r = storage.getStore()
 
-				if (!r) {
-					const error = new Error(`No ${name} context available`)
-					logger.error(`[Context:create] ${error.message}`, error)
+			if (!r) {
+				const error = new Error(`No ${name} context available`)
+				logger.error(`[Context:create] ${error.message}`, error)
 
-					throw error
-				}
+				throw error
+			}
 
-				return r
-			},
-			write<R>(value: T, fn: () => R | Promise<R>) {
-				return storage.run(value, fn)
-			},
-		}
+			return r
+		},
+		write<R>(value: T, fn: () => R | Promise<R>) {
+			return storage.run(value, fn)
+		},
 	}
 }

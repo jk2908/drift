@@ -2,7 +2,7 @@ import { use } from 'react'
 
 import { Logger } from '../../utils/logger.js'
 
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { type Metadata as Collection } from '../metadata.js'
 
 const logger = new Logger()
@@ -49,7 +49,7 @@ export function Head({
 
 	return (
 		<>
-			<meta name="generator" content={Solas.Config.NAME} />
+			<meta name="generator" content={Config.NAME} />
 
 			{toContent(metadata.title) !== undefined && (
 				<title>{toContent(metadata.title)}</title>

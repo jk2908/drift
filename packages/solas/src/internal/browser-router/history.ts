@@ -1,4 +1,4 @@
-import type { BrowserRouter } from './shared.js'
+import * as BrowserRouter from './shared.js'
 
 /**
  * A small in-memory mirror of browser history used by BrowserRouter.

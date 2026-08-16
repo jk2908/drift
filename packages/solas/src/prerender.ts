@@ -1,1 +1,1 @@
-export { Prerender } from './internal/prerender.js'
+export * as Prerender from './internal/prerender.js'

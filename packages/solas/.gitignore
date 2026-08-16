@@ -1,0 +1,7 @@
+
+# Build output
+/build
+/dist
+/node_modules
+*.log
+.DS_Store

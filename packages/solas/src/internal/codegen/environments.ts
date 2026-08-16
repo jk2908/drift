@@ -1,5 +1,5 @@
 import type { ConfiguredPluginConfig } from '../../types.js'
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { AUTOGEN_MSG, source, toStringLiteral } from './utils.js'
 
 /**
@@ -11,15 +11,14 @@ export function writeRSCEntry(config: ConfiguredPluginConfig) {
 	return source`
 		${AUTOGEN_MSG}
 
-		import { createHandler, createRuntime, Runtime } from '${Solas.Config.PKG_NAME}/env/rsc'
-		import { Solas } from '${Solas.Config.PKG_NAME}/$'
+		import { createHandler, createRuntime, loadManifest, Runtime } from '${Config.PKG_NAME}/env/rsc'
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
 		import { config } from './config.js'
 
 		Runtime.runtime = createRuntime(${runtime})
-		const runtimeManifest = await Solas.Runtime.loadManifest(Solas.Config.OUT_DIR)
+		const runtimeManifest = await loadManifest(${toStringLiteral(Config.OUT_DIR)})
 
 		export default createHandler(config, manifest, importMap, runtimeManifest)
 
@@ -36,7 +35,7 @@ export function writeSSREntry() {
 	return source`
 		${AUTOGEN_MSG}
 
-		export { prerender, resume, ssr } from '${Solas.Config.PKG_NAME}/env/ssr'
+		export { prerender, resume, ssr } from '${Config.PKG_NAME}/env/ssr'
 	`
 }
 
@@ -47,7 +46,7 @@ export function writeBrowserEntry() {
 	return source`
 		${AUTOGEN_MSG}
 
-		import { browser } from '${Solas.Config.PKG_NAME}/env/browser'
+		import { browser } from '${Config.PKG_NAME}/env/browser'
 
 		browser()
 	`

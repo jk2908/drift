@@ -15,16 +15,23 @@ import rsc from '@vitejs/plugin-rsc'
 
 import { ExportReader } from './utils/export-reader.js'
 import { Logger } from './utils/logger.js'
-import { Time } from './utils/time.js'
+import { debounce } from './utils/time.js'
 
-import type { BuildContext, ConfiguredPluginConfig, PluginConfig } from './types.js'
-import { Build } from './internal/build.js'
+import type {
+	BuildContext,
+	ConfiguredPluginConfig,
+	Origin,
+	PluginConfig,
+} from './types.js'
+import * as Config from './config.js'
+import * as Build from './internal/build.js'
 import { writeConfig } from './internal/codegen/config.js'
 import {
 	writeBrowserEntry,
 	writeRSCEntry,
 	writeSSREntry,
 } from './internal/codegen/environments.js'
+import { format as formatSource } from './internal/codegen/format.js'
 import { writeManifest } from './internal/codegen/manifest.js'
 import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
@@ -32,7 +39,6 @@ import { postbuild } from './internal/postbuild.js'
 import { collect as collectPublicFiles } from './internal/public-files.js'
 import { createRuntime } from './internal/runtimes/create.js'
 import { Runtime } from './internal/runtimes/runtime.js'
-import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
 	runtime: 'auto',
@@ -43,15 +49,16 @@ const DEFAULT_CONFIG = {
 } as const satisfies Partial<PluginConfig>
 
 function solas(c?: PluginConfig): PluginOption[] {
-	const validatedConfig = Solas.Config.validate({
-		...c,
-		url: c?.url ?? process.env.VITE_APP_URL?.toString(),
-	})
+	const validatedConfig = Config.validate(c)
 	const config: ConfiguredPluginConfig = {
 		...DEFAULT_CONFIG,
 		...validatedConfig,
 		runtime: validatedConfig.runtime ?? DEFAULT_CONFIG.runtime,
 	}
+
+	const envUrl = process.env.VITE_APP_URL?.toString()
+	let resolvedUrl: Origin | undefined =
+		c?.url ?? (envUrl && envUrl.length > 0 ? (envUrl as Origin) : undefined)
 
 	Runtime.runtime = createRuntime(config.runtime)
 
@@ -122,8 +129,8 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 	async function build() {
 		const cwd = process.cwd()
-		const routesDir = path.join(cwd, Solas.Config.APP_DIR)
-		const generatedDir = path.join(cwd, Solas.Config.GENERATED_DIR)
+		const routesDir = path.join(cwd, Config.APP_DIR)
+		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
 
 		await Promise.all([
 			fs.mkdir(routesDir, { recursive: true }),
@@ -141,14 +148,36 @@ function solas(c?: PluginConfig): PluginOption[] {
 			['config.ts', writeConfig(config)],
 			['manifest.ts', writeManifest(manifest)],
 			['maps.ts', writeMaps(imports, modules)],
-			[`${Solas.Config.SLUG}.d.ts`, writeTypes(manifest)],
-			[Solas.Config.ENTRY_RSC, writeRSCEntry(config)],
-			[Solas.Config.ENTRY_SSR, writeSSREntry()],
-			[Solas.Config.ENTRY_BROWSER, writeBrowserEntry()],
+			[`${Config.SLUG}.d.ts`, writeTypes(manifest)],
+			[Config.ENTRY_RSC, writeRSCEntry(config)],
+			[Config.ENTRY_SSR, writeSSREntry()],
+			[Config.ENTRY_BROWSER, writeBrowserEntry()],
 		]
 
+		// remove generated files no longer emitted by the current codegen, so
+		// old artifacts don't linger and break module resolution. keep
+		// closeBundle's build.json, which lives in the same directory
+		const currentFiles = new Set(files.map(([file]) => file))
+		const existing = await fs
+			.readdir(generatedDir, { withFileTypes: true })
+			.catch(() => [])
+		await Promise.all(
+			existing
+				.filter(
+					entry =>
+						entry.isFile() &&
+						entry.name !== 'build.json' &&
+						!currentFiles.has(entry.name),
+				)
+				.map(entry => fs.rm(path.join(generatedDir, entry.name), { force: true })),
+		)
+
 		const writes = await Promise.all(
-			files.map(([file, content]) => maybeWrite(path.join(generatedDir, file), content)),
+			files.map(async ([file, content]) => {
+				const formatted = await formatSource(file, content)
+
+				return maybeWrite(path.join(generatedDir, file), formatted)
+			}),
 		)
 
 		const changed = writes.filter(n => n !== null)
@@ -165,7 +194,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 	// normalise all watcher paths to forward slashes so path checks behave the
 	// same on Windows and POSIX
 	const WATCH_CWD = process.cwd().replace(/\\/g, '/')
-	const WATCH_APP_ROOT = `${WATCH_CWD}/${Solas.Config.APP_DIR}/`
+	const WATCH_APP_ROOT = `${WATCH_CWD}/${Config.APP_DIR}/`
 
 	// convert watcher paths to a consistent slash format before comparing them
 	const normaliseWatchPath = (p: string) => p.replace(/\\/g, '/')
@@ -183,7 +212,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 		/\/\+(layout|page|401|403|404|500|loading|middleware|endpoint)\.(t|j)sx?$/
 	const endpointFile = /\/\+endpoint\.(t|j)sx?$/
 
-	const rebuild = Time.debounce((event: string, p: string) => {
+	const rebuild = debounce((event: string, p: string) => {
 		const queue = () => {
 			void (async () => {
 				// collapse bursts of file events into one active rebuild plus a single
@@ -256,11 +285,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 		): PluginOption[] {
 			if (!plugin) return []
 			if (Array.isArray(plugin)) return plugin.flatMap(flatten)
-			if (
-				typeof plugin === 'object' &&
-				'name' in plugin &&
-				plugin.name === Solas.Config.NAME
-			) {
+			if (typeof plugin === 'object' && 'name' in plugin && plugin.name === Config.NAME) {
 				return []
 			}
 
@@ -284,33 +309,45 @@ function solas(c?: PluginConfig): PluginOption[] {
 	}
 
 	const plugin = {
-		name: Solas.Config.NAME,
+		name: Config.NAME,
 		async config(viteConfig: UserConfig) {
 			const pkg = JSON.parse(
 				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
 			)
 
 			if (typeof pkg.name !== 'string' || pkg.name.length === 0) {
-				throw new Error(`Missing ${Solas.Config.NAME} package name`)
+				throw new Error(`Missing ${Config.NAME} package name`)
 			}
 
 			if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
-				throw new Error(`Missing ${Solas.Config.NAME} package version`)
+				throw new Error(`Missing ${Config.NAME} package version`)
 			}
 
 			viteConfig.build ??= {}
-			viteConfig.build.outDir = Solas.Config.OUT_DIR
+			viteConfig.build.outDir = Config.OUT_DIR
 			// keep framework files under one reserved url prefix
-			viteConfig.build.assetsDir = Solas.Config.ASSETS_DIR
+			viteConfig.build.assetsDir = Config.ASSETS_DIR
 			viteConfig.build.emptyOutDir = true
 			// let users move the source public folder if they want
-			viteConfig.publicDir ??= Solas.Config.PUBLIC_DIR
+			viteConfig.publicDir ??= Config.PUBLIC_DIR
 
 			viteConfig.server ??= {}
-			viteConfig.server.port = config.port ?? viteConfig.server.port ?? 8787
+			viteConfig.server.port ??= 8787
+
+			// derive the public url from vite's dev server settings when no
+			// origin was set explicitly via the url option or VITE_APP_URL
+			if (resolvedUrl === undefined) {
+				const { host, port } = viteConfig.server
+				const hostname =
+					typeof host === 'string' && host.length > 0 && host !== '0.0.0.0'
+						? host
+						: 'localhost'
+
+				resolvedUrl = `http://${hostname}:${port}` as Origin
+			}
 
 			viteConfig.define ??= {}
-			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(config.url)
+			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(resolvedUrl)
 			viteConfig.define['import.meta.env.SOLAS_VERSION'] = JSON.stringify(pkg.version)
 
 			viteConfig.optimizeDeps ??= {}
@@ -329,12 +366,12 @@ function solas(c?: PluginConfig): PluginOption[] {
 						...viteConfig.resolve.alias,
 						{
 							find: '.solas',
-							replacement: path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
+							replacement: path.resolve(process.cwd(), Config.GENERATED_DIR),
 						},
 					]
 				: {
 						...viteConfig.resolve.alias,
-						'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
+						'.solas': path.resolve(process.cwd(), Config.GENERATED_DIR),
 					}
 		},
 		configResolved(resolvedConfig: ResolvedConfig) {
@@ -342,10 +379,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			buildContext.command = resolvedConfig.command
 		},
 		configureServer(server: ViteDevServer) {
-			logger.info(
-				'[configureServer]',
-				`Watching for changes in ./${Solas.Config.APP_DIR}...`,
-			)
+			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
 
 			server.watcher
 				.on('add', (p: string) => rebuild('add', p))
@@ -376,7 +410,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			// resolve sitemap routes
 			let sitemapRoutes: string[] = []
 
-			if (config.sitemap && config.url) {
+			if (config.sitemap && resolvedUrl) {
 				const auto = [
 					...new Set([...buildContext.knownRoutes, ...buildContext.prerenderRoutes]),
 				]
@@ -389,7 +423,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			}
 
 			// write build manifest
-			const generatedDir = path.join(process.cwd(), Solas.Config.GENERATED_DIR)
+			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
 
 			await Runtime.write(
 				path.join(generatedDir, 'build.json'),
@@ -400,7 +434,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 					sitemapRoutes,
 					precompress: config.precompress,
 					trailingSlash: config.trailingSlash,
-					url: config.url,
+					url: resolvedUrl,
 				}),
 			)
 		},
@@ -416,15 +450,14 @@ function solas(c?: PluginConfig): PluginOption[] {
 		plugin,
 		rsc({
 			entries: {
-				rsc: `./${Solas.Config.GENERATED_DIR}/${Solas.Config.ENTRY_RSC}`,
-				ssr: `./${Solas.Config.GENERATED_DIR}/${Solas.Config.ENTRY_SSR}`,
-				client: `./${Solas.Config.GENERATED_DIR}/${Solas.Config.ENTRY_BROWSER}`,
+				rsc: `./${Config.GENERATED_DIR}/${Config.ENTRY_RSC}`,
+				ssr: `./${Config.GENERATED_DIR}/${Config.ENTRY_SSR}`,
+				client: `./${Config.GENERATED_DIR}/${Config.ENTRY_BROWSER}`,
 			},
 		}),
 	]
 }
 
 export default solas
-export type * from './solas.d.ts'
-export { Solas } from './solas.js'
+export * as Solas from './solas.js'
 export type * from './types.js'

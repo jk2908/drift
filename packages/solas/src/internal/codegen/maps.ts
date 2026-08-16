@@ -1,5 +1,5 @@
-import type { Build } from '../build.js'
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
+import * as Build from '../build.js'
 import {
 	AUTOGEN_MSG,
 	indent,
@@ -103,7 +103,7 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	return source`
 		${AUTOGEN_MSG}
 
-		import type { ImportMap } from '${Solas.Config.PKG_NAME}'
+		import type { ImportMap } from '${Config.PKG_NAME}'
 		
 		${
 			importLines

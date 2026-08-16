@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { Solas } from '../solas.js'
+import * as Config from '../config.js'
 
 /**
  * Collect the root request paths for files that originate in Vite's public dir.
@@ -41,11 +41,7 @@ export async function collect(root: string | false | null | undefined) {
 		for (const entry of entries) {
 			// top-level /public/_solas would collide with framework assets served
 			// from /_solas, so keep that namespace reserved
-			if (
-				parts.length === 0 &&
-				entry.isDirectory() &&
-				entry.name === Solas.Config.ASSETS_DIR
-			) {
+			if (parts.length === 0 && entry.isDirectory() && entry.name === Config.ASSETS_DIR) {
 				continue
 			}
 

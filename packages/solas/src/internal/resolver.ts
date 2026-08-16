@@ -10,7 +10,7 @@ import type {
 	Primitive,
 	View,
 } from '../types.js'
-import { Build } from './build.js'
+import * as Build from './build.js'
 import { HttpRouter } from './http-router/router.js'
 import { Metadata } from './metadata.js'
 import { HttpException, isHttpException } from './navigation/http-exception.js'

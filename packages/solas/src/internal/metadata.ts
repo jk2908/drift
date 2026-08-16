@@ -1,5 +1,5 @@
 import type { HttpException } from './navigation/http-exception.js'
-import { Build } from './build.js'
+import * as Build from './build.js'
 import { isHttpException } from './navigation/http-exception.js'
 
 type EntryKind = typeof Build.EntryKind

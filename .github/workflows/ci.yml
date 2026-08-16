@@ -33,6 +33,12 @@ jobs:
           cd packages/solas
           bun run test
 
+      - name: Browser tests
+        run: |
+          cd packages/solas
+          bunx playwright install chromium
+          bun run test:browser
+
       - name: Package prepublish check
         run: |
           cd packages/solas

@@ -1,18 +1,19 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { Compress } from '../utils/compress.js'
+import * as Compress from '../utils/compress.js'
 import { Logger } from '../utils/logger.js'
 
 import type { BuildManifest } from '../types.js'
-import { Solas } from '../solas.js'
-import { Prerender } from './prerender.js'
+import * as Config from '../config.js'
+import * as Manifest from '../manifest.js'
+import * as Prerender from './prerender.js'
 import { Runtime } from './runtimes/runtime.js'
 
 const logger = new Logger()
 
 export async function postbuild(cwd: string = process.cwd()) {
-	const manifestPath = path.join(cwd, Solas.Config.GENERATED_DIR, 'build.json')
+	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
 	let manifest: BuildManifest
 
@@ -24,18 +25,18 @@ export async function postbuild(cwd: string = process.cwd()) {
 		throw err
 	}
 
-	const outDir = path.resolve(cwd, Solas.Config.OUT_DIR)
+	const outDir = path.resolve(cwd, Config.OUT_DIR)
 	const rscDir = path.join(outDir, 'rsc')
-	const artifactRoot = Prerender.Artifact.getRootPath(outDir)
+	const artifactRoot = Prerender.getArtifactRootPath(outDir)
 
 	// clear old prerender artifacts so routes that have switched modes
 	// do not keep stale metadata from a previous build
 	await fs.rm(artifactRoot, { recursive: true, force: true })
 
-	const artifactManifest: Prerender.Artifact.Manifest = {}
+	const artfifactManifest: Prerender.ArtifactManifest = {}
 
 	if (manifest.prerenderRoutes.length > 0) {
-		const concurrency = Prerender.Build.getConcurrency()
+		const concurrency = Prerender.getConcurrency()
 		const pendingWrites = new Set<Promise<void>>()
 
 		logger.info(
@@ -58,7 +59,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 			}
 		}
 
-		for await (const result of Prerender.Build.run(app, manifest.prerenderRoutes, {
+		for await (const result of Prerender.run(app, manifest.prerenderRoutes, {
 			base: manifest.base,
 			concurrency,
 			origin: manifest.url,
@@ -78,7 +79,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 			}
 
 			const artifact = result.artifact
-			const artifactDir = Prerender.Artifact.getPath(outDir, route)
+			const artifactDir = Prerender.getArtifactPath(outDir, route)
 
 			await enqueueWrite(async () => {
 				try {
@@ -109,7 +110,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 						await Promise.all(writes)
 
-						artifactManifest[route] = {
+						artfifactManifest[route] = {
 							mode: artifact.mode,
 							files:
 								artifact.postponed !== undefined
@@ -134,16 +135,16 @@ export async function postbuild(cwd: string = process.cwd()) {
 							}),
 						),
 						Runtime.write(
-							Prerender.Artifact.getFilePath(
+							Prerender.getArtifactFilePath(
 								outDir,
 								route,
-								Prerender.Artifact.FULL_PRERENDER_FILENAME,
+								Prerender.FULL_PRERENDER_FILENAME,
 							),
 							artifact.html,
 						),
 					])
 
-					artifactManifest[route] = {
+					artfifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['metadata', 'html'],
 					}
@@ -163,14 +164,11 @@ export async function postbuild(cwd: string = process.cwd()) {
 	await fs.mkdir(artifactRoot, { recursive: true })
 
 	const runtimeManifest = {
-		artifacts: artifactManifest,
+		artifacts: artfifactManifest,
 		publicFiles: manifest.publicFiles,
 	}
 
-	await Runtime.write(
-		Solas.Runtime.getManifestPath(outDir),
-		JSON.stringify(runtimeManifest),
-	)
+	await Runtime.write(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
 
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')
@@ -215,8 +213,8 @@ export async function postbuild(cwd: string = process.cwd()) {
 				// support files like prelude/metadata/postponed are read by the server
 
 				return (
-					normalisedPath.startsWith(`${Solas.Config.GENERATED_DIR}/ppr/`) &&
-					normalisedPath.endsWith(`/${Prerender.Artifact.FULL_PRERENDER_FILENAME}`)
+					normalisedPath.startsWith(`${Config.GENERATED_DIR}/ppr/`) &&
+					normalisedPath.endsWith(`/${Prerender.FULL_PRERENDER_FILENAME}`)
 				)
 			},
 		})) {

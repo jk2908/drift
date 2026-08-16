@@ -8,10 +8,10 @@ import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from './rsc.js'
-import { Solas } from '../../solas.js'
+import * as Solas from '../../solas.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
-import { Prerender } from '../prerender.js'
+import * as Prerender from '../prerender.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { captureBuffered, injectPayload } from './flight.js'
@@ -120,7 +120,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		// abort on a macrotask so sync and microtask work still lands in prelude
 		// unresolved work is captured as postponed state for resume
 		setTimeout(() => {
-			controller.abort(new Prerender.Runtime.Postponed())
+			controller.abort(new Prerender.Postponed())
 		}, 0)
 
 		const { prelude, postponed } = await reactPrerender(
@@ -129,7 +129,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 				bootstrapScriptContent,
 				signal: controller.signal,
 				onError(err) {
-					if (Prerender.Runtime.isPostponed(err)) return
+					if (Prerender.isPostponed(err)) return
 
 					const digest = getKnownDigest(err)
 

@@ -2,7 +2,7 @@
 
 Solas is a minimal React meta-framework powered by Vite, created for experimenting with routing, streaming, and prerendering with React Server Components.
 
-Solas is experimental and currently has no automated test suite, so expect rough edges.
+Solas is experimental and under active development, so expect rough edges.
 
 ## Install
 
@@ -201,13 +201,9 @@ That keeps your route params aligned across links, imperative navigation, metada
 
 All Solas options are passed to `solas()` inside `defineConfig`.
 
-## Runtime
+### `runtime`
 
-Solas uses a runtime for filesystem access, mime lookup, and hashing.
-
-This is not a deployment or packaging adapter. Platform adapters are not available yet.
-
-Use the `runtime` config key to select the runtime used by Solas server code.
+Use `runtime` to select the runtime used by Solas server code.
 
 Supported values are `'auto'`, `'node'`, and `'bun'`.
 
@@ -215,104 +211,45 @@ Supported values are `'auto'`, `'node'`, and `'bun'`.
 
 If you already run Vite through Bun, `runtime: 'auto'` is usually enough and Solas will detect Bun automatically.
 
-### Node runtime
-
-If you want to pin Node explicitly, set `runtime: 'node'`:
-
-```ts
-import { defineConfig } from 'vite'
-
-import solas from '@jk2908/solas'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-	plugins: [solas({ runtime: 'node' }), react()],
-})
-```
-
-Use the normal Vite commands with the Node runtime:
-
-```json
-{
-	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview"
-	}
-}
-```
-
-### Bun runtime
-
-If you want Solas runtime code to execute in Bun, set `runtime: 'bun'`:
-
-```ts
-import { defineConfig } from 'vite'
-
-import solas from '@jk2908/solas'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-	plugins: [solas({ runtime: 'bun' }), react()],
-})
-```
-
-When you use the Bun runtime, run Vite through Bun so the server/runtime code executes in a Bun process:
-
-```json
-{
-	"scripts": {
-		"dev": "bunx --bun vite dev",
-		"build": "bunx --bun vite build",
-		"preview": "bunx --bun vite preview"
-	}
-}
-```
-
 ### `url`
 
-`url` is optional. If you set it, Solas treats it as the public origin for your app.
+Use `url` to set the public origin for your app. It is optional.
 
-Solas resolves it in this order:
+Solas resolves the origin in this order:
 
 - the `url` option passed to `solas()`
 - `VITE_APP_URL`
+- the Vite dev server `host` and `port` (defaults to `http://localhost:8787`)
 
-Solas exposes the resolved value as `import.meta.env.VITE_APP_URL`. If `url` is set, prerender also uses it as the request origin for build-time renders.
+The resolved origin is exposed to your app as `import.meta.env.VITE_APP_URL` and is used for build-time prerender requests and `sitemap` URLs. When `url` is set, it is also used as a trusted origin for CSRF.
 
-In practice, you only need `url` if your app reads `import.meta.env.VITE_APP_URL` or your prerendered output needs a real public origin.
-
-If you do want to set it explicitly, this is the shape:
+You usually only need `url` in production, where the Vite dev server origin is meaningless. For example, to generate a `sitemap.xml` with real URLs:
 
 ```ts
 export default defineConfig(({ mode }) => ({
 	plugins: [
 		solas({
-			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
+			url: mode === 'production' ? 'https://example.com' : undefined,
+			sitemap: true,
 		}),
 	],
 }))
 ```
 
-If you prefer an environment variable, set this instead:
+If you prefer an environment variable, set `VITE_APP_URL` instead:
 
 ```sh
 VITE_APP_URL=https://example.com
 ```
 
-### `port`
-
-Use `port` to change the development server port.
-
-Default: `8787`
+Set the development port with Vite's `server.port`:
 
 ```ts
 export default defineConfig({
-	plugins: [
-		solas({
-			port: 4000,
-		}),
-	],
+	server: {
+		port: 4000,
+	},
+	plugins: [solas(), react()],
 })
 ```
 
@@ -510,13 +447,13 @@ Use `sitemap` to generate a `sitemap.xml` at build time.
 
 Default: `false`
 
-When enabled, Solas writes a sitemap containing all routes with deterministic URLs: static routes, prerendered routes, and dynamic routes resolved via `params`. The origin for each URL comes from `config.url`.
+When enabled, Solas writes a sitemap containing all routes with deterministic URLs: static routes, prerendered routes, and dynamic routes resolved via `params`. The origin for each URL comes from the resolved origin (see Config > `url`).
 
 ```ts
 export default defineConfig(({ mode }) => ({
 	plugins: [
 		solas({
-			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
+			url: mode === 'production' ? 'https://example.com' : undefined,
 			sitemap: true,
 		}),
 	],
@@ -528,10 +465,9 @@ Routes with dynamic segments (`[id]`) or catch-all segments (`[...param]`) are o
 To add routes that Solas cannot discover automatically (for example, catch-all routes backed by a CMS), pass an object with a `routes` function. The function receives the auto-discovered routes and returns the final list:
 
 ```ts
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
 	plugins: [
 		solas({
-			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
 			sitemap: {
 				async routes(existing) {
 					const posts = await getPosts()
@@ -540,7 +476,7 @@ export default defineConfig(({ mode }) => ({
 			},
 		}),
 	],
-}))
+})
 ```
 
 The `routes` function can be async. The callback also lets you filter routes:
@@ -581,6 +517,66 @@ export default defineConfig({
 })
 ```
 
+## Runtime
+
+Solas uses a runtime for filesystem access, mime lookup, and hashing.
+
+This is not a deployment or packaging adapter. Platform adapters are not available yet.
+
+### Node runtime
+
+If you want to pin Node explicitly, set `runtime: 'node'`:
+
+```ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ runtime: 'node' }), react()],
+})
+```
+
+Use the normal Vite commands with the Node runtime:
+
+```json
+{
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview"
+	}
+}
+```
+
+### Bun runtime
+
+If you want Solas runtime code to execute in Bun, set `runtime: 'bun'`:
+
+```ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ runtime: 'bun' }), react()],
+})
+```
+
+When you use the Bun runtime, run Vite through Bun so the server/runtime code executes in a Bun process:
+
+```json
+{
+	"scripts": {
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build",
+		"preview": "bunx --bun vite preview"
+	}
+}
+```
+
 ## Scripts
 
 Add scripts to your app:
@@ -619,7 +615,7 @@ When available, Solas checks browser provenance using:
 - `Origin`
 - `Referer`
 
-Solas also considers the effective request origin when your app is behind a proxy by using `X-Forwarded-Host`, `X-Forwarded-Proto`, and `config.url` when present.
+Solas also considers the effective request origin when your app is behind a proxy by using `X-Forwarded-Host` and `X-Forwarded-Proto`.
 
 If you need to allow a trusted third-party browser POST source, configure it explicitly:
 

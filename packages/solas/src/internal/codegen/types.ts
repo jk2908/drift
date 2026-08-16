@@ -1,6 +1,6 @@
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { Manifest } from '../../types.js'
-import { Build } from '../build.js'
+import * as Build from '../build.js'
 import { AUTOGEN_MSG, source } from './utils.js'
 
 function render(path: string, params?: string[]) {
@@ -44,9 +44,9 @@ export function writeTypes(manifest: Manifest) {
 	return source`
    ${AUTOGEN_MSG}
 
-	 import '${Solas.Config.PKG_NAME}'
+	 import '${Config.PKG_NAME}'
 
-	 declare module '${Solas.Config.PKG_NAME}' {
+	 declare module '${Config.PKG_NAME}' {
 		export namespace Solas {
 			export interface Routes {
 				${body}

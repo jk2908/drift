@@ -1,4 +1,4 @@
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 
 export type RedirectStatusCode = 301 | 302 | 307 | 308
 
@@ -36,16 +36,14 @@ export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
 function validate(url: string) {
 	if (url.startsWith('//')) {
 		throw new TypeError(
-			`[${Solas.Config.NAME}] redirect() does not allow protocol-relative urls`,
+			`[${Config.NAME}] redirect() does not allow protocol-relative urls`,
 		)
 	}
 
 	// reject urls with control characters to prevent header injection
 	for (const char of url) {
 		if (char === '\r' || char === '\n') {
-			throw new TypeError(
-				`[${Solas.Config.NAME}] redirect() does not allow control characters`,
-			)
+			throw new TypeError(`[${Config.NAME}] redirect() does not allow control characters`)
 		}
 	}
 
@@ -58,13 +56,13 @@ function validate(url: string) {
 		parsed = new URL(url)
 	} catch {
 		throw new TypeError(
-			`[${Solas.Config.NAME}] redirect() only supports relative paths or absolute http/https urls`,
+			`[${Config.NAME}] redirect() only supports relative paths or absolute http/https urls`,
 		)
 	}
 
 	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
 		throw new TypeError(
-			`[${Solas.Config.NAME}] redirect() only supports http:// and https:// urls`,
+			`[${Config.NAME}] redirect() only supports http:// and https:// urls`,
 		)
 	}
 }
@@ -122,7 +120,7 @@ export function toRedirect(err: unknown): Redirect {
 			: undefined)
 
 	if (!url) {
-		throw new TypeError(`[${Solas.Config.NAME}] failed to reconstruct redirect`)
+		throw new TypeError(`[${Config.NAME}] failed to reconstruct redirect`)
 	}
 
 	return new Redirect(url, status)

@@ -1,4 +1,4 @@
-import { Context } from '../../utils/context.js'
+import * as Context from '../../utils/context.js'
 import type { Cookies } from '../../utils/cookies.js'
 
 import type { SolasRequest } from '../../types.js'

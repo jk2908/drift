@@ -1,5 +1,5 @@
 import type { PluginConfig } from '../../types.js'
-import { Solas } from '../../solas.js'
+import * as Config from '../../config.js'
 import { AUTOGEN_MSG, source, toSourceLiteral } from './utils.js'
 
 /**
@@ -9,8 +9,8 @@ export function writeConfig(config: PluginConfig) {
 	const { runtime: _runtime, ...runtimeConfig } = config
 	const loggerLevel = config.logger?.level
 	const importLines = [
-		`import type { RuntimeConfig } from '${Solas.Config.PKG_NAME}'`,
-		loggerLevel ? `import { Logger } from '${Solas.Config.PKG_NAME}/utils/logger'` : '',
+		`import type { RuntimeConfig } from '${Config.PKG_NAME}'`,
+		loggerLevel ? `import { Logger } from '${Config.PKG_NAME}/utils/logger'` : '',
 	]
 		.filter(Boolean)
 		.join('\n')

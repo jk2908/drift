@@ -14,7 +14,6 @@ export default defineConfig(() => {
 		plugins: [
 			solas({
 				runtime: 'bun',
-				url: 'http://localhost:8787',
 				prerender: 'full',
 				sitemap: {
 					async routes(existing) {
