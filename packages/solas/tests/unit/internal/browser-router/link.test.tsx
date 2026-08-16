@@ -10,6 +10,20 @@ const { useRouter } =
 const { Link } = await import('../../../../src/internal/browser-router/link.js')
 import type { BrowserRouter } from '../../../../src/internal/browser-router/shared.js'
 
+// some Link tests click a real <a> without letting the router absorb the
+// click (meta-click, right-click, or a consumer-prevented onClick). In those
+// cases the browser performs a real navigation to the href, which reloads the
+// vitest-browser iframe and drops the render under test. Intercepting the
+// default here keeps the click event flowing to the component while
+// preventing the iframe from navigating.
+function blockNavigation() {
+	const handler = (e: Event) => {
+		if (e.target instanceof HTMLAnchorElement) e.preventDefault()
+	}
+	window.addEventListener('click', handler, { capture: true })
+	return () => window.removeEventListener('click', handler, { capture: true })
+}
+
 declare module '../../../../src/solas.js' {
 	namespace Solas {
 		interface Routes {
@@ -77,25 +91,35 @@ describe('Link', () => {
 	it('does not call go on meta-click', async () => {
 		const go = vi.fn()
 		mockRouter({ go })
+		const unblock = blockNavigation()
 
-		const screen = await render(<Link href="/page">MetaLink</Link>)
-		await screen.getByRole('link', { name: 'MetaLink' }).click({ modifiers: ['Meta'] })
+		try {
+			const screen = await render(<Link href="/page">MetaLink</Link>)
+			await screen.getByRole('link', { name: 'MetaLink' }).click({ modifiers: ['Meta'] })
 
-		expect(go).not.toHaveBeenCalled()
+			expect(go).not.toHaveBeenCalled()
+		} finally {
+			unblock()
+		}
 	})
 
 	it('does not intercept when onClick prevents default', async () => {
 		const go = vi.fn()
 		mockRouter({ go })
+		const unblock = blockNavigation()
 
-		const screen = await render(
-			<Link href="/page" onClick={e => e.preventDefault()}>
-				PreventLink
-			</Link>,
-		)
-		await screen.getByRole('link', { name: 'PreventLink' }).click()
+		try {
+			const screen = await render(
+				<Link href="/page" onClick={e => e.preventDefault()}>
+					PreventLink
+				</Link>,
+			)
+			await screen.getByRole('link', { name: 'PreventLink' }).click()
 
-		expect(go).not.toHaveBeenCalled()
+			expect(go).not.toHaveBeenCalled()
+		} finally {
+			unblock()
+		}
 	})
 
 	it('renders with params and query', async () => {
@@ -111,11 +135,18 @@ describe('Link', () => {
 	it('does not call go for right-click', async () => {
 		const go = vi.fn()
 		mockRouter({ go })
+		const unblock = blockNavigation()
 
-		const screen = await render(<Link href="/page">RightClickLink</Link>)
-		await screen.getByRole('link', { name: 'RightClickLink' }).click({ button: 'right' })
+		try {
+			const screen = await render(<Link href="/page">RightClickLink</Link>)
+			await screen
+				.getByRole('link', { name: 'RightClickLink' })
+				.click({ button: 'right' })
 
-		expect(go).not.toHaveBeenCalled()
+			expect(go).not.toHaveBeenCalled()
+		} finally {
+			unblock()
+		}
 	})
 
 	it('passes prefetch and rest props through', async () => {
