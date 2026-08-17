@@ -4,41 +4,39 @@ import { writeConfig } from '../../../../src/internal/codegen/config.js'
 
 describe('writeConfig', () => {
 	it('generates config export', () => {
-		const result = writeConfig({ runtime: 'node' })
+		const result = writeConfig({ trailingSlash: 'never' })
 		expect(result).toContain('export { config }')
 		expect(result).toContain('const config =')
 	})
 
-	it('omits runtime from the exported config', () => {
-		const result = writeConfig({ runtime: 'node', trailingSlash: 'always' })
-		expect(result).not.toContain('runtime:')
+	it('includes provided config keys', () => {
+		const result = writeConfig({ trailingSlash: 'always' })
 		expect(result).toContain('trailingSlash')
 	})
 
 	it('includes logger import when logger level is set', () => {
-		const result = writeConfig({ runtime: 'node', logger: { level: 'debug' } })
+		const result = writeConfig({ logger: { level: 'debug' } })
 		expect(result).toContain("import { Logger } from '@jk2908/solas/utils/logger'")
 		expect(result).toContain('Logger.defaultLevel')
 	})
 
 	it('omits logger import when no logger level', () => {
-		const result = writeConfig({ runtime: 'node' })
+		const result = writeConfig({ trailingSlash: 'never' })
 		expect(result).not.toContain('Logger')
 	})
 
 	it('adds satisfies RuntimeConfig', () => {
-		const result = writeConfig({ runtime: 'node' })
+		const result = writeConfig({ trailingSlash: 'never' })
 		expect(result).toContain('satisfies RuntimeConfig')
 	})
 
 	it('snapshot: minimal config', () => {
-		expect(writeConfig({ runtime: 'node' })).toMatchSnapshot()
+		expect(writeConfig({ trailingSlash: 'never' })).toMatchSnapshot()
 	})
 
 	it('snapshot: full config', () => {
 		expect(
 			writeConfig({
-				runtime: 'bun',
 				url: 'https://example.com',
 				trailingSlash: 'always',
 				precompress: true,
@@ -53,7 +51,6 @@ describe('writeConfig', () => {
 	it('snapshot: config with sitemap', () => {
 		expect(
 			writeConfig({
-				runtime: 'node',
 				url: 'https://example.com',
 				sitemap: true,
 			}),

@@ -27,10 +27,6 @@ describe('Solas', () => {
 			expect(Config.LOG_LEVELS).toEqual(['debug', 'info', 'warn', 'error', 'fatal'])
 		})
 
-		it('has expected runtime values', () => {
-			expect(Config.RUNTIMES).toEqual(['auto', 'node', 'bun'])
-		})
-
 		it('has expected prerender modes', () => {
 			expect(Config.PRERENDER_MODES).toEqual(['full', 'ppr', false])
 		})
@@ -56,18 +52,6 @@ describe('Solas', () => {
 
 			it('throws for unknown keys', () => {
 				expect(() => Config.validate({ unknownKey: true })).toThrow('Unknown config key')
-			})
-
-			it('rejects invalid runtime', () => {
-				expect(() => Config.validate({ runtime: 'invalid' })).toThrow(
-					"runtime must be 'auto', 'node', or 'bun'",
-				)
-			})
-
-			it('accepts valid runtime values', () => {
-				expect(Config.validate({ runtime: 'auto' })).toHaveProperty('runtime', 'auto')
-				expect(Config.validate({ runtime: 'node' })).toHaveProperty('runtime', 'node')
-				expect(Config.validate({ runtime: 'bun' })).toHaveProperty('runtime', 'bun')
 			})
 
 			it('rejects invalid URL', () => {

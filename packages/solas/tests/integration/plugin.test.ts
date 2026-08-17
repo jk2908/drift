@@ -33,7 +33,7 @@ function write(relative: string, content: string) {
 }
 
 function getPlugin(config?: Record<string, unknown>) {
-	const [plugin] = solas({ runtime: 'node', ...config })
+	const [plugin] = solas({ ...config })
 	return plugin as Plugin
 }
 

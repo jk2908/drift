@@ -13,7 +13,6 @@ export default defineConfig(() => {
 	return {
 		plugins: [
 			solas({
-				runtime: 'bun',
 				prerender: 'full',
 				sitemap: {
 					async routes(existing) {

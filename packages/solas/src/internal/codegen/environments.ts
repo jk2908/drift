@@ -5,19 +5,16 @@ import { AUTOGEN_MSG, source, toStringLiteral } from './utils.js'
 /**
  * Generates the RSC entry code
  */
-export function writeRSCEntry(config: ConfiguredPluginConfig) {
-	const runtime = toStringLiteral(config.runtime)
-
+export function writeRSCEntry(_config: ConfiguredPluginConfig) {
 	return source`
 		${AUTOGEN_MSG}
 
-		import { createHandler, createRuntime, loadManifest, Runtime } from '${Config.PKG_NAME}/env/rsc'
+		import { createHandler, loadManifest } from '${Config.PKG_NAME}/env/rsc'
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
 		import { config } from './config.js'
 
-		Runtime.runtime = createRuntime(${runtime})
 		const runtimeManifest = await loadManifest(${toStringLiteral(Config.OUT_DIR)})
 
 		export default createHandler(config, manifest, importMap, runtimeManifest)

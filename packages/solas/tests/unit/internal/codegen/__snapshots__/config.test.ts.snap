@@ -45,7 +45,9 @@ exports[`writeConfig > snapshot: minimal config 1`] = `
 
 import type { RuntimeConfig } from '@jk2908/solas'
 
-const config = {} as const satisfies RuntimeConfig
+const config = {
+	trailingSlash: 'never'
+} as const satisfies RuntimeConfig
 
 
 export { config }

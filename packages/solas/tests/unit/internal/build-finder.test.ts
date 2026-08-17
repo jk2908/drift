@@ -74,7 +74,7 @@ describe('Finder', () => {
 		it('returns empty manifest when scan directory cannot be read', async () => {
 			mockReaddir.mockRejectedValue(new Error('ENOENT'))
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 			expect(result).toEqual({
 				manifest: {},
@@ -100,7 +100,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			expect(result.manifest['/']).toBeDefined()
@@ -122,7 +122,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			expect(result.manifest['/']).toBeDefined()
@@ -142,7 +142,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			const entry = result.manifest['/']
@@ -177,7 +177,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext({ exportReader }), { runtime: 'node' })
+			const finder = new Finder(createBuildContext({ exportReader }), {})
 			const result = await finder.run()
 
 			expect(result.manifest['/api/data']).toBeDefined()
@@ -200,7 +200,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			const entry = result.manifest['/posts/:id']
@@ -228,7 +228,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			const entry = result.manifest['/docs/*']
@@ -257,7 +257,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext({ exportReader }), { runtime: 'node' })
+			const finder = new Finder(createBuildContext({ exportReader }), {})
 			const result = await finder.run()
 
 			const entry = result.manifest['/']
@@ -279,7 +279,7 @@ describe('Finder', () => {
 				return [] as unknown as Dirent[]
 			})
 
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.run()
 
 			const entry = result.manifest['/']
@@ -292,7 +292,7 @@ describe('Finder', () => {
 
 	describe('process', () => {
 		it('handles empty scan result', async () => {
-			const finder = new Finder(createBuildContext(), { runtime: 'node' })
+			const finder = new Finder(createBuildContext(), {})
 			const result = await finder.process({ segments: [], endpoints: [] })
 
 			expect(result.manifest).toEqual({})

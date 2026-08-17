@@ -10,12 +10,10 @@ import * as Config from './config.js'
 import * as Build from './internal/build.js'
 
 export type LogLevel = (typeof Config.LOG_LEVELS)[number]
-export type Runtime = (typeof Config.RUNTIMES)[number]
 
 export type Origin = `http://${string}` | `https://${string}`
 
 type PluginConfigBase = {
-	runtime?: Runtime
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
@@ -35,11 +33,9 @@ export type PluginConfig = PluginConfigBase & {
 		  }
 }
 
-export type ConfiguredPluginConfig = PluginConfig & {
-	runtime: Runtime
-}
+export type ConfiguredPluginConfig = PluginConfig
 
-export type RuntimeConfig = Omit<PluginConfig, 'runtime'> & {
+export type RuntimeConfig = PluginConfig & {
 	precompress: NonNullable<PluginConfig['precompress']>
 	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
 	trustedOrigins: NonNullable<PluginConfig['trustedOrigins']>

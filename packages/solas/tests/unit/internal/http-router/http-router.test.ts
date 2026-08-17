@@ -14,7 +14,6 @@ import {
 	normalisePathname,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
-import { Runtime } from '../../../../src/internal/runtimes/runtime.js'
 
 const ok = () => new Response('ok')
 const handler = () => vi.fn().mockReturnValue(new Response('ok'))
@@ -337,17 +336,6 @@ describe('HttpRouter', () => {
 	})
 
 	describe('serveStatic', () => {
-		beforeEach(() => {
-			Runtime.runtime = {
-				exists: async () => false,
-				readText: async () => '',
-				readBuffer: async () => new ArrayBuffer(0),
-				mimeType: () => 'application/octet-stream',
-				write: async () => {},
-				hash: () => '',
-			}
-		})
-
 		it('returns 404 for missing files', async () => {
 			const res = await HttpRouter.serveStatic('/nonexistent/file.txt', http('/'))
 			expect(res.status).toBe(404)

@@ -8,33 +8,23 @@ import {
 
 describe('writeRSCEntry', () => {
 	it('generates RSC handler code', () => {
-		const result = writeRSCEntry({ runtime: 'node', trailingSlash: 'never' })
+		const result = writeRSCEntry({ trailingSlash: 'never' })
 		expect(result).toContain(
 			'export default createHandler(config, manifest, importMap, runtimeManifest)',
 		)
 		expect(result).toContain(
-			"import { createHandler, createRuntime, loadManifest, Runtime } from '@jk2908/solas/env/rsc'",
+			"import { createHandler, loadManifest } from '@jk2908/solas/env/rsc'",
 		)
-		expect(result).toContain('Runtime.runtime = createRuntime')
 		expect(result).toContain("await loadManifest('dist')")
 	})
 
 	it('includes hmr accept', () => {
-		const result = writeRSCEntry({ runtime: 'node' })
+		const result = writeRSCEntry({})
 		expect(result).toContain('import.meta.hot')
 	})
 
-	it('serialises runtime as string literal', () => {
-		const result = writeRSCEntry({ runtime: 'node' })
-		expect(result).toContain("'node'")
-	})
-
-	it('snapshot: node runtime', () => {
-		expect(writeRSCEntry({ runtime: 'node' })).toMatchSnapshot()
-	})
-
-	it('snapshot: bun runtime with trailing slash', () => {
-		expect(writeRSCEntry({ runtime: 'bun', trailingSlash: 'always' })).toMatchSnapshot()
+	it('snapshot', () => {
+		expect(writeRSCEntry({ trailingSlash: 'never' })).toMatchSnapshot()
 	})
 })
 

@@ -37,11 +37,9 @@ import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
 import { postbuild } from './internal/postbuild.js'
 import { collect as collectPublicFiles } from './internal/public-files.js'
-import { createRuntime } from './internal/runtimes/create.js'
 import { Runtime } from './internal/runtimes/runtime.js'
 
 const DEFAULT_CONFIG = {
-	runtime: 'auto',
 	precompress: false,
 	prerender: false,
 	trustedOrigins: [],
@@ -53,14 +51,11 @@ function solas(c?: PluginConfig): PluginOption[] {
 	const config: ConfiguredPluginConfig = {
 		...DEFAULT_CONFIG,
 		...validatedConfig,
-		runtime: validatedConfig.runtime ?? DEFAULT_CONFIG.runtime,
 	}
 
 	const envUrl = process.env.VITE_APP_URL?.toString()
 	let resolvedUrl: Origin | undefined =
 		c?.url ?? (envUrl && envUrl.length > 0 ? (envUrl as Origin) : undefined)
-
-	Runtime.runtime = createRuntime(config.runtime)
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
 

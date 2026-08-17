@@ -1,5 +1,4 @@
-import type { PluginConfig, Runtime } from './types.js'
-import * as Config from './config.js'
+import type { PluginConfig } from './types.js'
 
 export const NAME = 'Solas'
 export const SLUG = NAME.toLowerCase()
@@ -15,13 +14,11 @@ export const PUBLIC_DIR = 'public'
 export const $ = Symbol(SLUG)
 export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
-export const RUNTIMES = ['auto', 'node', 'bun'] as const
 export const PRERENDER_MODES = ['full', 'ppr', false] as const
 export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 const CONFIG_KEYS = new Set([
-	'runtime',
 	'logger',
 	'metadata',
 	'precompress',
@@ -51,10 +48,6 @@ export function validate(input: unknown) {
 		if (!CONFIG_KEYS.has(key)) {
 			errors.push(`Unknown config key: ${key}`)
 		}
-	}
-
-	if ('runtime' in input && input.runtime !== undefined && !isRuntime(input.runtime)) {
-		errors.push("runtime must be 'auto', 'node', or 'bun'")
 	}
 
 	if ('url' in input && input.url !== undefined) {
@@ -177,8 +170,4 @@ export function validate(input: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isRuntime(value: unknown): value is Runtime {
-	return typeof value === 'string' && new Set(Config.RUNTIMES).has(value as Runtime)
 }

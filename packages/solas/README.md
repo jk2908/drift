@@ -201,16 +201,6 @@ That keeps your route params aligned across links, imperative navigation, metada
 
 All Solas options are passed to `solas()` inside `defineConfig`.
 
-### `runtime`
-
-Use `runtime` to select the runtime used by Solas server code.
-
-Supported values are `'auto'`, `'node'`, and `'bun'`.
-
-`solas()` defaults to `runtime: 'auto'`. In a Bun process, that selects Bun. Otherwise it falls back to Node.
-
-If you already run Vite through Bun, `runtime: 'auto'` is usually enough and Solas will detect Bun automatically.
-
 ### `url`
 
 Use `url` to set the public origin for your app. It is optional.
@@ -519,63 +509,7 @@ export default defineConfig({
 
 ## Runtime
 
-Solas uses a runtime for filesystem access, mime lookup, and hashing.
-
 This is not a deployment or packaging adapter. Platform adapters are not available yet.
-
-### Node runtime
-
-If you want to pin Node explicitly, set `runtime: 'node'`:
-
-```ts
-import { defineConfig } from 'vite'
-
-import solas from '@jk2908/solas'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-	plugins: [solas({ runtime: 'node' }), react()],
-})
-```
-
-Use the normal Vite commands with the Node runtime:
-
-```json
-{
-	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview"
-	}
-}
-```
-
-### Bun runtime
-
-If you want Solas runtime code to execute in Bun, set `runtime: 'bun'`:
-
-```ts
-import { defineConfig } from 'vite'
-
-import solas from '@jk2908/solas'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-	plugins: [solas({ runtime: 'bun' }), react()],
-})
-```
-
-When you use the Bun runtime, run Vite through Bun so the server/runtime code executes in a Bun process:
-
-```json
-{
-	"scripts": {
-		"dev": "bunx --bun vite dev",
-		"build": "bunx --bun vite build",
-		"preview": "bunx --bun vite preview"
-	}
-}
-```
 
 ## Scripts
 
@@ -591,7 +525,17 @@ Add scripts to your app:
 }
 ```
 
-These defaults assume either `runtime: 'node'` or `runtime: 'auto'` while running Vite under Node. If you set `runtime: 'bun'`, or let `runtime: 'auto'` resolve to Bun by running Vite through Bun, use the Bun-backed commands shown in the runtime section above.
+If you run Vite through Bun, use the Bun-backed commands instead:
+
+```json
+{
+	"scripts": {
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build",
+		"preview": "bunx --bun vite preview"
+	}
+}
+```
 
 ## Commands
 

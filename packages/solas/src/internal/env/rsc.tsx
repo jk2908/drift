@@ -30,7 +30,6 @@ import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
-export { createRuntime } from '../runtimes/create.js'
 export { Runtime } from '../runtimes/runtime.js'
 export { loadManifest } from '../../manifest.js'
 

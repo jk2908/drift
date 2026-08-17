@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+### Breaking
+
+- Removed the `runtime` config option and the Bun/Node runtime adapters. Solas now uses the Node standard library directly, which Bun runs natively, so there is no runtime selection to configure. Generated entries no longer call `createRuntime`.
+
 ## 0.6.0
 
 ### Breaking

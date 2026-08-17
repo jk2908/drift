@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import { getMimeTypeFromPath } from '../../../../src/internal/runtimes/mime.js'
-import { RuntimeNode } from '../../../../src/internal/runtimes/node.js'
+import { Runtime } from '../../../../src/internal/runtimes/runtime.js'
 
 describe('getMimeTypeFromPath', () => {
 	it('returns correct MIME types', () => {
@@ -34,12 +34,11 @@ describe('getMimeTypeFromPath', () => {
 	})
 })
 
-describe('RuntimeNode hash', () => {
+describe('Runtime hash', () => {
 	it('produces a deterministic 16-char hex hash', () => {
-		const node = new RuntimeNode()
-		const h1 = node.hash('hello')
-		const h2 = node.hash('hello')
-		const h3 = node.hash('world')
+		const h1 = Runtime.hash('hello')
+		const h2 = Runtime.hash('hello')
+		const h3 = Runtime.hash('world')
 
 		expect(h1).toBe(h2)
 		expect(h1).not.toBe(h3)
